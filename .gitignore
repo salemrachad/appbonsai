@@ -1,0 +1,14 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Local Appbonsai database (SQLite + WAL/journal files)
+/data/*.db
+/data/*.db-journal
+/data/*.db-wal
+/data/*.db-shm

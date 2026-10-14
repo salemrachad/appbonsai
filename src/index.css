@@ -1,0 +1,507 @@
+@import "tailwindcss";
+
+/* Home-screen theme tokens. `.night` (too-dark mode) swaps them; `.day` restores them inside overlays. */
+:root,
+.day {
+  --paper: #f8f5f2;
+  --ink: #2d332a;
+  --line: #eae6e1;
+  --line-strong: #d8d2c9;
+  --card-hover: rgba(255, 255, 255, 0.8);
+  --tone-good: #4a6741;
+  --tone-info: #356077;
+  --tone-caution: #8f5e24;
+  --tone-alert: #a63629;
+}
+
+.night {
+  --paper: #121826;
+  --ink: #ece6d8;
+  --line: rgba(236, 230, 216, 0.1);
+  --line-strong: rgba(236, 230, 216, 0.2);
+  --card-hover: rgba(255, 255, 255, 0.1);
+  --tone-good: #9cc98c;
+  --tone-info: #8fbfdc;
+  --tone-caution: #f0c27a;
+  --tone-alert: #f19a8b;
+}
+
+/* Warm lantern light pooling at the bottom of the night sky */
+.night-sky {
+  background:
+    radial-gradient(ellipse 60% 55% at 28% 55%, rgba(255, 196, 92, 0.1), transparent 70%),
+    radial-gradient(ellipse 120% 80% at 50% 0%, #1a2336, #121826 70%);
+}
+
+.night .glass {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* The gauge colours are tuned for daylight; lift them a little at night */
+.night .gauge-score {
+  filter: brightness(1.6) saturate(1.1);
+}
+
+@keyframes lantern-sway {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+@keyframes lantern-glow {
+  0%, 100% { opacity: 0.75; }
+  40% { opacity: 0.95; }
+  60% { opacity: 0.68; }
+}
+
+.animate-lantern-sway {
+  animation: lantern-sway 5.5s ease-in-out infinite;
+}
+
+.animate-lantern-glow {
+  animation: lantern-glow 3.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-lantern-sway,
+  .animate-lantern-glow {
+    animation: none;
+  }
+}
+
+@layer base {
+  /* Calm press feedback for every button; utility classes can still override. */
+  button {
+    -webkit-tap-highlight-color: transparent;
+    transition: scale 180ms cubic-bezier(0.22, 1, 0.36, 1), background-color 220ms ease, color 220ms ease,
+      border-color 220ms ease, box-shadow 220ms ease, opacity 220ms ease;
+  }
+  button:active:not(:disabled) {
+    scale: 0.96;
+  }
+  button:focus-visible {
+    outline: 2px solid rgba(74, 103, 65, 0.4);
+    outline-offset: 2px;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #F8F5F2;
+    color: #2D332A;
+  }
+}
+
+.serif {
+  font-family: 'Cormorant Garamond', Garamond, Georgia, serif;
+}
+
+.sans {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* Warm Organic Glassmorphism */
+.glass {
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 4px 20px -2px rgba(45, 51, 42, 0.04);
+}
+
+.glass-subtle {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.glass-dark {
+  background: rgba(45, 51, 42, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #F8F5F2;
+}
+
+/* Organic tree breathing and gentle swaying animations */
+@keyframes sway {
+  0%, 100% {
+    transform: rotate(-1deg);
+  }
+  50% {
+    transform: rotate(1.5deg);
+  }
+}
+
+@keyframes tree-breathe {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.015, 1.02) translateY(-1.5px);
+  }
+}
+
+/* Amplitudes scale with the tree's energy (--sway-amp / --flutter-amp, set by BonsaiAvatar) */
+@keyframes branch-sway-left {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(calc(-1.6deg * var(--sway-amp, 1)));
+  }
+}
+
+@keyframes branch-sway-right {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(calc(1.8deg * var(--sway-amp, 1)));
+  }
+}
+
+@keyframes leaf-flutter {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+  }
+  33% {
+    transform: scale(calc(1 + 0.03 * var(--flutter-amp, 1))) rotate(calc(1.2deg * var(--flutter-amp, 1)));
+  }
+  66% {
+    transform: scale(calc(1 - 0.02 * var(--flutter-amp, 1))) rotate(calc(-1deg * var(--flutter-amp, 1)));
+  }
+}
+
+@keyframes sparkle-float {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.4) rotate(0deg);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-12px) scale(1) rotate(45deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.2) rotate(90deg);
+  }
+}
+
+@keyframes shiver {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-1.2px) rotate(-0.5deg);
+  }
+  40% {
+    transform: translateX(1.2px) rotate(0.5deg);
+  }
+  60% {
+    transform: translateX(-0.8px);
+  }
+  80% {
+    transform: translateX(0.8px);
+  }
+}
+
+@keyframes sweat-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.5);
+  }
+  30% {
+    opacity: 0.9;
+    transform: translateY(2px) scale(1);
+  }
+  90% {
+    opacity: 0.8;
+    transform: translateY(12px) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.4);
+  }
+}
+
+@keyframes sleep-zzz {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  40% {
+    opacity: 0.8;
+    transform: translate(8px, -12px) scale(1);
+  }
+  80% {
+    opacity: 0.6;
+    transform: translate(16px, -24px) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(22px, -32px) scale(0.8);
+  }
+}
+
+@keyframes water-pour {
+  0% {
+    transform: translateY(-30px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes tree-pant {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.025, 1.01) translateY(-2px);
+  }
+}
+
+@keyframes tree-weak {
+  0%, 100% {
+    transform: scale(0.98, 0.97) translateY(3px) rotate(-0.5deg);
+  }
+  50% {
+    transform: scale(0.97, 0.96) translateY(4.5px) rotate(0.5deg);
+  }
+}
+
+@keyframes tree-thrive {
+  0%, 100% {
+    transform: scale(1.01) translateY(-1px) rotate(-1deg);
+  }
+  50% {
+    transform: scale(1.03, 1.04) translateY(-3px) rotate(1.2deg);
+  }
+}
+
+@keyframes heat-wave {
+  0% {
+    opacity: 0.2;
+    transform: translateY(0) scaleX(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateY(-8px) scaleX(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-18px) scaleX(0.95);
+  }
+}
+
+@keyframes snowflake-float {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) translateX(-4px) rotate(0deg);
+  }
+  30% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(18px) translateX(6px) rotate(180deg);
+  }
+}
+
+@keyframes water-badge-bounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateY(-5px) scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes leaf-sprout {
+  0%, 100% {
+    transform: scale(0.95) rotate(-2deg);
+  }
+  50% {
+    transform: scale(1.2) rotate(4deg);
+  }
+}
+
+.animate-tree-pant {
+  animation: tree-pant 1.8s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.animate-tree-weak {
+  animation: tree-weak 6s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.animate-tree-thrive {
+  animation: tree-thrive 3.6s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.animate-heat-wave-1 {
+  animation: heat-wave 2.2s ease-in-out infinite;
+}
+
+.animate-heat-wave-2 {
+  animation: heat-wave 2.6s ease-in-out 0.8s infinite;
+}
+
+.animate-snow-1 {
+  animation: snowflake-float 3.2s ease-in-out infinite;
+}
+
+.animate-snow-2 {
+  animation: snowflake-float 3.8s ease-in-out 1.2s infinite;
+}
+
+.animate-snow-3 {
+  animation: snowflake-float 4.2s ease-in-out 2s infinite;
+}
+
+.animate-water-badge {
+  animation: water-badge-bounce 2.4s ease-in-out infinite;
+}
+
+.animate-sprout {
+  animation: leaf-sprout 3.2s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.tree-sway {
+  animation: sway 8s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.animate-tree-breathe {
+  animation: tree-breathe 4.5s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.animate-tree-breathe-slow {
+  animation: tree-breathe 7.5s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.animate-branch-left {
+  animation: branch-sway-left calc(5s / var(--sway-speed, 1)) ease-in-out infinite;
+  transform-origin: 200px 320px;
+}
+
+.animate-branch-right {
+  animation: branch-sway-right calc(4.5s / var(--sway-speed, 1)) ease-in-out infinite;
+  transform-origin: 220px 310px;
+}
+
+.animate-leaf-flutter-1 {
+  animation: leaf-flutter calc(3.8s / var(--sway-speed, 1)) ease-in-out infinite;
+  transform-origin: center;
+}
+
+.animate-leaf-flutter-2 {
+  animation: leaf-flutter calc(4.6s / var(--sway-speed, 1)) ease-in-out 0.8s infinite;
+  transform-origin: center;
+}
+
+.animate-leaf-flutter-3 {
+  animation: leaf-flutter calc(5.2s / var(--sway-speed, 1)) ease-in-out 1.5s infinite;
+  transform-origin: center;
+}
+
+.animate-shiver {
+  animation: shiver 0.4s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.animate-sweat {
+  animation: sweat-drop 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-zzz-1 {
+  animation: sleep-zzz 3.5s ease-out infinite;
+}
+
+.animate-zzz-2 {
+  animation: sleep-zzz 3.5s ease-out 1.2s infinite;
+}
+
+.animate-sparkle-1 {
+  animation: sparkle-float 3s ease-in-out infinite;
+}
+
+.animate-sparkle-2 {
+  animation: sparkle-float 3.4s ease-in-out 1.2s infinite;
+}
+
+.animate-sparkle-3 {
+  animation: sparkle-float 2.8s ease-in-out 1.8s infinite;
+}
+
+.animate-water-drop {
+  animation: water-pour 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-pulse-halo {
+  animation: pulse-soft 3.5s ease-in-out infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(74, 103, 65, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(74, 103, 65, 0.35);
+}
+
+
+
+/* Leaf droop: the canopy pads move to the droop the Expression Engine asks for, smoothly */
+.canopy-droop {
+  transition: transform 2.5s ease-in-out;
+  transform-box: view-box;
+}
+@media (prefers-reduced-motion: reduce) {
+  .canopy-droop {
+    transition: none;
+  }
+}

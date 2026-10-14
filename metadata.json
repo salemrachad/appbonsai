@@ -1,0 +1,6 @@
+{
+  "name": "Appbonsai",
+  "description": "A digital companion and plant health monitor for bonsai trees, reacting to live environmental telemetry.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

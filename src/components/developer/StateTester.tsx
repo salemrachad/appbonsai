@@ -1,0 +1,64 @@
+import React from 'react';
+import { RotateCcw, Wrench } from 'lucide-react';
+import { DEV_PRESETS } from '../../health/developerOverrides';
+
+interface StateTesterProps {
+  activePresetId: string | null;
+  onSelectPreset: (id: string | null) => void;
+}
+
+// Preview any health state. Presentation only: telemetry, the database, care events and episodes are untouched.
+export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSelectPreset }) => (
+  <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <div className="p-1 rounded-md bg-[#4A6741]/10 text-[#4A6741]">
+          <Wrench className="w-3.5 h-3.5" />
+        </div>
+        <span className="sans text-xs font-bold uppercase tracking-wider text-[#2D332A]">Test Tree State</span>
+      </div>
+
+      {activePresetId ? (
+        <button
+          id="return-to-live-header-btn"
+          onClick={() => onSelectPreset(null)}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#D97757]/15 text-[#9E3E20] border border-[#D97757]/30 hover:bg-[#D97757] hover:text-white text-[11px] font-semibold cursor-pointer"
+        >
+          <RotateCcw className="w-3 h-3" />
+          <span>Return to Live Data</span>
+        </button>
+      ) : (
+        <span className="sans text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#4A6741]/15 text-[#334D2E] border border-[#4A6741]/30 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#4A6741] animate-ping" />
+          <span>Live Data</span>
+        </span>
+      )}
+    </div>
+
+    <div className="grid grid-cols-3 gap-1.5">
+      {DEV_PRESETS.map((p) => {
+        const active = activePresetId === p.id;
+        return (
+          <button
+            key={p.id}
+            id={`test-state-btn-${p.id}`}
+            onClick={() => onSelectPreset(active ? null : p.id)}
+            className={`py-2 px-2 rounded-xl border text-[11px] font-medium sans flex items-center gap-1.5 cursor-pointer select-none ${
+              active
+                ? 'bg-[#4A6741] text-white border-[#334A2C] shadow-md ring-2 ring-[#4A6741]/30'
+                : 'bg-white text-[#2D332A] border-[#D8D2C9] hover:border-[#4A6741] hover:bg-[#4A6741]/5'
+            }`}
+            title={p.modifiers.length ? `${p.condition} + ${p.modifiers.join(', ')}` : p.condition}
+          >
+            <span className="text-sm">{p.emoji}</span>
+            <span className="truncate">{p.label}</span>
+          </button>
+        );
+      })}
+    </div>
+
+    <p className="text-[11px] sans text-[#2D332A]/55 px-1">
+      Changes only health, behaviour and expression on screen. Sensor values, the database, care events and episodes stay real.
+    </p>
+  </div>
+);

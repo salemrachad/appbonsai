@@ -1,0 +1,68 @@
+import type { PlantBehaviourState } from '../behaviour/behaviourTypes';
+import type { ExpressionState } from '../expression/expressionTypes';
+import type { PlantHealthState } from '../health/healthTypes';
+import type { BehaviourEpisode, PlantEvent } from '../history/historyTypes';
+import type { PerceptionState } from '../perception/perceptionTypes';
+import type { CaptureStats, SensorCalibration, Validation } from '../telemetry/calibration';
+import type { HourlyTelemetryPoint, LiveReading, TimelineEvent } from '../telemetry/types';
+
+export interface CalibrationHistoryEntry {
+  id: number;
+  timestamp: number;
+  sensor: string;
+  old: unknown;
+  next: unknown;
+  note: string | null;
+}
+export interface CalibrationState {
+  calibration: SensorCalibration;
+  history: CalibrationHistoryEntry[];
+}
+export interface CaptureResult extends CaptureStats {
+  sensor: 'soil' | 'light';
+  raws: number[];
+  warnings: string[];
+}
+export interface CalibrationSaveResult extends Validation {
+  saved: boolean;
+  preview: { raw: number | null; percent: number | null } | null;
+  calibration: SensorCalibration;
+}
+
+// Contract between the local Appbonsai server (port 3001) and the frontend.
+
+export interface CollectorStatus {
+  dataSource: string;
+  endpoint: string | null;
+  pollMs: number;
+  lastPollAt: number | null;
+  lastSuccessAt: number | null;
+  lastError: string | null;
+  consecutiveFailures: number;
+  wateringDetection: { suppressedUntil: number | null; lastDecision: string | null };
+}
+
+export interface ServerStatus {
+  ok: true;
+  startedAt: number;
+  engineVersion: string;
+  dbPath: string;
+  configured: boolean; // settings have been received from a browser at least once
+  collector: CollectorStatus;
+  counts: { telemetry: number; events: number; episodes: number };
+  oldestTelemetryAt: number | null;
+}
+
+// Everything the companion screen needs, in one poll.
+export interface LivingSnapshot {
+  serverTime: number;
+  status: ServerStatus;
+  perception: PerceptionState | null; // `recent` trimmed to the diagnostics window
+  health: PlantHealthState | null;
+  behaviour: PlantBehaviourState | null;
+  expression: ExpressionState | null;
+  forecast: { hourly: HourlyTelemetryPoint[]; timeline: TimelineEvent[] }; // weather mode only
+  liveReadings: LiveReading[];
+  recentEvents: PlantEvent[]; // last 30 days, newest first
+  recentEpisodes: BehaviourEpisode[]; // last 30 days, newest first
+}
