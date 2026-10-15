@@ -2,7 +2,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import type { HealthCondition, PlantHealthState, Severity } from '../health/healthTypes';
 import { CONDITION_LABELS } from '../health/labels';
 import { CONDITION_SEVERITY, SEVERITY_RANK, STRESS_CONDITIONS } from '../health/statePriority';
-import type { BehaviourEpisode, PlantEvent } from '../history/historyTypes';
+import type { BehaviourEpisode, Interaction, PlantEvent } from '../history/historyTypes';
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { SpeciesProfile } from '../species';
 import type { SeasonalCurve, SeasonRule } from '../species/types';
@@ -35,6 +35,7 @@ export interface BehaviourInput {
   perception: PerceptionState;
   episodes: BehaviourEpisode[]; // recent episodes, any order (the open one included)
   events: PlantEvent[]; // recent care events, any order
+  interactions?: Interaction[]; // attention (petting sessions): relationship memory only, never mood/energy
   species: SpeciesProfile;
   now: number;
 }
@@ -228,7 +229,7 @@ const isStressEpisode = (e: BehaviourEpisode) => seriousStress(e.condition) || e
 
 // "Given what is happening, what happened recently, and how the human has cared for the tree,
 // how should the companion behave?" Deterministic: history, duration, context, relationship.
-export function evaluateBehaviour({ health, perception, episodes, events, species, now }: BehaviourInput): PlantBehaviourState {
+export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now }: BehaviourInput): PlantBehaviourState {
   const reasons: string[] = [];
   const condition = health.condition;
 
@@ -242,7 +243,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, specie
   reasons.push(`Health: ${CONDITION_LABELS[condition].toLowerCase()} for ${minutes < 90 ? `${minutes} min` : `${Math.round(minutes / 6) / 10}h`}`);
   if (previousState) reasons.push(`Before that: ${CONDITION_LABELS[previousState].toLowerCase()}`);
 
-  const relationship = computeRelationship({ episodes, events, current: { condition, startedAt }, soilMoisture: perception.readings.soilMoisture, species, now });
+  const relationship = computeRelationship({ episodes, events, interactions, current: { condition, startedAt }, soilMoisture: perception.readings.soilMoisture, species, now });
 
   // ---- Intensity: severity × observed duration ----
   const s = health.stress;

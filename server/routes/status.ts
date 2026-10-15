@@ -15,7 +15,7 @@ export function serverStatus(db: AppDatabase, collector: LivingCollector, starte
     dbPath: db.path,
     configured: collector.isConfigured(),
     collector: c,
-    counts: { telemetry: stats.count, events: db.eventCount(), episodes: db.episodeCount() },
+    counts: { telemetry: stats.count, events: db.eventCount(), episodes: db.episodeCount(), interactions: db.interactionCount() },
     oldestTelemetryAt: stats.oldest,
   };
 }

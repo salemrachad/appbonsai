@@ -1,4 +1,4 @@
-import type { BehaviourEpisode, DailySummary, DiaryItem, HourlyBucket, PlantEvent, PlantEventType } from '../history/historyTypes';
+import type { BehaviourEpisode, DailySummary, DiaryItem, HourlyBucket, Interaction, InteractionKind, PlantEvent, PlantEventType } from '../history/historyTypes';
 import type { TreeSettings } from '../settings/settings';
 import type { CalibrationSaveResult, CalibrationState, CaptureResult, LivingSnapshot, ServerStatus } from './types';
 import type { CaptureStats } from '../telemetry/calibration';
@@ -45,6 +45,10 @@ export const api = {
   logEvent: (type: PlantEventType, note?: string, timestamp?: number) =>
     call<PlantEvent>('/events', { method: 'POST', body: JSON.stringify({ type, note, timestamp }) }),
   deleteEvent: (id: number) => call<void>(`/events/${id}`, { method: 'DELETE' }),
+
+  // Attention, not care: one call per finished session (keepalive so a session closed by leaving the page still lands)
+  recordInteraction: (s: { kind: InteractionKind; startedAt: number; endedAt: number; count: number; activeMs: number }) =>
+    call<Interaction>('/interactions', { method: 'POST', body: JSON.stringify(s), keepalive: true }),
 
   hourly: (hours = 24) => call<HourlyBucket[]>(`/history/hourly?hours=${hours}`),
   daily: (days = 7) => call<DailySummary[]>(`/history/daily?days=${days}`),

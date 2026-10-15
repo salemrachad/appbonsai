@@ -32,6 +32,21 @@ export interface PlantEvent {
   metadata: Partial<WateringMetadata> & Record<string, unknown>;
 }
 
+// Attention memory: a moment someone spent with the DIGITAL tree. Not care, not biology: nothing here
+// ever reaches health, vitality or the care context. Stored as sessions, never as pointer movements.
+// V1 records only petting; the table is shaped so visits and other interactions fit later.
+export type InteractionKind = 'pet';
+export const INTERACTION_KINDS: InteractionKind[] = ['pet'];
+
+export interface Interaction {
+  id: number;
+  kind: InteractionKind;
+  startedAt: number;
+  endedAt: number;
+  count: number; // pet: strokes in the session
+  metadata: Record<string, unknown>; // pet: { activeMs }
+}
+
 // One meaningful stretch of the tree's life: a primary condition from start to end.
 export interface BehaviourEpisode {
   id: number;

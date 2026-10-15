@@ -11,6 +11,7 @@ import { AppDatabase } from './database';
 import { calibrationRoutes } from './routes/calibration';
 import { eventRoutes } from './routes/events';
 import { historyRoutes } from './routes/history';
+import { interactionRoutes } from './routes/interactions';
 import { statusRoutes } from './routes/status';
 import { telemetryRoutes } from './routes/telemetry';
 
@@ -44,6 +45,7 @@ app.use(express.json({ limit: '5mb' })); // browser history import can be a few 
 
 app.use('/api', statusRoutes(db, collector, startedAt, backend));
 app.use('/api/events', eventRoutes(db, collector));
+app.use('/api/interactions', interactionRoutes(db, collector));
 app.use('/api/calibration', calibrationRoutes(calibration));
 app.use('/api/history', historyRoutes(db, collector));
 app.use('/api/telemetry', telemetryRoutes(db, collector));

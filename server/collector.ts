@@ -7,7 +7,8 @@ import { expressBehaviour } from '../src/expression/ExpressionEngine';
 import type { ExpressionState } from '../src/expression/expressionTypes';
 import { evaluatePlantHealth, HEALTH_MEMORY_VERSION, HealthMemory, initialHealthMemory } from '../src/health/HealthEngine';
 import type { HealthCondition, PlantHealthState } from '../src/health/healthTypes';
-import type { PlantEvent, PlantEventType, TelemetryRecord, WateringMetadata } from '../src/history/historyTypes';
+import { INTERACTION_KINDS } from '../src/history/historyTypes';
+import type { Interaction, InteractionKind, PlantEvent, PlantEventType, TelemetryRecord, WateringMetadata } from '../src/history/historyTypes';
 import { continuityGapMs, perceive, toSample } from '../src/perception/PerceptionEngine';
 import type { PerceptionSample, PerceptionState } from '../src/perception/perceptionTypes';
 import { DetectorState, INITIAL_DETECTOR, stepWateringDetector, suppressDetection, WateringEvidence } from '../src/perception/wateringDetector';
@@ -420,7 +421,9 @@ export class LivingCollector {
     this.db.setMeta(MEMORY_KEY, { engineVersion: APP_CONFIG.engineVersion, source: this.source(), memory } satisfies SavedMemory);
     trackEpisode(this.db, health, now, { pollMs: this.pollMs(), gapMs: perception.history.gapMs });
     const episodes = this.db.episodesSince(now - 30 * DAY);
-    const behaviour = evaluateBehaviour({ health, perception, episodes, events, species: ACTIVE_SPECIES, now });
+    // Attention goes only into relationship memory (never perception or health)
+    const interactions = this.db.interactionsSince(now - 30 * DAY);
+    const behaviour = evaluateBehaviour({ health, perception, episodes, events, interactions, species: ACTIVE_SPECIES, now });
     // When to speak or stay quiet; persisted so refreshes and restarts don't replay lines
     const speech = decideSpeech({ behaviour, severity: health.severity, memory: this.messageMemory, now });
     if (speech.memory !== this.messageMemory) {
@@ -504,6 +507,30 @@ export class LivingCollector {
     const r = await this.fetchTelemetry(this.fetchSettings());
     const t = r.current;
     return { soilRaw: t.soilRaw ?? null, lightRaw: t.lightRaw ?? null, soilPercent: t.soilMoisture, lightPercent: t.lightPercent ?? null, at: t.timestamp };
+  }
+
+  // ---- attention (not care) ----
+  // A petting session reported by the browser. Stored for relationship memory only: it never
+  // triggers an evaluation and nothing in perception or health reads it.
+  recordInteraction(body: unknown): { ok: true; interaction: Interaction; merged: boolean } | { ok: false; status: number; error: string } {
+    const cfg = APP_CONFIG.attention;
+    const b = (body ?? {}) as Record<string, unknown>;
+    const kind = b.kind as InteractionKind;
+    if (!INTERACTION_KINDS.includes(kind)) return { ok: false, status: 400, error: `kind must be one of ${INTERACTION_KINDS.join(', ')}` };
+    const now = this.now();
+    let endedAt = Number(b.endedAt);
+    let startedAt = Number(b.startedAt);
+    if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt) || startedAt > endedAt) return { ok: false, status: 400, error: 'startedAt ≤ endedAt (ms) required' };
+    if (endedAt > now + 60_000 || endedAt < now - DAY) return { ok: false, status: 400, error: 'session must have ended within the last day' };
+    endedAt = Math.min(endedAt, now);
+    startedAt = Math.max(startedAt, endedAt - cfg.maxSessionMs);
+    const count = Math.max(1, Math.min(cfg.maxStrokesPerSession, Math.round(Number(b.count) || 1)));
+    const activeMs = Math.max(0, Math.min(endedAt - startedAt, Math.round(Number(b.activeMs) || 0)));
+    const recent = this.db.interactionsSince(now - 3600_000, kind).filter((i) => i.startedAt >= now - 3600_000).length;
+    // Write cap: past it, a session can still extend the latest row but never add a new one
+    const result = this.db.recordInteraction({ kind, startedAt, endedAt, count, activeMs }, cfg.mergeMs, recent < cfg.maxRowsPerHour);
+    if (!result) return { ok: false, status: 429, error: 'Too many sessions this hour' };
+    return { ok: true, ...result };
   }
 
   // ---- care events ----

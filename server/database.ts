@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { BehaviourEpisode, HourlyBucket, PlantEvent, PlantEventType, TelemetryRecord } from '../src/history/historyTypes';
+import type { BehaviourEpisode, HourlyBucket, Interaction, InteractionKind, PlantEvent, PlantEventType, TelemetryRecord } from '../src/history/historyTypes';
 import type { HealthCondition, Severity } from '../src/health/healthTypes';
 import { MIGRATIONS, SCHEMA_SQL, SCHEMA_VERSION } from './schema';
 
@@ -39,6 +39,15 @@ const toEvent = (r: Row): PlantEvent => ({
   timestamp: r.timestamp,
   type: r.type,
   note: r.note,
+  metadata: json(r.metadata_json, {}),
+});
+
+const toInteraction = (r: Row): Interaction => ({
+  id: r.id,
+  kind: r.kind,
+  startedAt: r.started_at,
+  endedAt: r.ended_at,
+  count: r.count,
   metadata: json(r.metadata_json, {}),
 });
 
@@ -186,6 +195,42 @@ export class AppDatabase {
   }
   eventCount(): number {
     return (this.db.prepare('SELECT COUNT(*) AS n FROM plant_events').get() as Row).n;
+  }
+
+  // ---- interactions (attention, not care) ----
+  // A session that starts within mergeMs of the previous session of the same kind extends it, so a
+  // restless evening of petting stays one row.
+  // allowNew = false: only merging is allowed (write cap reached); returns null if a new row would be needed.
+  recordInteraction(
+    i: { kind: InteractionKind; startedAt: number; endedAt: number; count: number; activeMs: number },
+    mergeMs: number,
+    allowNew = true
+  ): { interaction: Interaction; merged: boolean } | null {
+    const prev = this.db
+      .prepare('SELECT * FROM interactions WHERE kind = ? AND ended_at >= ? AND started_at <= ? ORDER BY ended_at DESC LIMIT 1')
+      .get(i.kind, i.startedAt - mergeMs, i.endedAt) as Row | undefined;
+    if (prev) {
+      const meta = json<Record<string, unknown>>(prev.metadata_json, {});
+      const activeMs = (Number(meta.activeMs) || 0) + i.activeMs;
+      this.db
+        .prepare('UPDATE interactions SET started_at = MIN(started_at, ?), ended_at = MAX(ended_at, ?), count = count + ?, metadata_json = ? WHERE id = ?')
+        .run(i.startedAt, i.endedAt, i.count, JSON.stringify({ ...meta, activeMs }), prev.id);
+      return { interaction: toInteraction(this.db.prepare('SELECT * FROM interactions WHERE id = ?').get(prev.id) as Row), merged: true };
+    }
+    if (!allowNew) return null;
+    const res = this.db
+      .prepare('INSERT INTO interactions (kind, started_at, ended_at, count, metadata_json) VALUES (?, ?, ?, ?, ?)')
+      .run(i.kind, i.startedAt, i.endedAt, i.count, JSON.stringify({ activeMs: i.activeMs }));
+    return { interaction: toInteraction(this.db.prepare('SELECT * FROM interactions WHERE id = ?').get(Number(res.lastInsertRowid)) as Row), merged: false };
+  }
+  interactionsSince(since: number, kind?: InteractionKind): Interaction[] {
+    const rows = kind
+      ? this.db.prepare('SELECT * FROM interactions WHERE kind = ? AND ended_at >= ? ORDER BY started_at DESC').all(kind, since)
+      : this.db.prepare('SELECT * FROM interactions WHERE ended_at >= ? ORDER BY started_at DESC').all(since);
+    return (rows as Row[]).map(toInteraction);
+  }
+  interactionCount(): number {
+    return (this.db.prepare('SELECT COUNT(*) AS n FROM interactions').get() as Row).n;
   }
 
   // ---- calibration history ----

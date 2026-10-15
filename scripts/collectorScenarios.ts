@@ -294,6 +294,40 @@ async function main() {
     check('C7 first readings make no zero-length episodes', b.episodes().every((e) => e.endedAt === null || e.endedAt - e.startedAt >= 1.5 * MIN), `${n}: ${epList(b)}`);
   }
 
+  console.log('\n— Attention (petting sessions) —');
+  {
+    const b = new Bench();
+    await b.boot();
+    await b.run(10, () => ({ soil: 60 }));
+    const c = b.collector;
+    const pet = (startMin: number, lenS: number, count = 3, kind: string = 'pet') =>
+      c.recordInteraction({ kind, startedAt: b.clock + startMin * MIN, endedAt: b.clock + startMin * MIN + lenS * 1000, count, activeMs: lenS * 800 });
+    const first = pet(-20, 20);
+    const merged = pet(-19, 15);
+    const separate = pet(-5, 10);
+    const rows = b.db.interactionsSince(0);
+    check(
+      'A1 sessions within 2 min merge into one row; later ones are separate',
+      'interaction' in first && 'interaction' in merged && merged.merged && 'interaction' in separate && !separate.merged && rows.length === 2 && rows.some((r) => r.count === 6),
+      rows.map((r) => `${r.kind}×${r.count}`).join(', ')
+    );
+    const bad = pet(-1, 5, 1, 'water');
+    check('A2 unknown interaction kinds are refused', 'error' in bad && bad.status === 400);
+    const future = c.recordInteraction({ kind: 'pet', startedAt: b.clock + HOUR, endedAt: b.clock + 2 * HOUR, count: 1 });
+    check('A3 sessions in the future are refused', 'error' in future);
+    check('A4 petting never creates a care event', b.db.eventsSince(0).length === 0, `${b.db.eventsSince(0).length} events`);
+    // Compulsive petting stays small: 200 rapid sessions become one row (sessions, never movements)
+    const busy = new Bench();
+    await busy.boot();
+    await busy.run(2, () => ({ soil: 60 }));
+    for (let i = 0; i < 200; i++) {
+      const t0 = busy.clock - 40 * MIN + i * 10 * 1000;
+      busy.collector.recordInteraction({ kind: 'pet', startedAt: t0, endedAt: t0 + 4000, count: 2, activeMs: 3000 });
+    }
+    const one = busy.db.interactionsSince(0);
+    check('A5 rapid sessions collapse into one row', one.length === 1 && one[0].count === 400, `${one.length} rows, ${one[0]?.count} strokes`);
+  }
+
   console.log('\n— Database migration —');
   {
     const file = path.join(os.tmpdir(), `appbonsai-migrate-${Date.now()}.db`);
@@ -306,6 +340,7 @@ async function main() {
     const db = new AppDatabase(file);
     const ep = db.openEpisode();
     check('M1 v1 database upgraded: unobserved_ms added, old rows kept', ep?.unobservedMs === 0 && db.getMeta<number>('schema_version') === 2);
+    check('M2 old database gains the interactions table, empty', db.interactionCount() === 0 && db.getMeta<number>('schema_version') === 4);
     db.close();
     for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
   }

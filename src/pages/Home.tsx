@@ -1,5 +1,6 @@
 import React from 'react';
 import { BonsaiAvatar } from '../components/avatar/BonsaiAvatar';
+import type { PetSession } from '../components/avatar/usePetting';
 import { SensorCardGrid } from '../components/sensors/SensorCard';
 import { VitalityGauge } from '../components/VitalityGauge';
 import type { ExpressionState } from '../expression/expressionTypes';
@@ -12,16 +13,17 @@ interface HomeProps {
   devPresetLabel: string | null;
   onReturnToLive: () => void;
   onOpenDetails: () => void;
+  onPetSession?: (s: PetSession) => void; // attention: one report per petting session
 }
 
 // The companion screen: shows what the engines concluded, never recalculates it.
-export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails }) => {
+export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession }) => {
   const msg = expression?.message;
 
   return (
     <main className="relative z-10 flex-1 min-h-0 w-full max-w-6xl mx-auto px-8 py-6 grid grid-cols-1 md:grid-cols-2 gap-10 items-center overflow-y-auto md:overflow-hidden">
       <div className="h-full min-h-[320px] flex items-center justify-center">
-        <BonsaiAvatar className="w-full h-full max-h-[620px]" expression={expression} />
+        <BonsaiAvatar className="w-full h-full max-h-[620px]" expression={expression} onPetSession={onPetSession} />
       </div>
 
       <div className="flex flex-col gap-6">

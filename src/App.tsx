@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS, loadSettings, TreeSettings } from './settings/setting
 import { midSeasonState, SEASONS, type Season } from './perception/season';
 import { ACTIVE_SPECIES } from './species';
 import type { HourlyTelemetryPoint } from './telemetry/types';
+import type { PetSession } from './components/avatar/usePetting';
 import { DetailView } from './components/DetailView';
 import { SceneBackdrop } from './components/scene/SceneBackdrop';
 import { SeasonChip } from './components/scene/SeasonChip';
@@ -187,6 +188,15 @@ export default function App() {
   const collector = snapshot?.status.collector;
   const sensorDown = !!perception && !perception.telemetry;
   const previewing = !!devPresetId || !!devSeason;
+  // Petting is attention, not care: one record per session, and none during a developer preview
+  // (previews never write to the server)
+  const recordPetSession = useCallback(
+    (s: PetSession) => {
+      if (previewing) return;
+      api.recordInteraction({ kind: 'pet', ...s }).catch(() => {});
+    },
+    [previewing]
+  );
   const statusLabel = previewing
     ? 'Test mode'
     : serverOffline
@@ -280,6 +290,7 @@ export default function App() {
           selectDevPreset(null);
         }}
         onOpenDetails={() => setShowDetail(true)}
+        onPetSession={recordPetSession}
       />
 
       {showDiagnostics && (

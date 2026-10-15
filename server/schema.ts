@@ -1,7 +1,7 @@
 // SQLite schema for the local Appbonsai database (data/appbonsai.db).
 // All timestamps are INTEGER milliseconds since the Unix epoch (UTC).
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4; // 4: interactions (created by SCHEMA_SQL on open, no migration step needed)
 
 export const SCHEMA_SQL = `
 -- Raw observations: the permanent truth. Health can be re-evaluated from these later.
@@ -60,6 +60,18 @@ CREATE TABLE IF NOT EXISTS calibration_history (
   new_json   TEXT,                           -- new calibration (NULL = back to firmware %)
   note       TEXT
 );
+
+-- Attention: sessions of interaction with the DIGITAL tree (V1: petting). Not care: health never reads it.
+-- kind is free text (validated by the API), so new interaction kinds need no table rebuild.
+CREATE TABLE IF NOT EXISTS interactions (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind          TEXT    NOT NULL,              -- pet (future: visit, ...)
+  started_at    INTEGER NOT NULL,
+  ended_at      INTEGER NOT NULL,
+  count         INTEGER NOT NULL DEFAULT 1,    -- pet: strokes in the session
+  metadata_json TEXT    NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_interactions_kind_started ON interactions(kind, started_at);
 
 -- Small key/value store: schema version, collector settings.
 CREATE TABLE IF NOT EXISTS meta (

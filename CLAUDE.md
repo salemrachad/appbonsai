@@ -10,6 +10,8 @@ Appbonsai is a "digital living companion" for one real Ficus bonsai. An ESP32 on
 physical bonsai → PERCEPTION → HEALTH → BEHAVIOUR → EXPRESSION → React UI → human care → physical bonsai
 ```
 
+**Read `docs/LIVING_ART.md` before changing perception, health, behaviour, expression or wording.** It holds the Living Art philosophy (the real tree is the artwork; the character interprets it), the biological principles with their evidence class, the three expression layers (epidermal / wording / diffraction), care and relationship rules, and what is implemented vs intended vs open.
+
 The project is local only: no cloud, no accounts. **The Raspberry Pi (`ender3.local`, `npm run server` under systemd) is the only authoritative collector and database.** The laptop normally runs only the Vite frontend against the Pi's API (`npm run dev`). See README.md for the three modes. It started from a Google AI Studio template (`README.md`, `metadata.json`, `.env.example`).
 
 ## Commands
@@ -116,6 +118,7 @@ Suspicious sensors are reported in `quality.suspect`. Health leaves them out (no
   - **Energy** combines vitality, time of day, stress intensity and recovery.
   - **Mood** comes from condition × tier × recovery × reaction × concern.
   - **Responsiveness** sets how strongly touch and care register.
+  - **Petting is attention, not care** (see `docs/LIVING_ART.md`, "Touch and attention"). `expression.touch` (`TouchResponse`) decides how a stroke registers per state, and `usePetting` only animates it. Sessions go to the `interactions` table and only feed `relationship.attention`; they never change health, behaviour state or expression.
 - **Speech** (`speech.ts`, memory persisted in `meta.message_memory`):
   - It speaks on a new episode, new care, a stronger tier, or a critical state; a minor change waits a 10-minute cooldown.
   - A line stays visible for a while (quiet states 10 min, up to 60 min for critical), then the tree is "quiet" (no new line; Home still shows its current thought). The speech policy still decides when something new is said.
@@ -160,6 +163,7 @@ Suspicious sensors are reported in `quality.suspect`. Health leaves them out (no
 - `telemetry`: raw observations (the permanent truth, re-evaluable), unique on (source, timestamp).
 - `plant_events`: watering, pruning, fertilizing, repotting, moved_location, manual_note, with `metadata_json` (waterings: source sensor/manual, moistureBefore/After, conditionBefore).
 - `behaviour_episodes`: opened when the primary condition changes and closed on transition (or at `last_seen_at` after a long gap), with `unobserved_ms`, `modifiers_json` (union seen, never `sensor_uncertain`), `peak_severity` and `engine_version`.
+- `interactions`: attention sessions with the digital tree (V1: `kind = 'pet'`; free-text kind, validated by the API). Never care, never read by perception or health.
 - `meta`: schema version, collector settings (`collector_settings`), saved health memory (`health_memory`), speech memory (`message_memory`), watering-detection pause (`watering_detection_suppressed_until`).
 - Migrations: `server/schema.ts` `MIGRATIONS`, applied on open. Steps with a column check always verify the actual table shape.
 
@@ -179,6 +183,7 @@ Suspicious sensors are reported in `quality.suspect`. Health leaves them out (no
 | `POST /api/collector/calibration {minutes}` | Pause watering detection while handling the probe (`0` resumes) |
 | `GET`/`PUT /api/config` | Collector settings |
 | `GET /api/events?days=`, `POST /api/events {type, note?, timestamp?}`, `DELETE /api/events/:id` | Care events |
+| `GET /api/interactions?days=&kind=`, `POST /api/interactions {kind, startedAt, endedAt, count, activeMs}` | Attention sessions (petting); one POST per session, merged within 2 min |
 | `GET /api/history?hours=`, `/hourly`, `/daily?days=`, `/diary?days=`, `/episodes?days=` | History and the plant diary |
 | `GET /api/telemetry/latest`, `POST /api/telemetry/test {url}`, `POST /api/telemetry/import-browser` | Raw readings, server-side link test, one-time import of browser history |
 
@@ -187,7 +192,7 @@ Suspicious sensors are reported in `quality.suspect`. Health leaves them out (no
 - Desktop single-screen layout (`h-screen`, no page scroll). The header has status, refresh (asks the server to read now), the live-sensor strip, Diary, Developer and Settings. Panels open in a side drawer, and `#history`, `#settings` or `#developer` in the URL opens one directly. `#preview=<preset id>` starts in a developer preview.
 - `pages/Home.tsx`: the avatar on the left; the gauge, the expression's message and tip, and the 2×2 `SensorCardGrid` on the right. Clicking a sensor card (or a column of the live strip) opens a popup with its best conditions and ranges (`SensorGuide`); the content is `MetricAssessment.guide`, built from the species profile in `health/metricGuides.ts`. The gauge opens Tree Diagnostics. `DetailView` is the modal with per-metric bars and charts. The charts use stored hourly averages for the sensor and the forecast for weather.
 - `pages/History.tsx`: the plant diary (episodes + care events as narrative lines from `history/diary.ts`), a care log, and a compact 7-day strip.
-- `BonsaiAvatar` takes an `ExpressionState`. The visual vocabulary types live in `expression/expressionTypes.ts`; `components/avatar/avatarStates.ts` only holds the posture transforms.
+- `BonsaiAvatar` takes an `ExpressionState`. A tap keeps the perk-up + mood label; a stroke on the foliage is petting (`components/avatar/usePetting.ts`: spring per pad, `touch-action: pan-y`, reduced motion = blink only), reported via `onPetSession` → `App.tsx` (skipped during previews). The visual vocabulary types live in `expression/expressionTypes.ts`; `components/avatar/avatarStates.ts` only holds the posture transforms.
 - Scenes: the app root gets `scene-<id>` (theme tokens, `src/styles/scenes.css`) and `SceneBackdrop` (`components/scene/`) paints the scene with ambient particles, cross-fading on change. Dark scenes also get `night`. Drawers and the modal stay light (`day` class). The header shows the season (`SeasonChip`: season, stage, day length ↑/↓).
 - Avatar animations live in `src/styles/avatar.css` (body motions, gestures, leaf quiver, details); everything respects `prefers-reduced-motion`.
 - Styling uses Tailwind with theme tokens (`--ink`, `--paper`, …) in `src/index.css`, `lucide-react` icons, and `motion` toasts.

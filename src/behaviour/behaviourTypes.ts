@@ -117,6 +117,9 @@ export interface RelationshipContext {
   overwateringEvents7d: number; // waterings while the soil was already wet
   typicalRecoveryHours: number | null; // median length of recovering episodes
   observation: { id: ObservationId; hours?: number } | null; // at most one gentle observation
+  // Attention (petting the on-screen tree). Not care: excluded from lastCareAt/hoursSinceCare and never
+  // read by mood, energy or responsiveness. Recorded only, not voiced (V1).
+  attention: { petSessions7d: number; lastPetAt: number | null };
 }
 
 export interface Concern {

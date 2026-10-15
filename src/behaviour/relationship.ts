@@ -1,4 +1,4 @@
-import type { BehaviourEpisode, PlantEvent } from '../history/historyTypes';
+import type { BehaviourEpisode, Interaction, PlantEvent } from '../history/historyTypes';
 import type { SpeciesProfile } from '../species';
 import type { HealthCondition } from '../health/healthTypes';
 import type { RelationshipContext } from './behaviourTypes';
@@ -22,6 +22,7 @@ const startOfToday = (now: number) => {
 export interface RelationshipInput {
   episodes: BehaviourEpisode[]; // any order
   events: PlantEvent[]; // any order
+  interactions?: Interaction[]; // attention sessions, any order
   current: { condition: HealthCondition; startedAt: number };
   soilMoisture: number | null;
   species: SpeciesProfile;
@@ -29,7 +30,7 @@ export interface RelationshipInput {
 }
 
 // Memory of how care usually goes. Observational and plant-centred: it never scores or blames.
-export function computeRelationship({ episodes, events, current, soilMoisture, species, now }: RelationshipInput): RelationshipContext {
+export function computeRelationship({ episodes, events, interactions = [], current, soilMoisture, species, now }: RelationshipInput): RelationshipContext {
   const waterings = events.filter((e) => e.type === 'watering').sort((a, b) => a.timestamp - b.timestamp);
   const care = events.filter((e) => e.type !== 'manual_note' && e.timestamp <= now);
   const lastCareAt = care.length ? Math.max(...care.map((e) => e.timestamp)) : null;
@@ -68,6 +69,13 @@ export function computeRelationship({ episodes, events, current, soilMoisture, s
     observation = { id: 'typical_recovery', hours: Math.max(1, Math.round(typicalRecoveryHours)) };
   }
 
+  // Attention: remembered, never scored. No streaks, no "you were away" and no reward for frequency.
+  const pets = interactions.filter((i) => i.kind === 'pet' && i.startedAt <= now);
+  const attention = {
+    petSessions7d: pets.filter((i) => i.endedAt >= now - 7 * DAY).length,
+    lastPetAt: pets.length ? Math.max(...pets.map((i) => i.endedAt)) : null,
+  };
+
   return {
     lastCareAt,
     hoursSinceCare: lastCareAt !== null ? Math.round(((now - lastCareAt) / HOUR) * 10) / 10 : null,
@@ -79,5 +87,6 @@ export function computeRelationship({ episodes, events, current, soilMoisture, s
     overwateringEvents7d: overwatering7d,
     typicalRecoveryHours: typicalRecoveryHours !== null ? Math.round(typicalRecoveryHours * 10) / 10 : null,
     observation,
+    attention,
   };
 }

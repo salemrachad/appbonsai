@@ -69,6 +69,7 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
         <Row label="Sway speed / amount" value={`${x.motion.swaySpeed} / ${x.motion.swayAmount}`} />
         <Row label="Leaf flutter · blink every" value={`${x.motion.flutter} · ${x.motion.blinkEveryMs ? `${(x.motion.blinkEveryMs / 1000).toFixed(1)}s` : 'eyes closed'}`} />
         <Row label="Reaction strength" value={x.reactionStrength} />
+        <Row label="Touch (petting)" value={`${x.touch.kind.replace('_', ' ')} · give ${x.touch.give} · lean ${x.touch.lean} · blink ${x.touch.blink.replace('_', ' ')}`} />
         <Row label="Effects" value={x.avatar.effects.join(', ') || '–'} />
         <Row label="Atmosphere" value={`${x.atmosphere.theme} (${x.atmosphere.phase.replace('_', ' ')})`} />
         <p className="sans text-[10px] font-semibold text-[#2D332A]/45 uppercase tracking-wider pt-1">Diffraction</p>
@@ -83,6 +84,7 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
         <Row label="Waterings on wet soil (7 days)" value={rel.overwateringEvents7d} />
         <Row label="Typical recovery" value={rel.typicalRecoveryHours !== null ? `${rel.typicalRecoveryHours}h` : '–'} />
         <Row label="Observation" value={rel.observation ? rel.observation.id.replace(/_/g, ' ') : '–'} />
+        <Row label="Petting sessions (7 days, attention)" value={`${rel.attention?.petSessions7d ?? 0}${rel.attention?.lastPetAt ? ` · last ${ago(rel.attention.lastPetAt)}` : ''}`} />
       </Section>
     </div>
   );

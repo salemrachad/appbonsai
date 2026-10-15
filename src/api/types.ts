@@ -61,7 +61,7 @@ export interface ServerStatus {
   dbPath: string;
   configured: boolean; // settings have been received from a browser at least once
   collector: CollectorStatus;
-  counts: { telemetry: number; events: number; episodes: number };
+  counts: { telemetry: number; events: number; episodes: number; interactions?: number };
   oldestTelemetryAt: number | null;
 }
 

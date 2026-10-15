@@ -4,7 +4,7 @@ import { decideSpeech, INITIAL_MESSAGE_MEMORY, SpeechDecision } from '../behavio
 import type { HealthCondition, HealthModifier, PlantHealthState, QualitativeState } from '../health/healthTypes';
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { Season } from '../perception/season';
-import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gesture, SceneId } from './expressionTypes';
+import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gesture, SceneId, TouchKind, TouchResponse } from './expressionTypes';
 
 type Look = Omit<AvatarPresentation, 'effects'> & { effects?: AvatarEffect[] };
 
@@ -195,6 +195,47 @@ const RECOVERY_DROOP = { relief: 0.35, perking: 0.18, settling: 0.06 } as const;
 
 const GAUGE_TONE: Record<QualitativeState, GaugeTone> = { Thriving: 'thriving', Happy: 'happy', Okay: 'okay', Stressed: 'stressed', Critical: 'critical' };
 
+// Petting: how a stroke registers in each state. Expressive choice (evidence class "art"): a finger on the
+// screen never reaches the real tree, so this only colours the answer, it never changes the state.
+const TOUCH: Record<TouchKind, Omit<TouchResponse, 'kind'>> = {
+  lean_in: { give: 0.9, stiffness: 60, damping: 11, lean: 0.8, blink: 'soft_close' },
+  gentle: { give: 0.6, stiffness: 70, damping: 13, lean: 0.4, blink: 'soft_close' },
+  dry_rustle: { give: 0.3, stiffness: 160, damping: 15, lean: 0, blink: 'slow' },
+  braced: { give: 0.2, stiffness: 190, damping: 20, lean: 0, blink: 'slow' },
+  slow_stir: { give: 0.45, stiffness: 25, damping: 9, lean: 0.15, blink: 'none' },
+  muted: { give: 0.12, stiffness: 120, damping: 20, lean: 0, blink: 'none' },
+};
+const TOUCH_KIND: Record<HealthCondition, TouchKind> = {
+  thriving: 'lean_in',
+  comfortable: 'lean_in',
+  recovering: 'gentle',
+  thirsty: 'dry_rustle',
+  very_dry: 'dry_rustle',
+  hot: 'dry_rustle',
+  hot_and_dry: 'dry_rustle',
+  dry_air: 'dry_rustle',
+  very_bright: 'dry_rustle',
+  too_wet: 'gentle',
+  high_humidity: 'gentle',
+  too_dark: 'gentle',
+  multiple_stress: 'braced',
+  cold: 'braced',
+  freezing_risk: 'braced',
+  sleeping: 'slow_stir',
+  sensor_uncertain: 'muted',
+};
+
+function touchResponse(condition: HealthCondition, modifiers: HealthModifier[], b: PlantBehaviourState): TouchResponse {
+  // Uncertainty wins over everything: without trustworthy data the tree never answers as if healthy
+  let kind: TouchKind = modifiers.includes('sensor_uncertain') ? 'muted' : TOUCH_KIND[condition];
+  if (kind !== 'muted' && condition !== 'sleeping' && modifiers.includes('sleeping')) kind = 'slow_stir';
+  if (kind === 'lean_in' && (b.afterglow || b.concern)) kind = 'gentle';
+  const t = TOUCH[kind];
+  // Responsiveness scales how far it shows (never biology); the state picks the character
+  const scale = 0.6 + 0.4 * b.responsiveness;
+  return { kind, ...t, give: r2(t.give * scale), lean: r2(t.lean * scale) };
+}
+
 const TAP_LABEL: Record<Mood, string> = {
   joyful: '🌿 Joyful',
   content: '🍃 Content',
@@ -360,6 +401,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     leafDroop,
     motion,
     reactionStrength: b.responsiveness,
+    touch: touchResponse(condition, modifiers, b),
     atmosphere: {
       theme: night ? 'night' : 'day',
       phase: perception.sun.phase,

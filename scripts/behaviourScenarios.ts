@@ -217,6 +217,64 @@ async function main() {
     );
   }
 
+  console.log('\n— Petting is attention, never biology —');
+  {
+    // Two identical trees; one is petted every few minutes through comfort, thirst and a watering
+    const plain = new Bench();
+    const petted = new Bench();
+    await plain.boot();
+    await petted.boot();
+    const script = (i: number): Reading => (i < 60 ? day() : i < 240 ? { soil: 30 } : { soil: 65 });
+    for (let i = 0; i < 300; i++) {
+      await plain.poll(script(i));
+      if (i % 7 === 0) petted.collector.recordInteraction({ kind: 'pet', startedAt: petted.clock - 40_000, endedAt: petted.clock, count: 4, activeMs: 30_000 });
+      await petted.poll(script(i));
+    }
+    const a = plain.state();
+    const z = petted.state();
+    const bio = (s: typeof a) =>
+      JSON.stringify({
+        health: s.health,
+        behaviour: { ...s.behaviour, relationship: { ...s.behaviour.relationship, attention: null } },
+        expression: s.expression,
+      });
+    check('P1 petting changes nothing biological (health, behaviour, expression identical)', bio(a) === bio(z), `${a.health.condition} v${a.health.vitality} vs ${z.health.condition} v${z.health.vitality}`);
+    check(
+      'P2 attention is remembered, separately from care',
+      z.behaviour.relationship.attention.petSessions7d > 0 && a.behaviour.relationship.attention.petSessions7d === 0 && z.behaviour.relationship.lastCareAt === a.behaviour.relationship.lastCareAt,
+      `petted: ${z.behaviour.relationship.attention.petSessions7d} sessions; last care ${z.behaviour.relationship.lastCareAt}`
+    );
+  }
+  {
+    // The answer depends on the state and never looks healthier than it is
+    const b = new Bench();
+    await b.boot();
+    await b.run(60, () => day());
+    const calm = b.state().expression.touch;
+    await b.run(60, () => ({ soil: 30 }));
+    const thirsty = b.state();
+    await b.run(5, () => null);
+    const unsure = b.state();
+    check('P3 calm tree leans into the hand', calm.kind === 'lean_in' && calm.lean > 0, `${calm.kind}`);
+    check(
+      'P4 thirsty tree: dry, stiff answer, no lean',
+      thirsty.health.condition === 'thirsty' && thirsty.expression.touch.kind === 'dry_rustle' && thirsty.expression.touch.lean === 0 && thirsty.expression.touch.give < calm.give,
+      `${thirsty.expression.touch.kind} give ${thirsty.expression.touch.give}`
+    );
+    check(
+      'P5 no trustworthy data: muted answer even while the state is held',
+      [unsure.health.condition, ...unsure.health.modifiers].includes('sensor_uncertain') && unsure.expression.touch.kind === 'muted' && unsure.expression.touch.blink === 'none',
+      `${unsure.health.condition} + [${unsure.health.modifiers.join(', ')}] → ${unsure.expression.touch.kind}`
+    );
+    const n = new Bench();
+    n.clock = at(15, 19, 0);
+    await n.boot();
+    await n.run(50, () => day(30));
+    await n.run(120, () => ({ soil: 60, light: 0 }));
+    const night = n.state();
+    check('P6 sleeping tree only stirs; eyes stay closed', night.health.condition === 'sleeping' && night.expression.touch.kind === 'slow_stir' && night.expression.touch.blink === 'none', `${night.health.condition} → ${night.expression.touch.kind}`);
+  }
+
   finish();
 }
 

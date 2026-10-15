@@ -160,6 +160,25 @@ export interface ExpressionMessage {
   onceStatus: string;
 }
 
+// How the foliage answers a stroke (petting). Decided by the Expression Engine from the current state;
+// the avatar only animates it. Petting is attention, not care: it never changes the state it reads.
+export type TouchKind =
+  | 'lean_in' // calm: leaves follow the hand softly, a slight lean, a soft eye-close
+  | 'gentle' // recovering / afterglow: a careful, smaller answer
+  | 'dry_rustle' // dry or hot: stiff, papery, barely follows; never lifts the droop
+  | 'braced' // cold: tight and still
+  | 'slow_stir' // asleep: a slow, soft sway, eyes stay closed
+  | 'muted'; // unsure of its own state (no trustworthy data): almost no answer
+
+export interface TouchResponse {
+  kind: TouchKind;
+  give: number; // 0-1: how far leaves near the hand follow it
+  stiffness: number; // spring constant (higher = snaps back sooner, papery)
+  damping: number; // spring damping (higher = no overshoot)
+  lean: number; // 0-1: whole-tree lean toward the hand
+  blink: 'soft_close' | 'slow' | 'none'; // the nonverbal acknowledgement
+}
+
 // Everything the avatar and the companion screen need. The UI renders this and nothing else.
 export interface ExpressionState {
   avatar: AvatarPresentation;
@@ -171,6 +190,7 @@ export interface ExpressionState {
     blinkEveryMs: number | null; // null = eyes closed / no blinking
   };
   reactionStrength: number; // 0-1, from responsiveness: how visibly touch and care register
+  touch: TouchResponse; // how a stroke registers right now
   atmosphere: {
     theme: 'day' | 'night';
     phase: string;

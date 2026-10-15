@@ -3,11 +3,13 @@ import type { AvatarPresentation, ExpressionState, Gaze, Gesture } from '../../e
 import { AvatarEffects, BodyDetails, ForegroundEffects, Lanterns, SoilEffects } from './AvatarEffects';
 import { AvatarFace } from './AvatarFace';
 import { FoliageDefs, PadLeaves, PADS, paletteFor } from './Foliage';
+import { PetSession, usePetting } from './usePetting';
 
 interface BonsaiAvatarProps {
   expression: ExpressionState | null;
   onClick?: () => void;
   onTouch?: () => void; // the tree was tapped (Home may reveal its current thought)
+  onPetSession?: (s: PetSession) => void; // a petting session ended (attention, reported once per session)
   className?: string;
 }
 
@@ -161,7 +163,7 @@ const FILTER_URL: Record<NonNullable<AvatarPresentation['filter']>, string> = {
 };
 
 // The animated bonsai character. Draws what the Expression Engine decided; never sees health or sensor values.
-export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick, onTouch, className = '' }) => {
+export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick, onTouch, onPetSession, className = '' }) => {
   const base = expression?.avatar ?? RESTING;
   const motion = expression?.motion ?? { swaySpeed: 0.6, swayAmount: 0.5, flutter: 0.4, blinkEveryMs: 6000 };
   const strength = expression?.reactionStrength ?? 0.5;
@@ -174,6 +176,15 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
   const eyesOpen = look.eyes !== 'closed' && look.eyes !== 'joy';
   const gaze = useGaze(base.gaze, eyesOpen, strength >= 0.35, gesture, svgRef);
   const isWatering = look.effects.includes('rain');
+  const petting = usePetting(svgRef, expression?.touch ?? null, onPetSession);
+
+  // Petting's acknowledgement is nonverbal: a soft or slow eye-close, nothing said
+  useEffect(() => {
+    if (!petting.blink || motion.blinkEveryMs === null) return;
+    setIsBlinking(true);
+    const t = setTimeout(() => setIsBlinking(false), petting.blink.kind === 'soft_close' ? 700 : 420);
+    return () => clearTimeout(t);
+  }, [petting.blink]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Blinking: livelier trees blink more often, sometimes twice; asleep, never
   useEffect(() => {
@@ -194,6 +205,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
 
   // Touch: a responsive tree perks up visibly; a sleepy or unsure one barely stirs
   const handleInteract = () => {
+    if (petting.consumeClick()) return; // that was a stroke, not a tap
     if (strength >= 0.35) {
       setTapReaction(true);
       setTimeout(() => setTapReaction(false), 600 + strength * 800);
@@ -225,8 +237,10 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
     <div
       id="bonsai-avatar-container"
       onClick={handleInteract}
+      {...petting.handlers}
       className={`relative flex items-center justify-center select-none cursor-pointer transition-all duration-500 ${className}`}
-      title="Touch the tree"
+      style={{ touchAction: 'pan-y' }}
+      title="Touch or stroke the tree"
     >
       <div className={`absolute w-72 h-72 rounded-full pointer-events-none transition-all duration-700 ${look.halo}`} />
 
@@ -339,6 +353,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
 
         {/* The living tree: gestures move it from the base of the trunk; filters tint it whole */}
         <g className={gestureClass} style={pivot}>
+          <g ref={petting.leanRef}>
           <g filter={look.filter ? FILTER_URL[look.filter] : undefined}>
             {/* Roots, trunk & face (the trunk breathes) */}
             <g id="bonsai-trunk">
@@ -370,6 +385,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
             {/* Foliage pads: a soft body plus individual leaves */}
             <g id="bonsai-foliage">
               <g className="canopy-droop" style={droop.left}>
+                <g ref={petting.padRef(0)}>
                 <g className="animate-branch-left">
                   <ellipse cx="105" cy="195" rx="55" ry="32" fill={palette.shadow} opacity="0.8" />
                   <path d="M 60,195 C 50,175 75,150 105,155 C 125,145 155,160 160,180 C 170,200 150,225 125,225 C 90,230 65,215 60,195 Z" fill="url(#canopyFill)" />
@@ -377,9 +393,11 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
                   <ellipse cx="130" cy="188" rx="22" ry="12" fill="url(#canopyHi)" className="animate-leaf-flutter-2" />
                   <PadLeaves pad={PADS[0]} foliage={look.foliage} palette={palette} droop={droopValue} effects={look.effects} seasonal={look.seasonalLeaves} />
                 </g>
+                </g>
               </g>
 
               <g className="canopy-droop" style={droop.right}>
+                <g ref={petting.padRef(1)}>
                 <g className={gesture === 'fan' ? 'gesture-fan-pad' : ''} style={{ transformOrigin: '270px 225px', transformBox: 'view-box' }}>
                   <g className="animate-branch-right">
                     <ellipse cx="335" cy="170" rx="60" ry="34" fill={palette.shadow} opacity="0.8" />
@@ -389,9 +407,11 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
                     <PadLeaves pad={PADS[1]} foliage={look.foliage} palette={palette} droop={droopValue} effects={look.effects} seasonal={look.seasonalLeaves} />
                   </g>
                 </g>
+                </g>
               </g>
 
               <g className="canopy-droop" style={droop.top}>
+                <g ref={petting.padRef(2)}>
                 <g className="animate-branch-left" style={{ transformOrigin: '220px 100px' }}>
                   <ellipse cx="220" cy="85" rx="85" ry="46" fill={palette.shadow} opacity="0.75" />
                   <path d="M 140,85 C 135,50 180,25 220,28 C 260,25 305,50 300,85 C 305,115 270,135 220,132 C 170,135 135,115 140,85 Z" fill="url(#canopyFill)" />
@@ -405,10 +425,12 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
                     {sprouting && <circle cx="220" cy="12" r="3" fill="#FFF9A6" className="animate-sparkle-1" />}
                   </g>
                 </g>
+                </g>
               </g>
             </g>
 
             <BodyDetails effects={look.effects} shielding={gesture === 'shield'} shaking={gesture === 'shake_off'} />
+          </g>
           </g>
         </g>
 

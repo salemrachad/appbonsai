@@ -47,4 +47,18 @@ console.table(
     metadata: r.metadata_json,
   }))
 );
+
+// Attention (petting sessions), separate from care; absent in databases older than schema 4
+if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'interactions'").get()) {
+  console.log('Attention sessions (newest first)');
+  console.table(
+    (db.prepare('SELECT * FROM interactions ORDER BY started_at DESC LIMIT 10').all() as any[]).map((r) => ({
+      started: t(r.started_at),
+      minutes: Math.round(((r.ended_at - r.started_at) / 60000) * 10) / 10,
+      kind: r.kind,
+      count: r.count,
+      metadata: r.metadata_json,
+    }))
+  );
+}
 db.close();

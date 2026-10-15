@@ -53,6 +53,15 @@ export const APP_CONFIG = {
     manualMergeMinutes: 30, // a manual watering this close to a sensor-detected one is the same watering
   },
 
+  // Attention (petting the on-screen tree): sessions, not movements. Never biology.
+  attention: {
+    sessionIdleMs: 3000, // the browser closes a petting session after this long without a stroke
+    mergeMs: 2 * 60 * 1000, // a session starting this soon after the previous one extends it (one row)
+    maxSessionMs: 30 * 60 * 1000, // longer reported sessions are clamped
+    maxStrokesPerSession: 500,
+    maxRowsPerHour: 30, // write cap: more new sessions than this in an hour are refused
+  },
+
   history: {
     replayHours: 48, // fallback when no saved health memory exists: telemetry replayed on start
     maxGapMs: 15 * 60 * 1000, // short gap: readings this far apart still count as continuous observation
