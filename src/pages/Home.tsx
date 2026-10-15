@@ -19,7 +19,7 @@ export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, 
   const msg = expression?.message;
 
   return (
-    <main className="flex-1 min-h-0 w-full max-w-6xl mx-auto px-8 py-6 grid grid-cols-1 md:grid-cols-2 gap-10 items-center overflow-y-auto md:overflow-hidden">
+    <main className="relative z-10 flex-1 min-h-0 w-full max-w-6xl mx-auto px-8 py-6 grid grid-cols-1 md:grid-cols-2 gap-10 items-center overflow-y-auto md:overflow-hidden">
       <div className="h-full min-h-[320px] flex items-center justify-center">
         <BonsaiAvatar className="w-full h-full max-h-[620px]" expression={expression} />
       </div>

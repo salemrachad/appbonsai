@@ -7,6 +7,7 @@ import { evaluatePlantHealth, HealthMemory, initialHealthMemory } from '../src/h
 import type { PlantHealthState } from '../src/health/healthTypes';
 import type { BehaviourEpisode, PlantEvent } from '../src/history/historyTypes';
 import { perceive, toSample } from '../src/perception/PerceptionEngine';
+import { seasonState } from '../src/perception/season';
 import type { PerceptionSample } from '../src/perception/perceptionTypes';
 import { FICUS } from '../src/species/ficus';
 import { calculateVPD } from '../src/telemetry/telemetryNormalizer';
@@ -183,6 +184,90 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   const ov = applyDeveloperOverride(live.h, DEV_PRESETS.find((p) => p.id === 'very_dry')!, FICUS);
   check('J override changes condition', ov.condition === 'very_dry' && ov.isOverride);
   check('J live state untouched', JSON.stringify(live.h) === copy && ov.metrics === live.h.metrics);
+}
+
+// L. Season: from the date and latitude; it colours behaviour and expression, never health
+{
+  const oct = seasonState(new Date(2026, 9, 15, 12).getTime(), LOC.latitude);
+  const jan = seasonState(new Date(2027, 0, 20, 12).getTime(), LOC.latitude);
+  const south = seasonState(new Date(2026, 9, 15, 12).getTime(), -33.9);
+  check('L1 mid-October in Feytroun is mid autumn, days shortening', oct.id === 'autumn' && oct.stage === 'mid' && oct.daylightTrend === 'shortening', `${oct.stage} ${oct.id}, ${oct.daylightHours}h`);
+  check('L1b daylight ~11h in mid-October at 34°N', oct.daylightHours !== null && oct.daylightHours > 10.8 && oct.daylightHours < 11.6, `${oct.daylightHours}h`);
+  check('L2 January is winter, keyed to the winter it started in', jan.id === 'winter' && jan.key === '2026-winter' && jan.daylightTrend === 'lengthening', jan.key);
+  check('L3 southern hemisphere is flipped', south.id === 'spring', south.id);
+
+  const s = new Sim();
+  const o = s.run(at(9), 60, () => ({ soil: 60 }));
+  const asSeason = (id: 'spring' | 'winter') => ({ ...o.p, season: { ...o.p.season, id, stage: 'mid' as const, progress: 0.5 } });
+  const bWinter = evaluateBehaviour({ health: o.h, perception: asSeason('winter'), episodes: s.episodes, events: [], species: FICUS, now: at(10) });
+  const bSpring = evaluateBehaviour({ health: o.h, perception: asSeason('spring'), episodes: s.episodes, events: [], species: FICUS, now: at(10) });
+  check('L4 winter rest is quieter than the spring flush', bWinter.energy < bSpring.energy && bWinter.primaryState === bSpring.primaryState, `${bWinter.energy} vs ${bSpring.energy}`);
+  const xWinter = expressBehaviour({ behaviour: bWinter, health: o.h, perception: asSeason('winter'), now: at(10) });
+  check('L5 a calm tree wears the season', xWinter.avatar.foliage === 'deep' && xWinter.atmosphere.season === 'winter', `${xWinter.avatar.foliage}`);
+}
+
+// N. Season is gradual across boundaries, and changes what the same care means
+{
+  const s = new Sim();
+  const o = s.run(at(9), 60, () => ({ soil: 60 }));
+  const day = (y: number, mo: number, d: number, h = 12) => new Date(y, mo, d, h).getTime();
+  const live = (t: number, events: PlantEvent[] = []) => {
+    const p = { ...o.p, season: seasonState(t, LOC.latitude) };
+    const b = evaluateBehaviour({ health: o.h, perception: p, episodes: s.episodes, events, species: FICUS, now: t });
+    return { b, x: expressBehaviour({ behaviour: b, health: o.h, perception: p, now: t }) };
+  };
+  // Walk the whole year a day at a time: no jump in energy, foliage mix or leaf cycle
+  let energyStep = 0;
+  let cycleStep = 0;
+  let prev = live(day(2026, 0, 1));
+  for (let i = 1; i < 366; i++) {
+    const cur = live(day(2026, 0, 1 + i));
+    energyStep = Math.max(energyStep, Math.abs(cur.b.season.energy - prev.b.season.energy));
+    const c = cur.b.season.cycle;
+    const q = prev.b.season.cycle;
+    cycleStep = Math.max(cycleStep, Math.abs(c.yellowing - q.yellowing), Math.abs(c.newGrowth - q.newGrowth), Math.abs(c.leafDrop - q.leafDrop));
+    prev = cur;
+  }
+  // Without blending, a boundary would jump energy by up to 0.07 in one day (0.01 = one rounding step)
+  check('N1 no day-to-day jump in seasonal energy or leaf cycle all year', energyStep <= 0.011 && cycleStep <= 0.045, `max daily step: energy ${energyStep.toFixed(4)}, cycle ${cycleStep.toFixed(3)}`);
+  const nov30 = live(day(2026, 10, 30, 23));
+  const dec1 = live(day(2026, 11, 1, 1));
+  check(
+    'N2 Nov 30 → Dec 1: autumn and winter meet halfway, no cliff',
+    Math.abs(nov30.b.season.energy - dec1.b.season.energy) < 0.01 && nov30.x.avatar.foliageBlend?.tone === 'deep' && (dec1.x.avatar.foliageBlend?.amount ?? 0) > 0.45,
+    `${nov30.b.season.energy} → ${dec1.b.season.energy}, blend ${JSON.stringify(dec1.x.avatar.foliageBlend)}`
+  );
+  check('N3 mid-autumn: leaves yellowing, a few letting go; mid-spring: fresh growth', live(day(2026, 9, 25)).x.avatar.seasonalLeaves.yellowing > 0.8 && live(day(2026, 3, 15)).x.avatar.seasonalLeaves.newGrowth > 0.9);
+
+  // Diffraction: the same care, a different season → a different response
+  const feed = (t: number): PlantEvent => ({ id: 900, timestamp: t - 5 * MIN, type: 'fertilizing', note: null, metadata: {} });
+  const fedWinter = live(day(2027, 0, 15), [feed(day(2027, 0, 15))]);
+  const fedSpring = live(day(2026, 3, 15), [feed(day(2026, 3, 15))]);
+  check(
+    'N4 feeding in winter: patient, no sparkles; in spring: grateful, sparkles',
+    fedWinter.b.reaction?.seasonal === 'off_season_feed' && fedWinter.b.mood === 'patient' && !fedWinter.x.avatar.effects.includes('sparkles') &&
+      fedSpring.b.reaction?.seasonal === 'in_season_feed' && fedSpring.b.mood === 'grateful' && fedSpring.x.avatar.effects.includes('sparkles'),
+    `${fedWinter.b.mood} vs ${fedSpring.b.mood}`
+  );
+  check('N5 the season is in the diffraction and epidermal layers', !!fedWinter.x.layers.diffraction?.includes('off season feed') && fedWinter.x.layers.epidermal.some((l) => l.startsWith('mid winter: resting')), fedWinter.x.layers.diffraction ?? '');
+  check('N6 the season is in the words', fedWinter.x.message.text !== fedSpring.x.message.text, `"${fedWinter.x.message.text}" | "${fedSpring.x.message.text}"`);
+}
+
+// M. Every condition has its own scene and look
+{
+  const s = new Sim();
+  const o = s.run(at(9), 30, () => ({ soil: 60 }));
+  const looks = DEV_PRESETS.filter((p) => p.modifiers.length === 0).map((p) => {
+    const h = applyDeveloperOverride(o.h, p, FICUS);
+    const b = evaluateBehaviour({ health: h, perception: o.p, episodes: [], events: [], species: FICUS, now: at(10) });
+    const x = expressBehaviour({ behaviour: b, health: h, perception: o.p, now: at(10) });
+    return { id: p.id, sig: `${x.atmosphere.scene}|${x.avatar.animation}|${x.avatar.eyes}|${x.avatar.mouth}|${x.avatar.foliage}`, scene: x.atmosphere.scene };
+  });
+  const sigs = new Set(looks.map((l) => l.sig));
+  check('M1 no two conditions look alike', sigs.size === looks.length, `${sigs.size}/${looks.length} distinct`);
+  const asleep = looks.find((l) => l.id === 'sleeping')!;
+  const dark = looks.find((l) => l.id === 'too_dark')!;
+  check('M2 sleeping is night, too dark is a dim day', asleep.scene === 'night' && dark.scene === 'dim');
 }
 
 // Hysteresis: hovering around the threshold must not flap

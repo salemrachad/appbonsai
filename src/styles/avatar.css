@@ -1,0 +1,200 @@
+/* ======================================================================================
+   Living avatar: a body motion per state, recurring gestures, individual leaves, details.
+   The Expression Engine picks the classes; these only animate them.
+   ====================================================================================== */
+
+/* Body motions (on the whole SVG, pivot at the stand) */
+@keyframes tree-sigh {
+  0%, 55%, 100% { transform: scale(1) translateY(0); }
+  68% { transform: scale(1.012, 1.02) translateY(-1.5px); }
+  82% { transform: scale(0.99, 0.965) translateY(3.5px); }
+}
+@keyframes tree-wilt {
+  0%, 100% { transform: scale(0.975, 0.95) translateY(5px) rotate(-0.6deg); }
+  25% { transform: scale(0.972, 0.945) translateY(5.6px) rotate(0.2deg); }
+  50% { transform: scale(0.978, 0.955) translateY(4.6px) rotate(0.7deg); }
+  75% { transform: scale(0.971, 0.944) translateY(5.8px) rotate(-0.1deg); }
+}
+@keyframes tree-queasy {
+  0%, 100% { transform: rotate(-1.6deg) translateY(1px); }
+  30% { transform: rotate(1.2deg) translateY(2.5px) scale(1.01, 0.99); }
+  60% { transform: rotate(1.8deg) translateY(1px); }
+  80% { transform: rotate(-0.6deg) translateY(2.5px) scale(1.01, 0.99); }
+}
+@keyframes tree-stiff {
+  0%, 100% { transform: scale(0.965, 0.96) translateY(2px); }
+  50% { transform: scale(0.966, 0.962) translateY(1.8px); }
+}
+@keyframes tree-lean-light {
+  0%, 100% { transform: rotate(2.6deg) translateX(3px); }
+  50% { transform: rotate(3.8deg) translateX(5px) scale(1, 1.012); }
+}
+@keyframes tree-recoil {
+  0%, 100% { transform: rotate(-2.4deg) translateX(-3px) scale(1, 0.985); }
+  50% { transform: rotate(-3.2deg) translateX(-4px) scale(1, 0.98); }
+}
+@keyframes tree-gust {
+  0%, 52%, 100% { transform: rotate(0deg) skewX(0deg); }
+  58% { transform: rotate(-2.8deg) skewX(-2.4deg); }
+  64% { transform: rotate(-1.6deg) skewX(-1.2deg); }
+  70% { transform: rotate(-3.2deg) skewX(-2.8deg); }
+  84% { transform: rotate(0.8deg) skewX(0.6deg); }
+}
+@keyframes tree-heavy {
+  0%, 100% { transform: scale(1, 0.985) translateY(2px); }
+  50% { transform: scale(1.006, 0.995) translateY(1px); }
+}
+@keyframes tree-perk {
+  0%, 100% { transform: scale(0.995, 0.99) translateY(1.5px); }
+  50% { transform: scale(1.012, 1.026) translateY(-2.5px); }
+}
+@keyframes tree-sleep {
+  0%, 100% { transform: scale(1, 0.995) translateY(1px); }
+  40% { transform: scale(1.018, 1.028) translateY(-1.5px); }
+  55% { transform: scale(1.018, 1.028) translateY(-1.5px); }
+}
+@keyframes tree-wobble {
+  0%, 100% { transform: rotate(-1.2deg) scale(0.985); }
+  20% { transform: rotate(1.4deg) scale(0.985, 0.975); }
+  45% { transform: rotate(-0.4deg) scale(0.985); }
+  70% { transform: rotate(1.8deg) scale(0.98, 0.97) translateY(1px); }
+  85% { transform: rotate(-1.6deg) scale(0.985); }
+}
+@keyframes tree-tilt {
+  0%, 100% { transform: rotate(0deg); }
+  20%, 40% { transform: rotate(-3.5deg); }
+  60%, 80% { transform: rotate(3deg); }
+}
+.animate-tree-sigh { animation: tree-sigh 7s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-wilt { animation: tree-wilt 3.2s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-queasy { animation: tree-queasy 7.5s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-stiff { animation: tree-stiff 6s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-lean-light { animation: tree-lean-light 9s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-recoil { animation: tree-recoil 6s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-gust { animation: tree-gust 6.5s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-heavy { animation: tree-heavy 10s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-perk { animation: tree-perk 5.5s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-sleep { animation: tree-sleep 9s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-wobble { animation: tree-wobble 5s ease-in-out infinite; transform-origin: bottom center; }
+.animate-tree-tilt { animation: tree-tilt 6s ease-in-out infinite; transform-origin: bottom center; }
+
+/* The trunk breathes on its own (secondary motion under the body motion) */
+@keyframes trunk-breathe {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.012, 1.008); }
+}
+.trunk-breathe { animation: trunk-breathe calc(4.2s / var(--sway-speed, 1)) ease-in-out infinite; }
+
+/* Gestures: short, irregular actions on top of the body motion (pivot at the trunk base) */
+@keyframes g-wiggle { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-3deg) scale(1.02); } 45% { transform: rotate(3deg) scale(1.03); } 70% { transform: rotate(-2deg); } 85% { transform: rotate(1deg); } }
+@keyframes g-sigh { 0%, 100% { transform: none; } 30% { transform: scale(1.01, 1.025) translateY(-2px); } 65% { transform: scale(0.99, 0.955) translateY(5px); } }
+@keyframes g-shiver { 0%, 100% { transform: none; } 10%, 30%, 50%, 70%, 90% { transform: translateX(-2.2px) rotate(-0.6deg); } 20%, 40%, 60%, 80% { transform: translateX(2.2px) rotate(0.6deg); } }
+@keyframes g-yawn { 0%, 100% { transform: none; } 40%, 60% { transform: scale(1.01, 1.04) translateY(-3px); } }
+@keyframes g-shake { 0%, 100% { transform: none; } 12%, 36%, 60%, 84% { transform: rotate(-2.4deg); } 24%, 48%, 72% { transform: rotate(2.4deg); } }
+@keyframes g-stretch { 0%, 100% { transform: none; } 45%, 65% { transform: scale(1.01, 1.05) translateY(-5px) rotate(1.5deg); } }
+@keyframes g-look { 0%, 100% { transform: none; } 30% { transform: rotate(-1.5deg); } 70% { transform: rotate(1.5deg); } }
+@keyframes g-nod { 0%, 100% { transform: none; } 55% { transform: rotate(2.8deg) translateY(2px); } 62% { transform: rotate(-0.5deg); } }
+@keyframes g-tremble { 0%, 100% { transform: none; } 15%, 45%, 75% { transform: translateX(-1px) translateY(0.5px); } 30%, 60%, 90% { transform: translateX(1px); } }
+@keyframes g-tilt { 0%, 100% { transform: none; } 35%, 70% { transform: rotate(-5deg) translateX(-3px); } }
+@keyframes g-shield { 0%, 100% { transform: none; } 30%, 75% { transform: rotate(-1.5deg) scale(1, 0.98); } }
+@keyframes g-fan { 0%, 100% { transform: none; } 15%, 45%, 75% { transform: rotate(-14deg); } 30%, 60%, 90% { transform: rotate(4deg); } }
+.gesture-wiggle { animation: g-wiggle 1.3s ease-in-out; }
+.gesture-sigh { animation: g-sigh 2.6s ease-in-out; }
+.gesture-shiver-burst { animation: g-shiver 1.5s linear; }
+.gesture-yawn { animation: g-yawn 2.6s ease-in-out; }
+.gesture-shake-off { animation: g-shake 1.3s ease-in-out; }
+.gesture-stretch-up { animation: g-stretch 2.8s ease-in-out; }
+.gesture-look-around { animation: g-look 2.6s ease-in-out; }
+.gesture-nod-off { animation: g-nod 3.2s ease-in-out; }
+.gesture-tremble { animation: g-tremble 0.34s linear 5; }
+.gesture-tilt { animation: g-tilt 2.4s ease-in-out; }
+.gesture-shield { animation: g-shield 2.4s ease-in-out; }
+.gesture-fan-pad { animation: g-fan 1.8s ease-in-out; }
+
+/* Individual leaves quiver with the energy of the tree */
+@keyframes leaf-quiver {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(calc(7deg * var(--flutter-amp, 1))); }
+  65% { transform: rotate(calc(-5deg * var(--flutter-amp, 1))); }
+}
+.leaf-quiver { animation: leaf-quiver calc(3.4s / var(--sway-speed, 1)) ease-in-out infinite; }
+@keyframes leaf-fresh { 0%, 100% { opacity: 0.85; } 50% { opacity: 1; } }
+.leaf-fresh { animation: leaf-quiver calc(3s / var(--sway-speed, 1)) ease-in-out infinite, leaf-fresh 4s ease-in-out infinite; }
+
+/* Face details */
+@keyframes chatter { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-0.8px) scaleY(0.85); } 75% { transform: translateX(0.8px); } }
+.animate-chatter { animation: chatter 0.16s linear infinite; }
+@keyframes pant-mouth { 0%, 100% { transform: scaleY(0.75); } 50% { transform: scaleY(1.15); } }
+.animate-pant-mouth { animation: pant-mouth 0.55s ease-in-out infinite; }
+@keyframes wobble-mouth { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(0.8px); } }
+.animate-wobble-mouth { animation: wobble-mouth 0.9s ease-in-out infinite; }
+@keyframes eye-swirl { to { transform: rotate(360deg); } }
+.animate-eye-swirl path { animation: eye-swirl 2.4s linear infinite; }
+@keyframes flush { 0%, 100% { opacity: 0.7; } 50% { opacity: 0.95; } }
+.animate-flush { animation: flush 2s ease-in-out infinite; }
+
+/* Body details */
+@keyframes leaf-fall {
+  0% { opacity: 0; transform: translate(0, 0) rotate(0deg); }
+  6% { opacity: 1; }
+  30% { transform: translate(16px, 55px) rotate(120deg); }
+  55% { transform: translate(-10px, 110px) rotate(200deg); }
+  80% { opacity: 1; transform: translate(12px, 160px) rotate(300deg); }
+  100% { opacity: 0; transform: translate(4px, 175px) rotate(330deg); }
+}
+.animate-leaf-fall { animation: leaf-fall 10s ease-in-out infinite; transform-box: fill-box; transform-origin: center; opacity: 0; }
+@keyframes drip {
+  0%, 55% { transform: translateY(0) scale(0.4); opacity: 0; }
+  65% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(70px) scale(0.9, 1.2); opacity: 0; }
+}
+.animate-drip { animation: drip 3.2s ease-in infinite; }
+.animate-drip-fast { animation: drip 0.9s ease-in infinite; }
+@keyframes ripple { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
+.animate-ripple { animation: ripple 2.6s ease-out infinite; }
+@keyframes breath {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  20% { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(26px, -14px) scale(2.6); }
+}
+.animate-breath { animation: breath 3.3s ease-out infinite; opacity: 0; }
+@keyframes sweat-fly-left { 0%, 60% { opacity: 0; transform: translate(0, 0); } 70% { opacity: 0.9; } 100% { opacity: 0; transform: translate(-14px, 18px); } }
+@keyframes sweat-fly-right { 0%, 60% { opacity: 0; transform: translate(0, 0); } 70% { opacity: 0.9; } 100% { opacity: 0; transform: translate(14px, 18px); } }
+.animate-sweat-fly-left { animation: sweat-fly-left 2.2s ease-in infinite; opacity: 0; }
+.animate-sweat-fly-right { animation: sweat-fly-right 2.2s ease-in infinite; opacity: 0; }
+@keyframes firefly {
+  0%, 100% { transform: translate(0, 0); opacity: 0.2; }
+  20% { opacity: 1; }
+  30% { transform: translate(18px, -12px); }
+  45% { opacity: 0.3; }
+  60% { transform: translate(-8px, -26px); opacity: 1; }
+  80% { transform: translate(-20px, -6px); opacity: 0.4; }
+}
+.animate-firefly { animation: firefly 8s ease-in-out infinite; }
+@keyframes cloud-bob { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(6px, 3px); } }
+.animate-cloud-bob { animation: cloud-bob 5s ease-in-out infinite; }
+@keyframes butterfly-path {
+  0% { transform: translate(60px, 240px) rotate(10deg); }
+  25% { transform: translate(150px, 40px) rotate(-10deg); }
+  50% { transform: translate(330px, 70px) rotate(15deg); }
+  75% { transform: translate(390px, 250px) rotate(-5deg); }
+  100% { transform: translate(60px, 240px) rotate(10deg); }
+}
+.animate-butterfly-path { animation: butterfly-path 22s ease-in-out infinite; transform-box: view-box; }
+@keyframes butterfly-wings { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(0.25); } }
+.animate-butterfly-wings { animation: butterfly-wings 0.28s ease-in-out infinite; }
+@keyframes pollen { 0% { opacity: 0; transform: translate(0, 0); } 30% { opacity: 0.9; } 100% { opacity: 0; transform: translate(18px, -60px); } }
+.animate-pollen { animation: pollen 6s ease-out infinite; opacity: 0; }
+@keyframes sun-throb { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.animate-sun-throb { animation: sun-throb 3s ease-in-out infinite; }
+.visor-rest { transform: rotate(0deg); transition: transform 0.6s ease; }
+.visor-lower { transform: rotate(-6deg) translateY(3px); transition: transform 0.6s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-tree-"], .trunk-breathe, .leaf-quiver, .leaf-fresh, [class*="gesture-"],
+  .animate-leaf-fall, .animate-drip, .animate-drip-fast, .animate-ripple, .animate-breath, .animate-firefly,
+  .animate-butterfly-path, .animate-butterfly-wings, .animate-sun-throb, .animate-pollen, .animate-chatter, .animate-pant-mouth,
+  .animate-eye-swirl path, .animate-cloud-bob, .animate-sweat-fly-left, .animate-sweat-fly-right {
+    animation: none !important;
+  }
+}

@@ -8,9 +8,12 @@ import { useLivingState } from './hooks/useLivingState';
 import { usePlantBehaviour } from './hooks/usePlantBehaviour';
 import { usePlantHealth } from './hooks/usePlantHealth';
 import { DEFAULT_SETTINGS, loadSettings, TreeSettings } from './settings/settings';
+import { midSeasonState, SEASONS, type Season } from './perception/season';
 import { ACTIVE_SPECIES } from './species';
 import type { HourlyTelemetryPoint } from './telemetry/types';
 import { DetailView } from './components/DetailView';
+import { SceneBackdrop } from './components/scene/SceneBackdrop';
+import { SeasonChip } from './components/scene/SeasonChip';
 import { SensorDiagnostics } from './components/sensors/SensorDiagnostics';
 import { Toast, ToastMessage } from './components/Toast';
 import { Developer } from './pages/Developer';
@@ -39,6 +42,11 @@ export default function App() {
   const [devPresetId, setDevPresetId] = useState<string | null>(() => {
     const m = typeof window !== 'undefined' ? window.location.hash.match(/preview=([a-z_]+)/) : null;
     return m && DEV_PRESETS.some((p) => p.id === m[1]) ? m[1] : null;
+  });
+  // #season=winter previews a season (only the perceived season changes)
+  const [devSeason, setDevSeason] = useState<Season | null>(() => {
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/season=([a-z]+)/) : null;
+    return m && (SEASONS as string[]).includes(m[1]) ? (m[1] as Season) : null;
   });
 
   // Calm confirmation toasts
@@ -118,7 +126,7 @@ export default function App() {
   }, [serverOffline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { live, display } = usePlantHealth(snapshot?.health ?? null, devPresetId);
-  const { behaviour, expression } = usePlantBehaviour(snapshot, display);
+  const { behaviour, expression } = usePlantBehaviour(snapshot, display, devSeason, settings.latitude);
   const perception = snapshot?.perception ?? null;
   const reading = perception?.lastReading ?? null;
 
@@ -172,7 +180,8 @@ export default function App() {
   // ---- Header status ----
   const collector = snapshot?.status.collector;
   const sensorDown = !!perception && !perception.telemetry;
-  const statusLabel = devPresetId
+  const previewing = !!devPresetId || !!devSeason;
+  const statusLabel = previewing
     ? 'Test mode'
     : serverOffline
     ? 'Local server offline'
@@ -185,7 +194,7 @@ export default function App() {
     : isEstimate
     ? 'Weather estimate'
     : 'Live';
-  const statusDot = devPresetId
+  const statusDot = previewing
     ? 'bg-[#D49B53]'
     : serverOffline || sensorDown || !snapshot
     ? 'bg-[var(--ink)]/25'
@@ -194,24 +203,29 @@ export default function App() {
     : 'bg-[#4A6741] animate-pulse';
   const iconButton = 'p-2 rounded-full text-[var(--ink)]/55 hover:text-[#4A6741] hover:bg-white/70 transition-colors cursor-pointer';
   const devPreset = DEV_PRESETS.find((p) => p.id === devPresetId) ?? null;
-  // Too-dark and sleeping turn the main screen to night; Settings, History and details stay light.
-  const isNight = expression?.atmosphere.theme === 'night';
+  // The main screen takes on the tree's state (a scene per condition; sleeping and too-dark are dark).
+  // Settings, History and details stay light.
+  const atmosphere = expression?.atmosphere;
+  const isNight = atmosphere?.theme === 'night';
+  const scene = atmosphere?.scene ?? 'calm';
   const offlineMessage = serverOffline ? "I can't reach my local server. Is npm run dev running?" : null;
   const changeKey = `${snapshot?.status.counts.episodes ?? 0}-${snapshot?.status.counts.events ?? 0}-${snapshot?.recentEpisodes[0]?.id ?? 0}`;
 
   return (
     <div
-      className={`h-screen overflow-hidden flex flex-col text-[var(--ink)] transition-colors duration-1000 ${
-        isNight ? 'night night-sky' : 'bg-[var(--paper)]'
+      className={`relative h-screen overflow-hidden flex flex-col text-[var(--ink)] bg-[var(--paper)] transition-colors duration-1000 scene-${scene} ${
+        isNight ? 'night' : ''
       }`}
     >
-      <header className="shrink-0 h-16 px-8 flex items-center justify-between border-b border-[var(--line)]">
+      <SceneBackdrop scene={scene} season={atmosphere?.season ?? perception?.season?.id ?? 'summer'} intensity={atmosphere?.intensity ?? 0.5} />
+      <header className="relative z-10 shrink-0 h-16 px-8 flex items-center justify-between border-b border-[var(--line)]">
         <div className="flex items-baseline gap-4 min-w-0">
           <h1 className="serif text-3xl font-medium tracking-tight">{settings.treeName || 'Ficus'}</h1>
           <span className="sans text-xs text-[var(--ink)]/50 flex items-center gap-1 truncate">
             <MapPin className="w-3 h-3 text-[#4A6741]" />
             {settings.locationName}
           </span>
+          {perception?.season && <SeasonChip season={devSeason ? midSeasonState(devSeason, settings.latitude) : perception.season} />}
         </div>
 
         <div className="flex items-center gap-2">
@@ -246,8 +260,11 @@ export default function App() {
         health={display}
         expression={expression}
         offlineMessage={offlineMessage}
-        devPresetLabel={devPreset?.label ?? null}
-        onReturnToLive={() => selectDevPreset(null)}
+        devPresetLabel={[devPreset?.label, devSeason && `${devSeason[0].toUpperCase()}${devSeason.slice(1)} season`].filter(Boolean).join(' · ') || null}
+        onReturnToLive={() => {
+          setDevSeason(null);
+          selectDevPreset(null);
+        }}
         onOpenDetails={() => setShowDetail(true)}
       />
 
@@ -274,7 +291,18 @@ export default function App() {
             {panel === 'history' ? (
               <History treeName={settings.treeName} changeKey={changeKey} onCareLogged={() => reload()} />
             ) : panel === 'developer' ? (
-              <Developer snapshot={snapshot} behaviour={behaviour} expression={expression} devPresetId={devPresetId} onSelectDevPreset={selectDevPreset} />
+              <Developer
+                snapshot={snapshot}
+                behaviour={behaviour}
+                expression={expression}
+                devPresetId={devPresetId}
+                onSelectDevPreset={selectDevPreset}
+                devSeason={devSeason}
+                onSelectDevSeason={(s) => {
+                  setDevSeason(s);
+                  notify(s ? `Previewing ${s}` : 'Back to the real season');
+                }}
+              />
             ) : (
               <Settings
                 settings={settings}

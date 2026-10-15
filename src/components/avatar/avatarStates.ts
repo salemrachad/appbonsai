@@ -3,8 +3,12 @@
 export type {
   AvatarEffect,
   AvatarPresentation,
+  AvatarFilter,
   BlushStyle,
   EyeStyle,
+  Foliage,
+  Gaze,
+  Gesture,
   MouthStyle,
   Posture,
 } from '../../expression/expressionTypes';

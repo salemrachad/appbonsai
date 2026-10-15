@@ -6,6 +6,7 @@ import type { PlantTelemetry } from '../telemetry/types';
 import type { PerceivedReadings, PerceptionSample, PerceptionState } from './perceptionTypes';
 import { computeCareContext } from './careContext';
 import { computeDailyLight } from './dailyLight';
+import { seasonState } from './season';
 import { sunState } from './sun';
 
 const HOUR = 3600 * 1000;
@@ -118,6 +119,7 @@ export function perceive(input: PerceptionInput): PerceptionState {
     lastReading: latest,
     readings,
     sun,
+    season: seasonState(now, location.latitude),
     device: {
       online: !!fresh && !deviceError,
       lastError: deviceError,

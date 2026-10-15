@@ -1,6 +1,7 @@
 import { CONDITION_LABELS } from '../health/labels';
 import type { HealthModifier, StressSummary } from '../health/healthTypes';
-import type { CareLine, Concern, DayLine, IntensityTier, MessageIntent, ObservationId, RecoveryStage } from './behaviourTypes';
+import type { Season } from '../perception/season';
+import type { CareLine, Concern, DayLine, IntensityTier, MessageIntent, ObservationId, RecoveryStage, SeasonalCare } from './behaviourTypes';
 
 // The tree's words. Gentle and plant-centred, never blaming.
 // Only wording lives here: behaviour works with intents/tiers/ids, so any sentence can be rewritten freely.
@@ -96,6 +97,10 @@ export const DAY_LINES: Record<DayLine, Lines> = {
   morning_after_stress: ["I'm feeling a little better this morning.", 'That was a long night.', 'Morning. The night was not easy.'],
   evening_after_heat: ['That was a warm day.', 'What a hot day it was.', 'The heat is finally easing.'],
   evening_after_stress: ['That was a long day.', 'Glad this day is ending.', 'A tiring day.'],
+  season_spring: ['Spring! I can feel new leaves coming.', 'The days are longer. Time to grow.', 'Spring is here. Waking up properly now.'],
+  season_summer: ['Summer. Long bright days ahead.', 'Summer is here. I will be thirstier now.', 'Long days, warm nights. Summer.'],
+  season_autumn: ['Autumn. The days are getting shorter.', 'I can feel autumn coming in.', 'Shorter days now. I will slow down a little.'],
+  season_winter: ['Winter. Time to rest.', 'Short days. I am slowing right down.', 'Winter is here. I will drink much less now.'],
 };
 
 // About recent care. Context, never health claims the sensors can't prove.
@@ -104,6 +109,39 @@ export const CARE_LINES: Record<CareLine, Lines> = {
   new_spot: ['Still getting to know this new spot.', 'New place, new light. Learning it.', 'This spot is new to me.'],
   new_shape: ['Getting used to my new shape.', 'A little lighter since the pruning.', 'Growing into my new shape.'],
 };
+
+// What the time of year adds to a care reaction (diffraction). Appended to the reaction line and its tip.
+export const SEASONAL_CARE_LINES: Record<SeasonalCare, Lines> = {
+  resting_drink: ["I'll drink it slowly; I'm resting for the winter.", 'In winter I take my time with water.'],
+  growing_drink: ['Summer days dry me out fast.', 'Growing season: I go through water quickly.'],
+  resting_wet: ['Wet soil stays wet a long time while I grow slowly.', 'I barely drink at this time of year.'],
+  growing_prune: ["Good timing. I'm growing fast, new shoots will come soon.", 'I will fill this in quickly while I am growing.'],
+  resting_prune: ["I'll be slow to fill in until spring.", 'New shoots will wait for longer days.'],
+  in_season_feed: ['Just when I am growing.', 'Good timing for it.'],
+  off_season_feed: ["I'm not really growing right now, though.", 'I will not use much of it until spring.'],
+  growing_repot: ['My roots will settle quickly while I am growing.', 'Good season for new roots.'],
+  resting_repot: ['My roots will take a while to settle at this time of year.', 'Settling in will be slow until spring.'],
+};
+const SEASONAL_CARE_TIPS: Record<SeasonalCare, string> = {
+  resting_drink: 'In winter a ficus uses little water: let the top of the soil dry before the next watering.',
+  growing_drink: 'In summer the pot can dry within days; check it more often.',
+  resting_wet: 'Soil dries slowly in the cool months; wait longer between waterings.',
+  growing_prune: 'Spring and summer are the best time to prune: regrowth is fast.',
+  resting_prune: 'Outside the growing season, keep pruning light; regrowth waits for spring.',
+  in_season_feed: 'Feeding every few weeks in the growing season is fine.',
+  off_season_feed: 'Outside the growing season, feeding is best paused until spring.',
+  growing_repot: 'Repotting in the growing season lets roots recover fastest.',
+  resting_repot: 'Roots recover slowly in the cool months; keep it sheltered and water sparingly.',
+};
+
+// Seasonal care, added to the calm tips (ficus is evergreen; growth follows day length).
+const SEASON_TIPS: Record<Season, string> = {
+  spring: 'Spring: new growth starts. Water a little more as it warms; light feeding is fine.',
+  summer: 'Summer: the growing season. The pot dries fastest now; feeding every few weeks is fine.',
+  autumn: 'Autumn: growth slows as days shorten. Water a bit less, stop feeding. A few yellow leaves are normal.',
+  winter: 'Winter: resting. Water sparingly, no feeding, and keep it away from frost and cold drafts.',
+};
+const SEASON_TIP_INTENTS: MessageIntent[] = ['joy', 'content', 'afterglow', 'sleep'];
 
 const CONCERN_PHRASE: Record<string, string> = {
   'soil:Waterlogged': 'my soil feels very wet',
@@ -161,6 +199,8 @@ export interface RenderInput {
   stress: StressSummary;
   isEstimate: boolean;
   reactionWhy: string | null;
+  season?: Season;
+  seasonalCare?: SeasonalCare | null; // how the time of year changes the meaning of a care reaction
 }
 
 export function renderMessage(r: RenderInput): { text: string; tip: string } {
@@ -172,6 +212,7 @@ export function renderMessage(r: RenderInput): { text: string; tip: string } {
   if (r.dayLine) text = `${pick(DAY_LINES[r.dayLine])} ${text}`;
   if (r.careLine) text = `${text} ${pick(CARE_LINES[r.careLine])}`;
   if (r.observation) text = `${text} ${pick(OBSERVATION_LINES[r.observation.id]).replace('{hours}', String(r.observation.hours ?? ''))}`;
+  if (r.seasonalCare) text = `${text} ${pick(SEASONAL_CARE_LINES[r.seasonalCare])}`;
 
   let tip = TIPS[r.intent] ?? '';
   const s = r.stress;
@@ -181,8 +222,10 @@ export function renderMessage(r: RenderInput): { text: string; tip: string } {
     const left = s.recoveryRemainingHours;
     tip = `Recovering from ${CONDITION_LABELS[s.recoveringFrom].toLowerCase()}${left ? `; about ${hrs(left)} to go` : ''}. ${tip}`;
   }
+  if (r.seasonalCare) tip = `${tip} ${SEASONAL_CARE_TIPS[r.seasonalCare]}`;
   if (r.reactionWhy) tip = `${r.reactionWhy[0].toUpperCase()}${r.reactionWhy.slice(1)}. ${tip}`;
   const hints = r.modifiers.map((m) => MODIFIER_HINT[m]).filter(Boolean);
   if (hints.length > 0 && !r.intent.startsWith('watering') && !r.intent.startsWith('care')) tip = `${hints.slice(0, 2).join(' ')} ${tip}`;
+  if (r.season && SEASON_TIP_INTENTS.includes(r.intent)) tip = `${tip} ${SEASON_TIPS[r.season]}`;
   return { text, tip: tip.trim() };
 }

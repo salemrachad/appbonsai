@@ -1,14 +1,19 @@
 import React from 'react';
 import { RotateCcw, Wrench } from 'lucide-react';
 import { DEV_PRESETS } from '../../health/developerOverrides';
+import { SEASONS, type Season } from '../../perception/season';
 
 interface StateTesterProps {
   activePresetId: string | null;
   onSelectPreset: (id: string | null) => void;
+  activeSeason: Season | null;
+  onSelectSeason: (season: Season | null) => void;
 }
 
+const SEASON_EMOJI: Record<Season, string> = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' };
+
 // Preview any health state. Presentation only: telemetry, the database, care events and episodes are untouched.
-export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSelectPreset }) => (
+export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSelectPreset, activeSeason, onSelectSeason }) => (
   <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -52,6 +57,24 @@ export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSele
           >
             <span className="text-sm">{p.emoji}</span>
             <span className="truncate">{p.label}</span>
+          </button>
+        );
+      })}
+    </div>
+
+    <div className="flex items-center gap-1.5 pt-1">
+      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Season</span>
+      {[null, ...SEASONS].map((s) => {
+        const active = activeSeason === s;
+        return (
+          <button
+            key={s ?? 'live'}
+            onClick={() => onSelectSeason(s)}
+            className={`py-1 px-2 rounded-lg border text-[11px] font-medium sans cursor-pointer ${
+              active ? 'bg-[#4A6741] text-white border-[#334A2C]' : 'bg-white text-[#2D332A] border-[#D8D2C9] hover:border-[#4A6741]'
+            }`}
+          >
+            {s ? `${SEASON_EMOJI[s]} ${s[0].toUpperCase()}${s.slice(1)}` : 'Live'}
           </button>
         );
       })}

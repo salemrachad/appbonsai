@@ -9,7 +9,7 @@ import { messageKey, variantCount } from './messages';
 // - A minor change within an episode waits for a short cooldown.
 // - A line stays on screen for a while, then the tree falls silent (animation only).
 // - Only strong/critical states are repeated, after a long cooldown, with a different variant.
-// - Relationship observations: once per episode. Time-of-day lines: once per day.
+// - Relationship observations: once per episode. Time-of-day lines: once per day. Season lines: once per season.
 // - The variant is stable for an episode + message, so refreshing never reshuffles the words.
 // The memory is persisted by the server, so browser refreshes and restarts don't replay anything.
 
@@ -156,9 +156,11 @@ export function decideSpeech({
       observation = obs;
       next.onceFlags = [...m.onceFlags, flag].slice(-SPEECH.maxOnceFlags);
     }
-    if (b.dayLine && m.dayLinesSaid[b.dayLine] !== localDate(now)) {
+    // Season lines are said once per season, the others once per day
+    const stamp = b.dayLine?.startsWith('season_') ? b.season.key : localDate(now);
+    if (b.dayLine && m.dayLinesSaid[b.dayLine] !== stamp) {
       dayLine = b.dayLine;
-      next.dayLinesSaid = { ...m.dayLinesSaid, [b.dayLine]: localDate(now) };
+      next.dayLinesSaid = { ...m.dayLinesSaid, [b.dayLine]: stamp };
     }
     if (b.careLine && (next.dayLinesSaid[b.careLine] ?? m.dayLinesSaid[b.careLine]) !== localDate(now)) {
       careLine = b.careLine;

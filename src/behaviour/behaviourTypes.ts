@@ -1,5 +1,7 @@
 import type { HealthCondition, HealthModifier } from '../health/healthTypes';
 import type { PlantEventType } from '../history/historyTypes';
+import type { Season } from '../perception/season';
+import type { SeasonRule } from '../species/types';
 
 // Moods drive the face (subtly) on top of the condition's look; see expression/ExpressionEngine.ts.
 export type Mood =
@@ -64,7 +66,16 @@ export type RecoveryStage = 'relief' | 'perking' | 'settling';
 export type TimeOfDay = 'morning' | 'day' | 'evening' | 'night';
 
 // One-off contextual lines tied to the time of day, spoken at most once per day.
-export type DayLine = 'morning_calm' | 'morning_after_stress' | 'evening_after_heat' | 'evening_after_stress';
+export type DayLine =
+  | 'morning_calm'
+  | 'morning_after_stress'
+  | 'evening_after_heat'
+  | 'evening_after_stress'
+  // The first days of a season: said once per season
+  | 'season_spring'
+  | 'season_summer'
+  | 'season_autumn'
+  | 'season_winter';
 
 // Lines about recent care, spoken at most once a day while the context lasts.
 export type CareLine = 'settling_in' | 'new_spot' | 'new_shape';
@@ -72,9 +83,22 @@ export type CareLine = 'settling_in' | 'new_spot' | 'new_shape';
 // Gentle relationship observations, by id (wording in messages.ts). Spoken once per episode.
 export type ObservationId = 'thirsty_since_yesterday' | 'lots_of_water_today' | 'usually_notices_thirst' | 'typical_recovery';
 
+// How the season changes the meaning of a care action (diffraction: same action, different time of year).
+export type SeasonalCare =
+  | 'resting_drink' // watered during winter rest: drinks slowly
+  | 'growing_drink' // a relieving drink in the summer growing season
+  | 'resting_wet' // too much water while resting: it stays wet longer
+  | 'growing_prune' // pruned during the spring flush or summer growth: regrows fast
+  | 'resting_prune' // pruned while growth is slowing or resting: slow to regrow
+  | 'in_season_feed'
+  | 'off_season_feed' // fed while it isn't growing
+  | 'growing_repot' // repotted while growing: roots settle sooner
+  | 'resting_repot';
+
 // The tree's response to something the human just did.
 export interface CareReaction {
   kind: ReactionKind;
+  seasonal: SeasonalCare | null;
   eventId: number;
   eventType: PlantEventType;
   at: number; // when the care happened
@@ -113,6 +137,16 @@ export interface PlantBehaviourState {
   recoveryStage: RecoveryStage | null;
   afterglow: boolean; // comfortable, but a stress ended recently: still a little subdued
   timeOfDay: TimeOfDay;
+  season: {
+    id: Season;
+    key: string;
+    stage: 'early' | 'mid' | 'late';
+    growth: SeasonRule['growth'];
+    daylightTrend: 'lengthening' | 'shortening';
+    blend: { with: Season; amount: number } | null; // the neighbouring season, felt near a boundary
+    energy: number; // seasonal energy factor, blended across boundaries
+    cycle: { newGrowth: number; yellowing: number; leafDrop: number }; // 0-1, where the tree is in its year
+  };
   dayLine: DayLine | null; // a time-of-day line that fits right now (speech policy decides if it's said)
   careLine: CareLine | null; // a line about recent care that fits right now (once a day)
   care: {

@@ -104,7 +104,7 @@ export const SensorDiagnostics: React.FC<SensorDiagnosticsProps> = ({ readings, 
   const toUnit = (c: number | null) => (c === null ? null : tempUnit === 'F' ? (c * 9) / 5 + 32 : c);
 
   return (
-    <section className="shrink-0 border-t border-[var(--line)] bg-white/50 sans text-[var(--ink)]">
+    <section className="relative z-10 shrink-0 border-t border-[var(--line)] bg-white/50 sans text-[var(--ink)]">
       <div className="max-w-6xl mx-auto px-8 pt-2.5 pb-3">
         <div className="flex items-center justify-between text-[11px] text-[var(--ink)]/50 mb-2">
           <div className="flex items-center gap-2 tabular-nums">

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "./styles/avatar.css";
+@import "./styles/scenes.css";
 
 /* Home-screen theme tokens. `.night` (too-dark mode) swaps them; `.day` restores them inside overlays. */
 :root,
@@ -357,7 +359,7 @@
 }
 
 .animate-tree-pant {
-  animation: tree-pant 1.8s ease-in-out infinite;
+  animation: tree-pant 1.15s ease-in-out infinite;
   transform-origin: bottom center;
 }
 

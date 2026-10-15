@@ -5,10 +5,12 @@ import { CONDITION_SEVERITY, SEVERITY_RANK, STRESS_CONDITIONS } from '../health/
 import type { BehaviourEpisode, PlantEvent } from '../history/historyTypes';
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { SpeciesProfile } from '../species';
+import type { SeasonalCurve, SeasonRule } from '../species/types';
 import type {
   CareLine,
   CareReaction,
   Concern,
+  SeasonalCare,
   DayLine,
   IntensityTier,
   MessageIntent,
@@ -44,8 +46,76 @@ const CARE_REACTION: Partial<Record<PlantEvent['type'], ReactionKind>> = {
   moved_location: 'care_moved',
 };
 
-// Same human action, different history → different response.
-function careReaction(events: PlantEvent[], health: PlantHealthState, species: SpeciesProfile, now: number): CareReaction | null {
+// Smooth yearly bump: 1 on the peak day, 0 beyond ± halfWidthDays.
+function cycleValue(day: number, c: SeasonalCurve): number {
+  const raw = Math.abs(day - c.peakDay) % 365;
+  const d = Math.min(raw, 365 - raw);
+  return d >= c.halfWidthDays ? 0 : round2(0.5 * (1 + Math.cos((Math.PI * d) / c.halfWidthDays)));
+}
+
+// The season as the tree lives it: its rule, energy blended across the boundary, its place in the yearly cycle.
+function seasonalContext(perception: PerceptionState, species: SpeciesProfile): PlantBehaviourState['season'] {
+  const s = perception.season;
+  const rule = species.seasons[s.id];
+  const other = s.blend ? species.seasons[s.blend.with] : null;
+  const energy = other ? rule.energy + (other.energy - rule.energy) * s.blend!.amount : rule.energy;
+  const c = species.seasonalCycle;
+  return {
+    id: s.id,
+    key: s.key,
+    stage: s.stage,
+    growth: rule.growth,
+    daylightTrend: s.daylightTrend,
+    blend: s.blend,
+    energy: round2(energy),
+    cycle: { newGrowth: cycleValue(s.seasonalDay, c.newGrowth), yellowing: cycleValue(s.seasonalDay, c.yellowing), leafDrop: cycleValue(s.seasonalDay, c.leafDrop) },
+  };
+}
+
+const GROWING: SeasonRule['growth'][] = ['flush', 'active'];
+
+// What the season adds to a care action's meaning.
+function seasonalCare(kind: ReactionKind, rule: SeasonRule): SeasonalCare | null {
+  const growing = GROWING.includes(rule.growth);
+  switch (kind) {
+    case 'watering_relief':
+      return rule.growth === 'active' ? 'growing_drink' : rule.growth === 'resting' ? 'resting_drink' : null;
+    case 'watering_thanks':
+    case 'watering_gentle_ack':
+      return rule.growth === 'resting' ? 'resting_drink' : null;
+    case 'watering_enough':
+      return growing ? null : 'resting_wet';
+    case 'care_pruning':
+      return growing ? 'growing_prune' : 'resting_prune';
+    case 'care_fertilizing':
+      return rule.feeding ? 'in_season_feed' : 'off_season_feed';
+    case 'care_repotting':
+      return growing ? 'growing_repot' : 'resting_repot';
+    default:
+      return null;
+  }
+}
+const SEASON_WHY: Record<SeasonalCare, string> = {
+  resting_drink: 'during winter rest',
+  growing_drink: 'in the summer growing season',
+  resting_wet: 'while growth is slow',
+  growing_prune: 'while growing',
+  resting_prune: 'while growth is slow',
+  in_season_feed: 'in the growing season',
+  off_season_feed: 'outside the growing season',
+  growing_repot: 'while growing',
+  resting_repot: 'while growth is slow',
+};
+
+// Same human action, different history (and time of year) → different response.
+function careReaction(events: PlantEvent[], health: PlantHealthState, species: SpeciesProfile, seasonRule: SeasonRule, now: number): CareReaction | null {
+  const r = careReactionBase(events, health, species, now);
+  if (!r) return null;
+  const seasonal = seasonalCare(r.kind, seasonRule);
+  return { ...r, seasonal, why: seasonal ? `${r.why}, ${SEASON_WHY[seasonal]}` : r.why };
+}
+
+function careReactionBase(events: PlantEvent[], health: PlantHealthState, species: SpeciesProfile, now: number): Omit<CareReaction, 'seasonal'> | null {
   const recent = [...events]
     .filter((e) => e.timestamp <= now && e.type !== 'manual_note')
     .sort((a, b) => b.timestamp - a.timestamp)[0];
@@ -214,8 +284,12 @@ export function evaluateBehaviour({ health, perception, episodes, events, specie
   const glow = afterglow ? sincePrevEnd / AFTERGLOW_MS : 1; // 0 right after, 1 when it has passed
   if (afterglow) reasons.push(`Afterglow: ${previousState} ended ${Math.round(sincePrevEnd / MIN)} min ago, still settling`);
 
+  // ---- Season: blended across boundaries, so nothing jumps on the 1st of the month ----
+  const season = seasonalContext(perception, species);
+  const seasonRule = species.seasons[season.id];
+
   // ---- Care reaction (diffraction) ----
-  const reaction = condition === 'sensor_uncertain' || condition === 'freezing_risk' ? null : careReaction(events, health, species, now);
+  const reaction = condition === 'sensor_uncertain' || condition === 'freezing_risk' ? null : careReaction(events, health, species, seasonRule, now);
   if (reaction) reasons.push(`Recent care: ${reaction.why} → ${reaction.kind.replace(/_/g, ' ')}`);
 
   // ---- Energy: movement and liveliness ----
@@ -228,7 +302,9 @@ export function evaluateBehaviour({ health, perception, episodes, events, specie
     if (isStress) energy *= 1 - 0.45 * expressionIntensity;
     if (recoveryStage) energy *= { relief: 0.55, perking: 0.7, settling: 0.85 }[recoveryStage];
     if (afterglow) energy *= 0.85 + 0.15 * glow;
-    if (reaction?.kind === 'watering_relief') energy += 0.1;
+    if (reaction?.kind === 'watering_relief') energy += reaction.seasonal === 'resting_drink' ? 0.05 : 0.1; // resting: drinks slowly
+    if (reaction?.seasonal === 'growing_prune') energy += 0.05;
+    if (season.energy !== 1) energy *= season.energy; // livelier in the spring flush, quieter at winter rest
     if (care.settling > 0) {
       energy *= 1 - 0.25 * care.settling;
       careEffects.push(`settling after repotting: quieter (energy ×${round2(1 - 0.25 * care.settling)})`);
@@ -242,7 +318,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, specie
   let mood: Mood;
   if (condition === 'sensor_uncertain') mood = 'confused';
   else if (condition === 'sleeping') mood = 'sleepy';
-  else if (reaction) mood = REACTION_MOOD[reaction.kind];
+  else if (reaction) mood = reaction.seasonal === 'off_season_feed' || reaction.seasonal === 'resting_prune' ? 'patient' : REACTION_MOOD[reaction.kind];
   else if (recoveryStage) mood = recoveryStage === 'relief' ? 'relieved' : recoveryStage === 'perking' ? 'grateful' : 'content';
   else if (condition === 'thriving') mood = 'joyful';
   else if (condition === 'very_bright') mood = 'dazzled';
@@ -280,6 +356,10 @@ export function evaluateBehaviour({ health, perception, episodes, events, specie
     if (today.some((e) => e.condition === 'hot' || e.condition === 'hot_and_dry' || e.modifiers.includes('hot'))) dayLine = 'evening_after_heat';
     else if (today.some(isStressEpisode)) dayLine = 'evening_after_stress';
   }
+  // First days of a new season (once per season; the speech policy keeps track)
+  if (!dayLine && perception.season.progress < 0.1 && (tod === 'morning' || tod === 'day') && CALM.includes(condition) && !reaction) {
+    dayLine = `season_${season.id}` as DayLine;
+  }
   if (dayLine) reasons.push(`Time of day: ${dayLine.replace(/_/g, ' ')}`);
 
   // ---- Care line (once a day while the context lasts; not during serious stress) ----
@@ -294,6 +374,11 @@ export function evaluateBehaviour({ health, perception, episodes, events, specie
   reasons.push(`Mood ${mood}, energy ${energy}, responsiveness ${responsiveness}, intensity ${intensity}`);
   if (concern) reasons.push(`Watching: ${concern.metric} is ${concern.status.toLowerCase()} (not long enough to be a condition yet)`);
   if (relationship.observation) reasons.push(`Relationship: ${relationship.observation.id.replace(/_/g, ' ')}`);
+  reasons.push(
+    `Season: ${season.stage} ${season.id} (${season.growth}${perception.season.daylightHours !== null ? `, ${perception.season.daylightHours}h daylight, ${season.daylightTrend}` : ''})` +
+      `${season.blend ? `, ${Math.round(season.blend.amount * 100)}% ${season.blend.with}` : ''}, energy ×${season.energy}`
+  );
+  if (reaction?.seasonal) reasons.push(`Season shapes the care reaction: ${reaction.seasonal.replace(/_/g, ' ')}`);
   if (perception.quality.insufficientHistory) reasons.push('Little history yet: staying cautious');
   if (health.modifiers.includes('sensor_uncertain')) reasons.push("Data overlay: biological state held while it can't be observed");
 
@@ -310,6 +395,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, specie
     recoveryStage,
     afterglow,
     timeOfDay: tod,
+    season,
     dayLine,
     careLine,
     care: { settling: care.settling, calm: care.calm, relearningLight: care.relearningLight, effects: careEffects },

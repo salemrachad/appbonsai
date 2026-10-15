@@ -41,6 +41,22 @@ export const FICUS: SpeciesProfile = {
   radiation: { minCritical: 20, minWarning: 80, minOptimal: 200, maxOptimal: 550, maxWarning: 750, maxCritical: 1100, unit: 'W/m²' },
   vpd: { minCritical: 0.1, minWarning: 0.4, minOptimal: 0.75, maxOptimal: 1.3, maxWarning: 1.85, maxCritical: 2.6, unit: 'kPa' },
 
+  // Ficus is evergreen: no autumn colour, but growth follows day length. A flush of new leaves in
+  // spring, steady growth in summer, slowing as days shorten (a few old leaves may yellow and drop),
+  // near rest in winter (drinks much less, no feeding). PROTOTYPE numbers.
+  seasons: {
+    spring: { growth: 'flush', energy: 1.05, waterNeed: 0.85, feeding: true },
+    summer: { growth: 'active', energy: 1, waterNeed: 1, feeding: true },
+    autumn: { growth: 'slowing', energy: 0.93, waterNeed: 0.75, feeding: false },
+    winter: { growth: 'resting', energy: 0.86, waterNeed: 0.55, feeding: false },
+  },
+  // Northern-calendar days: new growth peaks mid April, yellowing late October, leaf drop early November.
+  seasonalCycle: {
+    newGrowth: { peakDay: 105, halfWidthDays: 70 },
+    yellowing: { peakDay: 300, halfWidthDays: 60 },
+    leafDrop: { peakDay: 310, halfWidthDays: 40 },
+  },
+
   // Hysteresis: enter at one value after a while, leave at a different value after a while.
   // A few minutes past a threshold never changes the tree's state on its own.
   latches: {

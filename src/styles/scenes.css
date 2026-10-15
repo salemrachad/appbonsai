@@ -1,0 +1,373 @@
+/* ======================================================================================
+   Scenes: the whole Home screen takes on the tree's state (atmosphere.scene).
+   `.scene-<id>` on the app root sets the theme tokens; `.backdrop-<id>` is the painted layer.
+   Dark scenes (night, dim) also get `.night`, which swaps the text tokens (see index.css).
+   ====================================================================================== */
+
+.scene-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.scene-layer {
+  position: absolute;
+  inset: 0;
+  transition: opacity 1.6s ease;
+}
+
+/* ---- Tokens per scene (light scenes keep dark ink; colour shifts the paper and accents) ---- */
+.scene-calm { --paper: #f8f5f2; }
+.scene-golden { --paper: #faf3e2; }
+.scene-parched { --paper: #f4ead8; --line: #e6d8bf; }
+.scene-drought { --paper: #eddcbd; --line: #dcc59f; --line-strong: #cdb388; }
+.scene-scorching { --paper: #fbe6d2; --line: #f0cfb0; }
+.scene-sodden { --paper: #e3e9ee; --line: #d0dae2; }
+.scene-chill { --paper: #e9f1f7; --line: #d3e2ee; }
+.scene-frozen { --paper: #dce8f2; --line: #c3d6e6; --ink: #253240; }
+.scene-glare { --paper: #fffaea; --line: #f3e8c4; }
+.scene-windy { --paper: #f2ece0; --line: #e4dac6; }
+.scene-fog { --paper: #e9eceb; --line: #dadfdf; }
+.scene-renewal { --paper: #eef5ea; --line: #dbe8d4; }
+.scene-storm { --paper: #dcd8e0; --line: #c9c3d0; --ink: #2a2733; }
+.scene-static { --paper: #ebebe9; --line: #dcdcda; }
+.scene-dim.night { --paper: #232a33; }
+.scene-night.night { --paper: #121826; }
+
+/* ---- Painted backdrops ---- */
+.backdrop-calm { background: linear-gradient(180deg, #f3f1ea 0%, #f8f5f2 65%); }
+.backdrop-calm.season-spring {
+  background: radial-gradient(ellipse 60% 55% at 22% 38%, rgba(255, 210, 222, 0.38), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 10%, rgba(220, 240, 190, 0.45), transparent 70%), linear-gradient(180deg, #f1f6ea 0%, #f8f5f2 70%);
+}
+.backdrop-calm.season-summer {
+  background: radial-gradient(ellipse 55% 50% at 85% 5%, rgba(255, 221, 140, 0.45), transparent 70%), linear-gradient(180deg, #f8f2e2 0%, #f8f5f2 70%);
+}
+.backdrop-calm.season-autumn {
+  background: radial-gradient(ellipse 60% 55% at 25% 45%, rgba(226, 150, 80, 0.2), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 90% 0%, rgba(240, 190, 120, 0.3), transparent 70%), linear-gradient(180deg, #f5ede0 0%, #f8f5f2 70%);
+}
+.backdrop-calm.season-winter {
+  background: radial-gradient(ellipse 60% 45% at 75% 0%, rgba(214, 228, 240, 0.7), transparent 70%), linear-gradient(180deg, #edf1f3 0%, #f6f6f4 70%);
+}
+.backdrop-golden {
+  background: radial-gradient(ellipse 70% 65% at 18% 10%, rgba(255, 205, 100, 0.42), transparent 70%),
+    radial-gradient(ellipse 50% 50% at 28% 60%, rgba(160, 210, 130, 0.25), transparent 70%), linear-gradient(180deg, #fbf1d8 0%, #f9f4e8 75%);
+}
+.backdrop-parched {
+  background: radial-gradient(ellipse 80% 50% at 50% -5%, rgba(255, 236, 200, 0.9), transparent 70%), linear-gradient(180deg, #f6ecd9 0%, #efdfc2 100%);
+}
+.backdrop-drought {
+  background: radial-gradient(ellipse 90% 55% at 70% -10%, rgba(255, 226, 170, 0.9), transparent 70%), linear-gradient(180deg, #efdcb8 0%, #e2c597 100%);
+}
+.backdrop-scorching {
+  background: radial-gradient(ellipse 50% 45% at 88% 6%, rgba(255, 150, 70, 0.55), transparent 70%),
+    radial-gradient(ellipse 80% 60% at 50% 110%, rgba(240, 120, 80, 0.25), transparent 70%), linear-gradient(180deg, #fde3c7 0%, #f7d0b0 100%);
+}
+.backdrop-sodden {
+  background: radial-gradient(ellipse 80% 40% at 50% 0%, rgba(150, 170, 190, 0.5), transparent 70%), linear-gradient(180deg, #d8e1e9 0%, #e3e9ee 70%);
+}
+.backdrop-chill { background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(255, 255, 255, 0.8), transparent 70%), linear-gradient(180deg, #e3eef6 0%, #edf3f8 80%); }
+.backdrop-frozen { background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(240, 248, 255, 0.8), transparent 70%), linear-gradient(180deg, #cfe0ee 0%, #dde9f3 85%); }
+.backdrop-dim {
+  background: radial-gradient(ellipse 35% 40% at 40% 45%, rgba(255, 196, 92, 0.12), transparent 70%), linear-gradient(180deg, #2f3742 0%, #222932 60%, #1d232b 100%);
+}
+.backdrop-night {
+  background: radial-gradient(ellipse 60% 55% at 28% 55%, rgba(255, 196, 92, 0.1), transparent 70%),
+    radial-gradient(ellipse 30% 30% at 82% 12%, rgba(244, 232, 193, 0.12), transparent 70%), radial-gradient(ellipse 120% 80% at 50% 0%, #1a2336, #121826 70%);
+}
+.backdrop-glare {
+  background: radial-gradient(ellipse 60% 55% at 88% 4%, rgba(255, 255, 255, 1), rgba(255, 245, 200, 0.6) 40%, transparent 75%), linear-gradient(180deg, #fff8df 0%, #fffaee 80%);
+}
+.backdrop-windy { background: linear-gradient(100deg, #efe7d6 0%, #f4efe4 50%, #ebe2cf 100%); }
+.backdrop-fog { background: linear-gradient(180deg, #e2e6e6 0%, #eceeed 50%, #e4e7e7 100%); }
+.backdrop-renewal {
+  background: radial-gradient(ellipse 70% 50% at 30% 100%, rgba(180, 225, 160, 0.5), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 70% 0%, rgba(255, 245, 210, 0.6), transparent 70%), linear-gradient(180deg, #f1f7ec 0%, #ecf4e7 100%);
+}
+.backdrop-storm {
+  background: radial-gradient(ellipse 90% 50% at 50% -10%, rgba(80, 70, 100, 0.35), transparent 70%), linear-gradient(180deg, #d0cbd8 0%, #dcd8e0 70%);
+}
+.backdrop-static { background: linear-gradient(180deg, #e6e6e4 0%, #eeeeec 100%); filter: saturate(0.4); }
+
+/* ---- Scene fixtures ---- */
+.scene-cracks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 30%;
+  opacity: calc(0.1 + 0.2 * var(--scene-intensity, 0.5));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='120'%3E%3Cg fill='none' stroke='%23a07a4a' stroke-width='1.4' stroke-linecap='round'%3E%3Cpath d='M0 60 L40 52 L62 70 L98 58 L130 72 L170 56 L220 64'/%3E%3Cpath d='M40 52 L44 20 M98 58 L104 100 M130 72 L122 118 M170 56 L178 14 M62 70 L58 110'/%3E%3Cpath d='M44 20 L70 8 M104 100 L140 106 M178 14 L210 30'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: linear-gradient(180deg, transparent, #000 60%);
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 60%);
+}
+.scene-sun {
+  position: absolute;
+  top: -12vmin;
+  right: -8vmin;
+  width: 46vmin;
+  height: 46vmin;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 214, 120, 0.95) 0%, rgba(255, 150, 70, 0.55) 35%, transparent 70%);
+  animation: sun-pulse 4s ease-in-out infinite;
+}
+.scene-moon {
+  position: absolute;
+  top: 7%;
+  right: 12%;
+  width: 7vmin;
+  height: 7vmin;
+  border-radius: 50%;
+  box-shadow: inset -1.6vmin 0.4vmin 0 0 #f4e8c1;
+  filter: drop-shadow(0 0 2vmin rgba(244, 232, 193, 0.35));
+  transform: rotate(-20deg);
+}
+.scene-frost {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 calc(8vmin + 10vmin * var(--scene-intensity, 0.5)) rgba(255, 255, 255, 0.95);
+  background: radial-gradient(ellipse 30% 30% at 0% 0%, rgba(255, 255, 255, 0.6), transparent 70%),
+    radial-gradient(ellipse 30% 30% at 100% 100%, rgba(255, 255, 255, 0.5), transparent 70%);
+}
+.scene-lightning {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  animation: lightning 11s linear infinite;
+}
+.scene-scanlines {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.035) 0 1px, transparent 1px 4px);
+  animation: static-flicker 3.5s steps(1) infinite;
+}
+.scene-scanlines::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 8%;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  animation: scan-sweep 6s linear infinite;
+}
+.scene-bloom {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 45% 40% at 85% 6%, rgba(255, 255, 255, 0.9), transparent 70%);
+  animation: bloom 5s ease-in-out infinite;
+}
+
+/* ---- Particles (position and timing per particle from SceneBackdrop) ---- */
+.particle {
+  position: absolute;
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  opacity: calc(0.35 + 0.55 * var(--scene-intensity, 0.5));
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+  will-change: transform;
+}
+.p-petal { background: var(--c); border-radius: 80% 0 80% 0; animation-name: fall-sway; }
+.p-leaf {
+  width: calc(var(--size) * 1.6);
+  background: var(--c);
+  border-radius: 0 80% 0 80%;
+  animation-name: fall-sway;
+}
+.p-mote { background: var(--c); border-radius: 50%; animation-name: float-up; animation-timing-function: ease-in-out; filter: blur(0.3px); }
+.p-dust { background: var(--c); border-radius: 50%; animation-name: drift-side; animation-timing-function: ease-in-out; filter: blur(0.6px); }
+.p-snow { background: var(--c); border-radius: 50%; animation-name: fall-sway; filter: blur(0.4px); }
+.p-rain {
+  width: 1.5px;
+  height: var(--size);
+  background: linear-gradient(180deg, transparent, var(--c));
+  animation-name: rain-fall;
+  transform: rotate(12deg);
+}
+.p-ripple {
+  height: calc(var(--size) * 0.28);
+  border: 1.5px solid var(--c);
+  border-radius: 50%;
+  animation-name: ripple-out;
+  animation-timing-function: ease-out;
+}
+.p-haze {
+  height: 3px;
+  border-radius: 50%;
+  background: var(--c);
+  filter: blur(2px);
+  animation-name: haze-rise;
+  animation-timing-function: ease-in-out;
+}
+.p-crystal {
+  background: none;
+  animation-name: twinkle;
+  animation-timing-function: ease-in-out;
+}
+.p-crystal::before,
+.p-crystal::after {
+  content: '';
+  position: absolute;
+  inset: 45% 0;
+  background: var(--c);
+  border-radius: 2px;
+}
+.p-crystal::after { transform: rotate(90deg); }
+.p-cloud {
+  height: calc(var(--size) * 0.45);
+  border-radius: 50%;
+  background: var(--c);
+  filter: blur(40px);
+  animation-name: cloud-drift;
+  animation-timing-function: ease-in-out;
+  opacity: 1;
+}
+.p-fog {
+  height: calc(var(--size) * 0.3);
+  border-radius: 50%;
+  background: var(--c);
+  filter: blur(50px);
+  animation-name: cloud-drift;
+  animation-timing-function: ease-in-out;
+  opacity: calc(0.6 + 0.4 * var(--scene-intensity, 0.5));
+}
+.p-star { background: var(--c); border-radius: 50%; animation-name: twinkle; animation-timing-function: ease-in-out; opacity: 1; }
+.p-firefly {
+  background: var(--c);
+  border-radius: 50%;
+  box-shadow: 0 0 10px 4px rgba(255, 236, 140, 0.45);
+  animation-name: firefly-wander;
+  animation-timing-function: ease-in-out;
+  opacity: 1;
+}
+.p-ray {
+  width: calc(var(--size) * 0.35);
+  height: 160vh;
+  background: linear-gradient(180deg, rgba(255, 230, 160, 0.4), transparent 70%);
+  transform-origin: top center;
+  filter: blur(8px);
+  animation-name: ray-sway;
+  animation-timing-function: ease-in-out;
+}
+.p-flare {
+  border-radius: 50%;
+  border: 2px solid var(--c);
+  background: radial-gradient(circle, var(--c), transparent 70%);
+  animation-name: flare-drift;
+  animation-timing-function: ease-in-out;
+}
+.p-streak {
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, var(--c), transparent);
+  animation-name: streak;
+}
+.p-blown { width: calc(var(--size) * 1.5); background: var(--c); border-radius: 0 80% 0 80%; animation-name: blown; }
+.p-rise { background: var(--c); border-radius: 50%; box-shadow: 0 0 6px rgba(255, 255, 255, 0.8); animation-name: float-up; animation-timing-function: ease-out; }
+
+@keyframes fall-sway {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: calc(0.35 + 0.55 * var(--scene-intensity, 0.5)); }
+  25% { transform: translate(calc(30px * var(--drift)), 28vh) rotate(90deg); }
+  50% { transform: translate(calc(-20px * var(--drift)), 55vh) rotate(180deg); }
+  75% { transform: translate(calc(35px * var(--drift)), 82vh) rotate(270deg); }
+  100% { transform: translate(calc(10px * var(--drift)), 112vh) rotate(360deg); opacity: 0.2; }
+}
+@keyframes float-up {
+  0% { transform: translate(0, 0); opacity: 0; }
+  20% { opacity: 0.9; }
+  100% { transform: translate(calc(40px * var(--drift)), -45vh); opacity: 0; }
+}
+@keyframes drift-side {
+  0% { transform: translate(-10vw, 0); opacity: 0; }
+  20% { opacity: 0.8; }
+  80% { opacity: 0.6; }
+  100% { transform: translate(40vw, calc(-20px * var(--drift))); opacity: 0; }
+}
+@keyframes rain-fall {
+  0% { transform: translate(0, 0) rotate(12deg); }
+  100% { transform: translate(-24vh, 125vh) rotate(12deg); }
+}
+@keyframes ripple-out {
+  0% { transform: scale(0.2); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@keyframes haze-rise {
+  0% { transform: translate(0, 0) scaleX(1); opacity: 0; }
+  30% { opacity: 0.7; }
+  100% { transform: translate(calc(20px * var(--drift)), -30vh) scaleX(1.4); opacity: 0; }
+}
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.7); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+@keyframes cloud-drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(calc(18vw * var(--drift)), 2vh); }
+}
+@keyframes firefly-wander {
+  0%, 100% { transform: translate(0, 0); opacity: 0.1; }
+  20% { opacity: 1; }
+  35% { transform: translate(calc(60px * var(--drift)), -40px); }
+  50% { opacity: 0.2; }
+  65% { transform: translate(calc(-40px * var(--drift)), -80px); opacity: 1; }
+  85% { transform: translate(30px, -30px); opacity: 0.3; }
+}
+@keyframes ray-sway {
+  0%, 100% { transform: rotate(-24deg); opacity: 0.5; }
+  50% { transform: rotate(-18deg); opacity: 0.9; }
+}
+@keyframes flare-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+  50% { transform: translate(calc(-30px * var(--drift)), 20px) scale(1.15); opacity: 0.8; }
+}
+@keyframes streak {
+  0% { transform: translateX(0); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateX(150vw); opacity: 0; }
+}
+@keyframes blown {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.9; }
+  50% { transform: translate(60vw, calc(-40px * var(--drift))) rotate(360deg); }
+  100% { transform: translate(125vw, calc(30px * var(--drift))) rotate(720deg); opacity: 0.6; }
+}
+@keyframes sun-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+@keyframes lightning {
+  0%, 91%, 93.5%, 100% { opacity: 0; }
+  92% { opacity: 0.55; }
+  93% { opacity: 0.15; }
+  93.2% { opacity: 0.4; }
+}
+@keyframes static-flicker {
+  0%, 100% { opacity: 0.9; }
+  37% { opacity: 0.6; }
+  38% { opacity: 1; }
+  71% { opacity: 0.7; }
+}
+@keyframes scan-sweep {
+  0% { top: -10%; }
+  100% { top: 110%; }
+}
+@keyframes bloom {
+  0%, 100% { opacity: 0.75; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .particle,
+  .scene-sun,
+  .scene-lightning,
+  .scene-scanlines,
+  .scene-scanlines::after,
+  .scene-bloom {
+    animation: none !important;
+  }
+  .scene-lightning { opacity: 0; }
+}

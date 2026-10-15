@@ -49,6 +49,22 @@ export interface StressPenaltyRule {
   max: number; // never more than this
 }
 
+import type { Season } from '../perception/season';
+
+// How the tree lives through one season. PROTOTYPE: general ficus care guidance, not measured here yet.
+export interface SeasonRule {
+  growth: 'flush' | 'active' | 'slowing' | 'resting'; // flush = new leaves; resting = little growth
+  energy: number; // multiplies behaviour energy (movement, liveliness)
+  waterNeed: number; // relative to summer = 1 (informational: thresholds are not seasonal yet)
+  feeding: boolean; // whether fertilizing makes sense now
+}
+
+// A yearly curve: 0 far from the peak, 1 at the peak day (northern-calendar day of year), smooth in between.
+export interface SeasonalCurve {
+  peakDay: number;
+  halfWidthDays: number; // 0 at peakDay ± halfWidthDays
+}
+
 export interface SpeciesProfile {
   id: string;
   speciesName: string;
@@ -60,6 +76,14 @@ export interface SpeciesProfile {
   relativeLight: RelativeLightBand[]; // ESP32 LDR %, darkest → brightest (PROTOTYPE, relative)
   radiation: ComfortRange; // W/m², weather-estimate mode only
   vpd: ComfortRange; // kPa (shown in diagnostics; not part of vitality)
+
+  seasons: Record<Season, SeasonRule>;
+  // What the tree visibly does through the year (shown by the avatar; PROTOTYPE, general ficus behaviour)
+  seasonalCycle: {
+    newGrowth: SeasonalCurve; // flush of light-green new leaves
+    yellowing: SeasonalCurve; // some old leaves yellow as days shorten
+    leafDrop: SeasonalCurve; // a few of them let go
+  };
 
   // Hysteresis: how conditions are entered and left.
   latches: Record<LatchId, LatchRule>;

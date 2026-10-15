@@ -3,6 +3,7 @@ import type { DataQuality } from '../telemetry/dataQuality';
 import type { PlantTelemetry, TelemetrySource } from '../telemetry/types';
 import type { CareContext } from './careContext';
 import type { DailyLight } from './dailyLight';
+import type { SeasonState } from './season';
 import type { SunState } from './sun';
 
 // One past moment as perceived: what was measured, and whether daylight was expected then.
@@ -39,6 +40,7 @@ export interface PerceptionState {
   lastReading: PlantTelemetry | null; // latest known reading, possibly stale (diagnostics only)
   readings: PerceivedReadings;
   sun: SunState;
+  season: SeasonState; // from the date and the tree's latitude
   device: {
     online: boolean;
     lastError: string | null;
