@@ -118,8 +118,9 @@ export interface RelationshipContext {
   typicalRecoveryHours: number | null; // median length of recovering episodes
   observation: { id: ObservationId; hours?: number } | null; // at most one gentle observation
   // Attention (petting the on-screen tree). Not care: excluded from lastCareAt/hoursSinceCare and never
-  // read by mood, energy or responsiveness. Recorded only, not voiced (V1).
-  attention: { petSessions7d: number; lastPetAt: number | null };
+  // read by mood, energy or responsiveness. Not voiced. `familiarity` (0-1, from days with petting) only
+  // warms the calm touch answers in the Expression Engine.
+  attention: { petSessions7d: number; lastPetAt: number | null; familiarity: number };
 }
 
 export interface Concern {

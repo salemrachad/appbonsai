@@ -240,7 +240,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
       {...petting.handlers}
       className={`relative flex items-center justify-center select-none cursor-pointer transition-all duration-500 ${className}`}
       style={{ touchAction: 'pan-y' }}
-      title="Touch or stroke the tree"
+      title="Tap the tree, or move over its leaves to pet it"
     >
       <div className={`absolute w-72 h-72 rounded-full pointer-events-none transition-all duration-700 ${look.halo}`} />
 
@@ -289,6 +289,12 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
             <stop offset="0%" stopColor="#DCE9F0" />
             <stop offset="100%" stopColor="#8EA4B2" />
           </linearGradient>
+          {/* The petting hand: a soft warm glow under the pointer (the same for every state) */}
+          <radialGradient id="petHandGlow">
+            <stop offset="0%" stopColor="#FFF6DC" stopOpacity="0.95" />
+            <stop offset="45%" stopColor="#FFF1C9" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="#FFF1C9" stopOpacity="0" />
+          </radialGradient>
           <linearGradient id="waterDropGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#70D6FF" />
             <stop offset="100%" stopColor="#0077B6" />
@@ -436,6 +442,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
 
         <Lanterns effects={look.effects} />
         <ForegroundEffects effects={look.effects} palette={palette} seasonal={look.seasonalLeaves} />
+        <circle ref={petting.glowRef} cx="220" cy="120" r="34" fill="url(#petHandGlow)" opacity="0" pointerEvents="none" style={{ mixBlendMode: 'screen' }} />
       </svg>
 
       {tapReaction && expression && (

@@ -177,6 +177,10 @@ export interface TouchResponse {
   damping: number; // spring damping (higher = no overshoot)
   lean: number; // 0-1: whole-tree lean toward the hand
   blink: 'soft_close' | 'slow' | 'none'; // the nonverbal acknowledgement
+  // Within a session: continuous stroking settles the answer toward `floor` (calm acceptance, never a
+  // refusal) at settlePerSec; a rest recovers it with time constant recoverMs. See expression/touch.ts.
+  habituation: { settlePerSec: number; floor: number; recoverMs: number };
+  familiarity: number; // 0-1 applied to this answer (0 outside the calm kinds): ease with the caretaker's hand
 }
 
 // Everything the avatar and the companion screen need. The UI renders this and nothing else.

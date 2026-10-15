@@ -236,9 +236,10 @@ async function main() {
       JSON.stringify({
         health: s.health,
         behaviour: { ...s.behaviour, relationship: { ...s.behaviour.relationship, attention: null } },
-        expression: s.expression,
+        expression: { ...s.expression, touch: null }, // the touch answer may warm with familiarity (checked below)
       });
     check('P1 petting changes nothing biological (health, behaviour, expression identical)', bio(a) === bio(z), `${a.health.condition} v${a.health.vitality} vs ${z.health.condition} v${z.health.vitality}`);
+    check('P1b the touch keeps its character; only familiarity warms it', a.expression.touch.kind === z.expression.touch.kind, `${a.expression.touch.kind} vs ${z.expression.touch.kind}, familiarity ${z.expression.touch.familiarity}`);
     check(
       'P2 attention is remembered, separately from care',
       z.behaviour.relationship.attention.petSessions7d > 0 && a.behaviour.relationship.attention.petSessions7d === 0 && z.behaviour.relationship.lastCareAt === a.behaviour.relationship.lastCareAt,
@@ -273,6 +274,71 @@ async function main() {
     await n.run(120, () => ({ soil: 60, light: 0 }));
     const night = n.state();
     check('P6 sleeping tree only stirs; eyes stay closed', night.health.condition === 'sleeping' && night.expression.touch.kind === 'slow_stir' && night.expression.touch.blink === 'none', `${night.health.condition} → ${night.expression.touch.kind}`);
+  }
+
+  console.log('\n— Familiarity and habituation —');
+  {
+    const { computeRelationship } = await import('../src/behaviour/relationship');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    const now = at(20, 12);
+    const DAYMS = 24 * 60 * MIN;
+    const pet = (t: number, id = 0) => ({ id, kind: 'pet' as const, startedAt: t, endedAt: t + 30_000, count: 3, metadata: {} });
+    const fam = (pets: ReturnType<typeof pet>[], t = now) =>
+      computeRelationship({ episodes: [], events: [], interactions: pets, current: { condition: 'comfortable', startedAt: t - 3600_000 }, soilMoisture: 60, species: ACTIVE_SPECIES, now: t }).attention.familiarity;
+    const once = fam([pet(now - 60 * MIN)]);
+    const fifty = fam(Array.from({ length: 50 }, (_, i) => pet(now - 120 * MIN + i * MIN, i)));
+    check('F1 fifty sessions in a day count the same as one', once === fifty && once > 0, `once ${once}, fifty ${fifty}`);
+    const daily = Array.from({ length: 14 }, (_, d) => pet(now - d * DAYMS, d));
+    const twoWeeks = fam(daily);
+    check('F2 two weeks of daily visits: familiar, never above 1', twoWeeks >= 0.8 && twoWeeks <= 1, `${twoWeeks}`);
+    const later = (days: number) => fam(daily, now + days * DAYMS);
+    check('F3 absence fades slowly, back to exactly neutral, never below', later(7) < twoWeeks && later(7) > 0.3 && later(21) < 0.2 && later(45) === 0, `+7d ${later(7)}, +21d ${later(21)}, +45d ${later(45)}`);
+    check('F3b none at all is neutral', fam([]) === 0);
+
+    // Full familiarity warms calm answers only: thirsty, asleep and unsure answer exactly as before
+    const make = async (familiar: boolean) => {
+      const b = new Bench();
+      if (familiar) for (let d = 0; d < 14; d++) b.db.recordInteraction({ kind: 'pet', startedAt: b.clock - d * DAYMS - 60_000, endedAt: b.clock - d * DAYMS - 30_000, count: 3, activeMs: 20_000 }, 0);
+      await b.boot();
+      return b;
+    };
+    const plain = await make(false);
+    const known = await make(true);
+    const both = async (minutes: number, r: (i: number) => Reading | null) => {
+      await plain.run(minutes, r);
+      await known.run(minutes, r);
+      return [plain.state().expression.touch, known.state().expression.touch] as const;
+    };
+    const [c0, c1] = await both(60, () => day());
+    check(
+      'F4 a familiar hand: calm tree follows a little further and softer, same character',
+      c1.familiarity >= 0.8 && c0.familiarity === 0 && c1.kind === c0.kind && c1.give > c0.give && c1.give <= Math.min(1, c0.give * 1.25 + 0.01) && c1.stiffness < c0.stiffness,
+      `give ${c0.give} → ${c1.give}, stiffness ${c0.stiffness} → ${c1.stiffness}`
+    );
+    const [t0, t1] = await both(60, () => ({ soil: 30 }));
+    check('F5 thirsty: identical answer at full familiarity', JSON.stringify(t0) === JSON.stringify(t1) && t1.kind === 'dry_rustle', `${t1.kind} f${t1.familiarity}`);
+    const [u0, u1] = await both(5, () => null);
+    check('F6 no trustworthy data: identical muted answer at full familiarity', JSON.stringify(u0) === JSON.stringify(u1) && u1.kind === 'muted');
+  }
+  {
+    const { habituate } = await import('../src/expression/touch');
+    const b = new Bench();
+    await b.boot();
+    await b.run(30, () => day());
+    const h = b.state().expression.touch.habituation;
+    let level = 1;
+    const trace: number[] = [];
+    for (let s = 0; s < 120; s++) {
+      const next = habituate(level, h, 1000, true);
+      if (next > level + 1e-9) trace.push(-1);
+      level = next;
+      if (s % 30 === 29) trace.push(Math.round(level * 100) / 100);
+    }
+    check('H1 continuous stroking settles gradually, never below the floor', !trace.includes(-1) && level < 0.7 && level >= h.floor, `levels ${trace.join(' → ')} (floor ${h.floor})`);
+    const afterRest = habituate(level, h, 3 * h.recoverMs, false);
+    check('H2 a rest recovers the fresh answer', afterRest > 0.9, `${Math.round(level * 100) / 100} → ${Math.round(afterRest * 100) / 100}`);
+    const muted = { settlePerSec: 0, floor: 1, recoverMs: 60_000 };
+    check('H3 a muted answer has nothing to settle', habituate(1, muted, 60_000, true) === 1);
   }
 
   finish();

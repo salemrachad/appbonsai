@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { AppDatabase } from '../server/database';
+import { SCHEMA_VERSION } from '../server/schema';
 import { Bench, check, cond, epList, finish, HOUR, MIN, START } from './bench';
 
 async function main() {
@@ -339,8 +340,8 @@ async function main() {
     old.close();
     const db = new AppDatabase(file);
     const ep = db.openEpisode();
-    check('M1 v1 database upgraded: unobserved_ms added, old rows kept', ep?.unobservedMs === 0 && db.getMeta<number>('schema_version') === 2);
-    check('M2 old database gains the interactions table, empty', db.interactionCount() === 0 && db.getMeta<number>('schema_version') === 4);
+    check('M1 v1 database upgraded: unobserved_ms added, old rows kept', ep?.unobservedMs === 0 && db.getMeta<number>('schema_version') === SCHEMA_VERSION);
+    check('M2 old database gains the interactions table, empty', db.interactionCount() === 0 && db.getMeta<number>('schema_version') === SCHEMA_VERSION);
     db.close();
     for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
   }

@@ -164,12 +164,22 @@ real, felt answer, it is remembered, and it changes nothing about the tree's sta
   surface only through the normal speech policy. A plain **tap** is unchanged: a brief perk-up plus the mood label.
 - **Honest motion.** Leaves bend sideways with the hand and can only settle slightly lower, never higher, so
   petting never lifts a droop. A thirsty tree still looks thirsty afterwards.
-- **Gesture.** Pointer Events, so mouse (held button), touch and pen all work.
-  - A press that travels < 8 px is a tap. A longer one is a stroke, and only if it starts near the foliage.
-  - `touch-action: pan-y` keeps vertical swipes scrolling the page.
-  - Reduced motion: blink only.
-  - One rAF loop runs while springs move. It writes transforms directly to three pad groups and a lean group,
-    with no React render per frame.
+- **Gesture.** Pointer Events, so mouse, touch and pen all work.
+  - **Mouse:** simply moving over the leaves pets them, no click needed; a held-button drag (grab and shake)
+    works too. Hover petting starts after 20 px of movement over the foliage and ends when the mouse rests
+    (0.5 s) or leaves.
+  - **Touch / pen:** a drag that starts on the foliage. `touch-action: pan-y` keeps vertical swipes scrolling.
+  - A press that travels < 8 px is a tap.
+  - Strokes shorter than 0.3 s (brushing past) show the hand but aren't counted or acknowledged.
+- **Two kinds of feedback, kept apart.**
+  - *Your hand* is the same in every state: an open-hand cursor over the foliage and a soft warm glow under
+    the pointer while petting. It makes clear that you are petting, without claiming anything about the tree.
+  - *The tree's answer* comes from `expression.touch`: leaves bend with the hand and rustle quickly while it
+    moves, the tree leans, a blink. A thirsty, sleeping or unsure tree answers less, however clearly you pet it.
+- **Performance and reduced motion.**
+  - One rAF loop runs only while something moves. It writes transforms directly to three pad groups, a lean
+    group and the glow, with no React render per frame.
+  - Reduced motion: the hand glow and the blink only; leaves don't move.
 - **Sessions, not movements.** The browser closes a session after `APP_CONFIG.attention.sessionIdleMs`
   without a stroke, then sends one `POST /api/interactions`. Nothing is sent during pointer movement, and nothing
   while a developer preview is active.
@@ -182,8 +192,30 @@ real, felt answer, it is remembered, and it changes nothing about the tree's sta
   - `relationship.attention = { petSessions7d, lastPetAt }`, shown in the Behaviour Debug panel.
   - It is excluded from `lastCareAt` and never read by mood, energy, responsiveness or health.
   - No streaks, no "you were away", no reward for frequency, and in V1 nothing is voiced.
-- **Tested:** `npm run test:behaviour` P1–P6 (a petted and an unpetted tree evolve identically; state-dependent
-  answers) and `npm run test:collector` A1–A5, M2 (session merging, refusals, no care events, migration).
+- **Familiarity (over weeks).** The more *days* someone pets the tree, the more at ease it becomes with the
+  hand. `relationship.attention.familiarity` (0–1, `relationship.ts`) is built from the distinct days with
+  petting, each fading with `APP_CONFIG.attention.familiarityTauDays`.
+  - Fifty sessions in one day count the same as one stroke, so there's nothing to grind.
+  - Two weeks of daily visits gives ≈ 0.9.
+  - Absence only fades it back to neutral (exactly 0 after the 30-day window), never below. An untouched tree
+    answers exactly as it did before any petting.
+  - It warms **only the calm answers** (`lean_in`, `gentle`): up to +25 % give, +30 % lean, a 20 % softer spring
+    and slower habituation. Thirsty, cold, asleep and unsure answers are identical at any familiarity.
+  - It's invisible: no meter or level in the UI, only the Developer panel.
+- **Habituation (within a session).** Continuous stroking lets the answer settle toward
+  `touch.habituation.floor`, and a rest of a minute or two recovers it. The settled answer is calm acceptance,
+  never a refusal: leaves still follow, just less, and blinks stop repeating.
+  - The rates come from the Expression Engine per touch kind; the math is `habituate()` in
+    `src/expression/touch.ts`.
+  - It lives only in the open page, never stored or sent.
+  - It's inspired by real plant habituation (*Mimosa pudica* stops folding after repeated harmless touch).
+    Ficus does not do this; evidence class *art*.
+- **Tested:**
+  - `npm run test:behaviour` P1–P6: a petted and an unpetted tree evolve identically; answers depend on the state.
+  - `npm run test:behaviour` F1–F6: familiarity counts days, fades back to neutral, and never changes stressed or
+    unsure answers.
+  - `npm run test:behaviour` H1–H3: habituation settles above its floor and recovers after a rest.
+  - `npm run test:collector` A1–A5, M2: session merging, refusals, no care events, migration.
 
 ## 7. Known gaps
 

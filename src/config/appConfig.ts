@@ -60,6 +60,11 @@ export const APP_CONFIG = {
     maxSessionMs: 30 * 60 * 1000, // longer reported sessions are clamped
     maxStrokesPerSession: 500,
     maxRowsPerHour: 30, // write cap: more new sessions than this in an hour are refused
+    // Familiarity (how at ease the tree is with your hand): counts DAYS with petting, never strokes or
+    // sessions, each day fading with this time constant. Expressive tuning, not biology.
+    familiarityTauDays: 7,
+    familiaritySaturation: 3, // weighted days for ~63% familiarity (2 weeks of daily visits ≈ 0.9)
+    familiarityWindowDays: 30, // older days count for nothing: a month away is fully neutral again
   },
 
   history: {

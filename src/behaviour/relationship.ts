@@ -1,4 +1,5 @@
 import type { BehaviourEpisode, Interaction, PlantEvent } from '../history/historyTypes';
+import { APP_CONFIG } from '../config/appConfig';
 import type { SpeciesProfile } from '../species';
 import type { HealthCondition } from '../health/healthTypes';
 import type { RelationshipContext } from './behaviourTypes';
@@ -27,6 +28,22 @@ export interface RelationshipInput {
   soilMoisture: number | null;
   species: SpeciesProfile;
   now: number;
+}
+
+// Familiarity with the caretaker's hand, 0 (neutral) … 1. Built from the DAYS someone petted the tree,
+// so a long session or fifty quick ones count the same as one stroke that day. Each day fades with
+// familiarityTauDays and stops counting after the window: absence only returns it to neutral, never below.
+function familiarity(pets: Interaction[], now: number): number {
+  const { familiarityTauDays: tau, familiaritySaturation: sat, familiarityWindowDays: window } = APP_CONFIG.attention;
+  const today = startOfToday(now);
+  const days = new Set<number>();
+  for (const p of pets) {
+    const d = startOfToday(p.startedAt);
+    if (d > today - window * DAY && d <= today) days.add(d);
+  }
+  let weight = 0;
+  for (const d of days) weight += Math.exp(-Math.round((today - d) / DAY) / tau);
+  return Math.round((1 - Math.exp(-weight / sat)) * 100) / 100;
 }
 
 // Memory of how care usually goes. Observational and plant-centred: it never scores or blames.
@@ -74,6 +91,7 @@ export function computeRelationship({ episodes, events, interactions = [], curre
   const attention = {
     petSessions7d: pets.filter((i) => i.endedAt >= now - 7 * DAY).length,
     lastPetAt: pets.length ? Math.max(...pets.map((i) => i.endedAt)) : null,
+    familiarity: familiarity(pets, now),
   };
 
   return {

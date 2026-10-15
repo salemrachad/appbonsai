@@ -197,14 +197,17 @@ const GAUGE_TONE: Record<QualitativeState, GaugeTone> = { Thriving: 'thriving', 
 
 // Petting: how a stroke registers in each state. Expressive choice (evidence class "art"): a finger on the
 // screen never reaches the real tree, so this only colours the answer, it never changes the state.
-const TOUCH: Record<TouchKind, Omit<TouchResponse, 'kind'>> = {
-  lean_in: { give: 0.9, stiffness: 60, damping: 11, lean: 0.8, blink: 'soft_close' },
-  gentle: { give: 0.6, stiffness: 70, damping: 13, lean: 0.4, blink: 'soft_close' },
-  dry_rustle: { give: 0.3, stiffness: 160, damping: 15, lean: 0, blink: 'slow' },
-  braced: { give: 0.2, stiffness: 190, damping: 20, lean: 0, blink: 'slow' },
-  slow_stir: { give: 0.45, stiffness: 25, damping: 9, lean: 0.15, blink: 'none' },
-  muted: { give: 0.12, stiffness: 120, damping: 20, lean: 0, blink: 'none' },
+const TOUCH: Record<TouchKind, Omit<TouchResponse, 'kind' | 'familiarity'>> = {
+  lean_in: { give: 0.9, stiffness: 60, damping: 11, lean: 0.8, blink: 'soft_close', habituation: { settlePerSec: 0.04, floor: 0.45, recoverMs: 60_000 } },
+  gentle: { give: 0.6, stiffness: 70, damping: 13, lean: 0.4, blink: 'soft_close', habituation: { settlePerSec: 0.05, floor: 0.45, recoverMs: 75_000 } },
+  dry_rustle: { give: 0.3, stiffness: 160, damping: 15, lean: 0, blink: 'slow', habituation: { settlePerSec: 0.06, floor: 0.4, recoverMs: 90_000 } },
+  braced: { give: 0.2, stiffness: 190, damping: 20, lean: 0, blink: 'slow', habituation: { settlePerSec: 0.06, floor: 0.4, recoverMs: 90_000 } },
+  slow_stir: { give: 0.45, stiffness: 25, damping: 9, lean: 0.15, blink: 'none', habituation: { settlePerSec: 0.08, floor: 0.3, recoverMs: 120_000 } },
+  // Already almost nothing: there is nothing left to settle
+  muted: { give: 0.12, stiffness: 120, damping: 20, lean: 0, blink: 'none', habituation: { settlePerSec: 0, floor: 1, recoverMs: 60_000 } },
 };
+// Familiarity warms only the calm answers, a little: never a stressed, sleeping or unsure one
+const WARMS: TouchKind[] = ['lean_in', 'gentle'];
 const TOUCH_KIND: Record<HealthCondition, TouchKind> = {
   thriving: 'lean_in',
   comfortable: 'lean_in',
@@ -233,7 +236,16 @@ function touchResponse(condition: HealthCondition, modifiers: HealthModifier[], 
   const t = TOUCH[kind];
   // Responsiveness scales how far it shows (never biology); the state picks the character
   const scale = 0.6 + 0.4 * b.responsiveness;
-  return { kind, ...t, give: r2(t.give * scale), lean: r2(t.lean * scale) };
+  const f = WARMS.includes(kind) ? clamp(b.relationship.attention?.familiarity ?? 0, 0, 1) : 0;
+  return {
+    kind,
+    ...t,
+    give: r2(Math.min(1, t.give * scale * (1 + 0.25 * f))), // follows the hand a little further
+    stiffness: Math.round(t.stiffness * (1 - 0.2 * f)), // softer, less hurried return
+    lean: r2(Math.min(1, t.lean * scale * (1 + 0.3 * f))),
+    habituation: { ...t.habituation, settlePerSec: r2(t.habituation.settlePerSec * (1 - 0.25 * f)) }, // stays at ease longer
+    familiarity: f,
+  };
 }
 
 const TAP_LABEL: Record<Mood, string> = {
