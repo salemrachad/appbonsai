@@ -42,8 +42,20 @@ export interface CollectorStatus {
   wateringDetection: { suppressedUntil: number | null; lastDecision: string | null };
 }
 
+// Which backend this is, so the UI can say whose collector and database it is looking at.
+export interface BackendInfo {
+  mode: 'production' | 'local-dev'; // production = the authoritative Pi; local-dev = a separate dev database
+  hostname: string; // machine the server runs on
+  host: string; // address it listens on
+  port: number;
+  dbPath: string;
+  collector: string;
+  servesApp: boolean; // serves the built frontend from dist/
+}
+
 export interface ServerStatus {
   ok: true;
+  backend?: BackendInfo; // missing on servers older than this field
   startedAt: number;
   engineVersion: string;
   dbPath: string;

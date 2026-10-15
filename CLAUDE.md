@@ -10,12 +10,15 @@ Appbonsai is a "digital living companion" for one real Ficus bonsai. An ESP32 on
 physical bonsai → PERCEPTION → HEALTH → BEHAVIOUR → EXPRESSION → React UI → human care → physical bonsai
 ```
 
-The project is local only: no cloud, no accounts. Data is only collected while the local server runs. It started from a Google AI Studio template (`README.md`, `metadata.json`, `.env.example`).
+The project is local only: no cloud, no accounts. **The Raspberry Pi (`ender3.local`, `npm run server` under systemd) is the only authoritative collector and database.** The laptop normally runs only the Vite frontend against the Pi's API (`npm run dev`). See README.md for the three modes. It started from a Google AI Studio template (`README.md`, `metadata.json`, `.env.example`).
 
 ## Commands
 
 - `npm install`: install dependencies (needs Node ≥ 22.5, which provides built-in `node:sqlite`; developed on Node 24)
-- `npm run dev`: starts both with `concurrently`: Vite on **http://localhost:3000** (`dev:web`, bound to 0.0.0.0, `--strictPort`) and the local API + collector on **http://localhost:3001** (`dev:api`, `tsx watch server/index.ts`). Vite proxies `/api` to 3001 (`APPBONSAI_API_PORT` overrides the port for both).
+- `npm run dev` = `npm run dev:remote`: **Vite only** (mode `remote`) on http://localhost:3000, talking straight to the Pi's API at `VITE_API_BASE_URL` (in the gitignored `.env.remote`, e.g. `http://ender3.local:3001`; the Pi's port 80 is Moonraker). No local collector or database. It refuses to start without the variable.
+- `npm run dev:local`: the full stack on the laptop (Vite mode `fullstack` + `server/index.ts --local-dev` via `tsx watch`). **A separate collector and history** in `data/appbonsai-dev.db`, API on 127.0.0.1:3001 only, Vite proxies `/api` there. Only for server/collector work.
+- `npm run server`: production (the Pi): API + collector + SQLite `data/appbonsai.db`, listens on `0.0.0.0:3001`, and serves `dist/` when built (`npm run build`).
+- Server env vars: `APPBONSAI_API_PORT`, `APPBONSAI_HOST`, `APPBONSAI_DB`, `APPBONSAI_CORS_ORIGINS`, `APPBONSAI_SERVE_APP`, `APPBONSAI_MODE=local-dev` (= `--local-dev`); documented in `.env.example`.
 - `npm test`: runs the three scenario suites (there is no test framework; these are the regression checks). `scripts/bench.ts` is the shared bench: the real `LivingCollector`, in-memory SQLite, a fake ESP32 and a simulated clock.
   - `npm run test:scenarios` (`scripts/scenarios.ts`): pure engine checks: dry→thirsty→very dry, recovery, night vs too dark, brief vs sustained heat, watering reactions, outage overlay, dev override, season (date/latitude, energy, seasonal look, no jumps across boundaries all year, seasonal care reactions), every condition looking distinct, threshold hovering.
   - `npm run test:collector` (`scripts/collectorScenarios.ts`): watering detection (spikes, probe pulled, gradual, sessions, manual merge, saturation, calibration pause), sensor reality checks, outages, restarts, long gaps, DB migration.
@@ -25,7 +28,15 @@ The project is local only: no cloud, no accounts. Data is only collected while t
 - `npm run lint`: type-check only (`tsc --noEmit`, covers `src/`, `server/`, `scripts/`). There is no ESLint.
 - `npm run build`: frontend production build (the server runs from source with tsx).
 
-For quick throwaway checks, a script run with `npx tsx` can call the pure engines directly. Testing the server against a scratch DB and port works well: `APPBONSAI_DB=<tmp>.db APPBONSAI_API_PORT=3011 npx tsx server/index.ts`.
+For quick throwaway checks, a script run with `npx tsx` can call the pure engines directly. Testing the server against a scratch DB and port works well: `APPBONSAI_DB=<tmp>.db APPBONSAI_API_PORT=3011 npx tsx server/index.ts --local-dev`. To test remote mode without the Pi, run a production-mode server on a scratch DB and point Vite at it: `VITE_API_BASE_URL=http://<lan-ip>:3011 npx vite --mode remote --port 3060`.
+
+### Backend boundary (laptop ↔ Pi)
+
+- `src/config/backend.ts` is the only place that knows the API address (`apiUrl()`, `BACKEND`); `src/api/client.ts` is the only API caller. No other frontend code may build `/api` URLs or hardcode hosts/ports. `vite.config.ts` forces `VITE_API_BASE_URL` empty in every mode except `remote`, so builds and `dev:local` are always same-origin.
+- `server/cors.ts`: the API answers CORS only for loopback, private IPv4 and `*.local` origins (+ `APPBONSAI_CORS_ORIGINS`); other origins get no headers and preflights are refused.
+- `/api/status` includes `backend` (`BackendInfo`: mode, hostname, listen address, db path, who collects). The Developer panel's **Backend** box and the dev-build header badge (`components/developer/BackendPanel.tsx`, `BackendBadge.tsx`) show it.
+- Against a remote backend the browser never seeds the Pi: the first-run settings push and the legacy localStorage history import are skipped (`App.tsx`).
+- Settings → Test Link still fetches the ESP32 from the browser, but only when clicked; nothing in the frontend polls the ESP32.
 
 ## Template leftovers
 
@@ -46,7 +57,7 @@ Each layer has one job. Keep them separate. Biological thresholds never go in Re
 | Health | `src/health/` | `evaluatePlantHealth({perception, species, memory})` → `{state, memory}`: the biological condition, modifiers, health scores, vitality with a full breakdown, hysteresis debug. It decides no wording or personality. |
 | Behaviour | `src/behaviour/` | `evaluateBehaviour()`: mood, energy, responsiveness, intensity + tier, recovery stage, afterglow, time of day, message intent, care reactions (diffraction), relationship memory (`relationship.ts`). `speech.ts` decides when to speak or stay silent; `messages.ts` is the only place with wording. |
 | Expression | `src/expression/` | `expressBehaviour()` → `ExpressionState`: avatar look (eyes/mouth/foliage/gaze/gesture/filter/effects), sway speed, leaf droop, atmosphere (scene per condition, season, day/night theme), message + tip, and the three Living Art layers (epidermal / wording / diffraction). |
-| Server | `server/` | `index.ts` (Express), `collector.ts` (the living loop), `database.ts` + `schema.ts` (node:sqlite), `episodes.ts`, `routes/*`. |
+| Server | `server/` | `index.ts` (Express, modes production / local-dev, serves `dist/`), `cors.ts` (local-network CORS), `collector.ts` (the living loop), `database.ts` + `schema.ts` (node:sqlite), `episodes.ts`, `routes/*`. |
 | UI | `src/App.tsx`, `src/pages/`, `src/components/`, `src/hooks/` | Show what the server concluded. `useLivingState` polls `/api/current` every 5 s; `usePlantHealth`/`usePlantBehaviour` apply developer previews. |
 
 ### The living loop (`server/collector.ts`)
@@ -157,7 +168,7 @@ Suspicious sensors are reported in `quality.suspect`. Health leaves them out (no
 - `appbonsai_sensor_debug_v1`: whether the live strip is visible.
 - The old `appbonsai_plant_history_v1` and `appbonsai_watering_history_v1` are imported into SQLite once (`legacyBrowserHistory.ts`, flag `appbonsai_sqlite_import_v1`) and then left untouched.
 
-### Local API (port 3001)
+### API (port 3001; on the Pi http://ender3.local:3001)
 
 | Endpoint | Purpose |
 |---|---|

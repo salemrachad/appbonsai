@@ -60,7 +60,7 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
       const r = await api.captureCalibration(sensor);
       which === 'a' ? setA(r) : setB(r);
     } catch (e: any) {
-      setError(`Capture failed: ${e?.message ?? e}. Is the local server running and the ESP32 reachable?`);
+      setError(`Capture failed: ${e?.message ?? e}. Is the Appbonsai server running and the ESP32 reachable?`);
     } finally {
       setBusy(false);
     }
@@ -223,7 +223,7 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
   );
 }
 
-// Settings → ESP32: guided calibration for soil and light, stored on the local server with history.
+// Settings → ESP32: guided calibration for soil and light, stored on the Appbonsai server with history.
 export const CalibrationPanel: React.FC<{ serverStatus: ServerStatus | null }> = ({ serverStatus }) => {
   const [state, setState] = useState<CalibrationState | null>(null);
   const load = useCallback(() => {
@@ -238,7 +238,7 @@ export const CalibrationPanel: React.FC<{ serverStatus: ServerStatus | null }> =
     <div className="pt-3 border-t border-[#EAE6E1] space-y-2.5">
       <div className="flex items-center justify-between">
         <span className="sans text-xs font-bold text-[#2D332A]">Sensor calibration</span>
-        <span className="sans text-[10.5px] text-[#2D332A]/45">stored on the local server</span>
+        <span className="sans text-[10.5px] text-[#2D332A]/45">stored on the Appbonsai server</span>
       </div>
       {!state && <p className="sans text-[11px] text-[#2D332A]/55">Local server not reachable.</p>}
       <SensorCalibration sensor="soil" state={state} onChanged={load} />

@@ -81,7 +81,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
     <div id="history-view" className="space-y-6 pb-12">
       <div className="flex flex-col gap-1">
         <h2 className="serif text-3xl font-medium text-[#2D332A] tracking-tight">{treeName || 'Bonsai'}'s Diary</h2>
-        <p className="sans text-xs text-[#2D332A]/60">What the tree lived through, recorded while the local server was running.</p>
+        <p className="sans text-xs text-[#2D332A]/60">What the tree lived through, recorded while the Appbonsai server was running.</p>
       </div>
 
       {/* Care log */}
@@ -130,7 +130,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
         {loading && diary.length === 0 && <p className="sans text-xs text-[#2D332A]/50">Loading…</p>}
         {!loading && diary.length === 0 && (
           <div className="p-6 rounded-2xl glass text-center sans text-xs text-[#2D332A]/50">
-            Nothing recorded yet. The diary fills in as the local server observes the tree.
+            Nothing recorded yet. The diary fills in as the Appbonsai server observes the tree.
           </div>
         )}
         {groups.map((g) => (

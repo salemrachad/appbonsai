@@ -1,29 +1,31 @@
 import { Router } from 'express';
-import type { LivingSnapshot, ServerStatus } from '../../src/api/types';
+import type { BackendInfo, LivingSnapshot, ServerStatus } from '../../src/api/types';
 import { APP_CONFIG } from '../../src/config/appConfig';
 import type { LivingCollector } from '../collector';
 import type { AppDatabase } from '../database';
 
-export function serverStatus(db: AppDatabase, collector: LivingCollector, startedAt: number): ServerStatus {
+export function serverStatus(db: AppDatabase, collector: LivingCollector, startedAt: number, backend?: BackendInfo): ServerStatus {
   const stats = db.telemetryStats();
+  const c = collector.collectorStatus();
   return {
     ok: true,
+    backend: backend && { ...backend, collector: `this server collects (${c.dataSource}${c.endpoint ? ` from ${c.endpoint}` : ''})` },
     startedAt,
     engineVersion: APP_CONFIG.engineVersion,
     dbPath: db.path,
     configured: collector.isConfigured(),
-    collector: collector.collectorStatus(),
+    collector: c,
     counts: { telemetry: stats.count, events: db.eventCount(), episodes: db.episodeCount() },
     oldestTelemetryAt: stats.oldest,
   };
 }
 
 // GET /api/status, /api/current, /api/health, /api/behaviour, /api/config; POST /api/refresh
-export function statusRoutes(db: AppDatabase, collector: LivingCollector, startedAt: number): Router {
+export function statusRoutes(db: AppDatabase, collector: LivingCollector, startedAt: number, backend?: BackendInfo): Router {
   const r = Router();
-  const snapshot = (): LivingSnapshot => ({ serverTime: Date.now(), status: serverStatus(db, collector, startedAt), ...collector.snapshot() });
+  const snapshot = (): LivingSnapshot => ({ serverTime: Date.now(), status: serverStatus(db, collector, startedAt, backend), ...collector.snapshot() });
 
-  r.get('/status', (_req, res) => res.json(serverStatus(db, collector, startedAt)));
+  r.get('/status', (_req, res) => res.json(serverStatus(db, collector, startedAt, backend)));
   r.get('/current', (_req, res) => res.json(snapshot()));
 
   r.get('/health', (_req, res) => {

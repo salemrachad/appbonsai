@@ -2,14 +2,22 @@ import type { BehaviourEpisode, DailySummary, DiaryItem, HourlyBucket, PlantEven
 import type { TreeSettings } from '../settings/settings';
 import type { CalibrationSaveResult, CalibrationState, CaptureResult, LivingSnapshot, ServerStatus } from './types';
 import type { CaptureStats } from '../telemetry/calibration';
+import { apiUrl, BACKEND } from '../config/backend';
 
-// Frontend → local Appbonsai server. Vite proxies /api to http://localhost:3001.
+// Frontend → the Appbonsai server. Every API call goes through here, and the address comes only
+// from src/config/backend.ts (the Raspberry Pi via VITE_API_BASE_URL, or the same origin).
 async function call<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(init?.headers ?? {}) },
-    signal: AbortSignal.timeout(init?.timeoutMs ?? 8000),
-  });
+  let res: Response;
+  try {
+    res = await fetch(apiUrl(path), {
+      ...init,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(init?.headers ?? {}) },
+      signal: AbortSignal.timeout(init?.timeoutMs ?? 8000),
+    });
+  } catch (e) {
+    const why = e instanceof DOMException && e.name === 'TimeoutError' ? 'timed out' : 'not reachable';
+    throw new Error(`${BACKEND.label} ${why} (${BACKEND.displayUrl})`);
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `HTTP ${res.status}`);

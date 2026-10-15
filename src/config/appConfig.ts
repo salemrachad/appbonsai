@@ -3,8 +3,9 @@
 
 export const APP_CONFIG = {
   server: {
-    port: 3001, // local Appbonsai API + collector (Vite on 3000 proxies /api here)
-    dbPath: 'data/appbonsai.db',
+    port: 3001, // Appbonsai API + collector (on the Pi: http://<pi>:3001; npm run dev:local proxies /api here)
+    dbPath: 'data/appbonsai.db', // production (the Pi): the authoritative history
+    devDbPath: 'data/appbonsai-dev.db', // npm run dev:local: a separate, throwaway development history
   },
 
   polling: {

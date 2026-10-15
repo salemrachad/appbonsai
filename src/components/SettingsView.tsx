@@ -229,7 +229,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleTestFromServer = async () => {
     if (!esp32EndpointUrl.trim()) return;
-    setServerTest({ ok: true, text: 'Testing from the local server…' });
+    setServerTest({ ok: true, text: 'Testing from the Appbonsai server…' });
     try {
       const r = await api.testFromServer(esp32EndpointUrl);
       setServerTest(
@@ -238,7 +238,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           : { ok: false, text: r.error ?? 'Failed' }
       );
     } catch (err: any) {
-      setServerTest({ ok: false, text: `Local server not reachable (${err?.message ?? err}). Is npm run dev running?` });
+      setServerTest({ ok: false, text: `Appbonsai server not reachable (${err?.message ?? err}).` });
     }
   };
 
@@ -625,12 +625,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     : serverStatus.collector.lastSuccessAt
                     ? `Last reading ${new Date(serverStatus.collector.lastSuccessAt).toLocaleTimeString()} · ${serverStatus.counts.telemetry} readings stored`
                     : 'Waiting for the first reading'
-                  : 'Local server not reachable. Start everything with npm run dev.'}{' '}
+                  : 'Appbonsai server not reachable. On the Pi it runs as a service; for local development use npm run dev:local.'}{' '}
                 Readings are only collected while the server runs.
               </p>
             </div>
 
-            {/* Guided soil + light calibration (stored on the local server) */}
+            {/* Guided soil + light calibration (stored on the Appbonsai server) */}
             <CalibrationPanel serverStatus={serverStatus ?? null} />
 
             <p className="sans text-[11px] text-[#2D332A]/60 leading-relaxed">

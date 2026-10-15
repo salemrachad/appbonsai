@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapPin, RefreshCw, History as HistoryIcon, Settings as SettingsIcon, X, Activity, Wrench } from 'lucide-react';
 import { api } from './api/client';
+import { BACKEND } from './config/backend';
 import { DEV_PRESETS } from './health/developerOverrides';
 import type { DailySummary } from './history/historyTypes';
 import { importBrowserHistoryOnce } from './history/legacyBrowserHistory';
@@ -14,6 +15,7 @@ import type { HourlyTelemetryPoint } from './telemetry/types';
 import { DetailView } from './components/DetailView';
 import { SceneBackdrop } from './components/scene/SceneBackdrop';
 import { SeasonChip } from './components/scene/SeasonChip';
+import { BackendBadge } from './components/developer/BackendBadge';
 import { SensorDiagnostics } from './components/sensors/SensorDiagnostics';
 import { Toast, ToastMessage } from './components/Toast';
 import { Developer } from './pages/Developer';
@@ -79,7 +81,7 @@ export default function App() {
   const updateSettings = useCallback((next: TreeSettings) => {
     settingsRef.current = next;
     setSettings(next);
-    api.putConfig(next).catch(() => notify('Saved here, but the local server is offline'));
+    api.putConfig(next).catch(() => notify(`Saved here, but ${BACKEND.label.toLowerCase()} is offline`));
   }, [notify]);
 
   // ---- Data flow: local server (perception → health → behaviour → expression) → screen ----
@@ -96,7 +98,8 @@ export default function App() {
       try {
         const { settings: serverSettings, configured } = await api.getConfig();
         if (cancelled) return;
-        if (configured) {
+        if (configured || BACKEND.remote) {
+          // Against the Pi, the Pi's settings always win: a dev browser never seeds them
           const merged = { ...DEFAULT_SETTINGS, ...serverSettings };
           settingsRef.current = merged;
           setSettings(merged);
@@ -111,6 +114,9 @@ export default function App() {
             /* storage unavailable */
           }
         }
+        // Old browser-only history is moved into the server that served this page, never into the Pi
+        // from a development browser (its localStorage would be the laptop's, not the tree's)
+        if (BACKEND.remote) return;
         const imported = await importBrowserHistoryOnce();
         if (imported && (imported.telemetry || imported.events)) {
           notify(`Moved ${imported.telemetry} readings and ${imported.events} waterings into the local database`);
@@ -184,7 +190,9 @@ export default function App() {
   const statusLabel = previewing
     ? 'Test mode'
     : serverOffline
-    ? 'Local server offline'
+    ? BACKEND.remote
+      ? 'Raspberry Pi offline'
+      : 'Server offline'
     : !snapshot
     ? 'Connecting…'
     : sensorDown
@@ -208,7 +216,12 @@ export default function App() {
   const atmosphere = expression?.atmosphere;
   const isNight = atmosphere?.theme === 'night';
   const scene = atmosphere?.scene ?? 'calm';
-  const offlineMessage = serverOffline ? "I can't reach my local server. Is npm run dev running?" : null;
+  const offlineMessage = serverOffline
+    ? BACKEND.remote
+      ? `I can't reach the Raspberry Pi (${BACKEND.displayUrl}). Is it on, and is the Appbonsai service running?`
+      : "I can't reach my server. Is it running (npm run server, or npm run dev:local for development)?"
+    : null;
+  const backendMode = snapshot?.status.backend?.mode;
   const changeKey = `${snapshot?.status.counts.episodes ?? 0}-${snapshot?.status.counts.events ?? 0}-${snapshot?.recentEpisodes[0]?.id ?? 0}`;
 
   return (
@@ -225,6 +238,7 @@ export default function App() {
             <MapPin className="w-3 h-3 text-[#4A6741]" />
             {settings.locationName}
           </span>
+          {BACKEND.devBuild && <BackendBadge remote={BACKEND.remote} mode={backendMode} offline={serverOffline} />}
           {perception?.season && <SeasonChip season={devSeason ? midSeasonState(devSeason, settings.latitude) : perception.season} />}
         </div>
 

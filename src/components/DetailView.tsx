@@ -215,7 +215,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, te
             </div>
             <div className="flex items-center gap-1.5 sans text-xs text-[#2D332A]/55 mt-0.5">
               <Radio className="w-3 h-3 text-[#4A6741]" />
-              <span>{!telemetry ? 'No reading yet' : isSensor ? `ESP32 sensors via local server · ${telemetry.updatedAt}` : `Weather estimate · Open-Meteo (${locationName})`}</span>
+              <span>{!telemetry ? 'No reading yet' : isSensor ? `ESP32 sensors via the Appbonsai server · ${telemetry.updatedAt}` : `Weather estimate · Open-Meteo (${locationName})`}</span>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-neutral-200/50 text-[#2D332A]/70 cursor-pointer">
@@ -327,7 +327,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, te
                 <span>
                   {span === '24h' && !isSensor
                     ? 'Next/last hours from the Open-Meteo forecast and the moisture model.'
-                    : 'Built from readings stored by the local server (hourly averages).'}
+                    : 'Built from readings stored by the Appbonsai server (hourly averages).'}
                   {(chartMetric === 'light' || chartMetric === 'all') && isSensor && ' Light is the relative photoresistor %, not lux.'}
                 </span>
               </div>
