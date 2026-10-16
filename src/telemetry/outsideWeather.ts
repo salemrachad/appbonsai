@@ -19,6 +19,8 @@ export interface OutsideObservation {
   wind: number | null; // km/h
   gusts: number | null; // km/h
   isDay: boolean | null;
+  sunrise?: number | null; // today's published sunrise at the location (ms)
+  sunset?: number | null;
 }
 
 // What perception passes on: the observation, or nothing once it is too old to describe "now".
@@ -74,11 +76,18 @@ export async function fetchOutsideWeather(settings: TreeSettings, now = Date.now
   if (settings.latitude == null || settings.longitude == null) throw new Error('no location set');
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${settings.latitude}&longitude=${settings.longitude}` +
-    '&current=weather_code,temperature_2m,relative_humidity_2m,precipitation,cloud_cover,wind_speed_10m,wind_gusts_10m,is_day&timezone=auto';
+    '&current=weather_code,temperature_2m,relative_humidity_2m,precipitation,cloud_cover,wind_speed_10m,wind_gusts_10m,is_day&daily=sunrise,sunset&forecast_days=1&timezone=auto';
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Open-Meteo responded with status ${response.status}`);
   const data = await response.json();
   const c = data?.current ?? {};
+  // Daily times come as local wall-clock strings ("2026-10-16T06:42") plus the location's UTC offset
+  const offset = num(data?.utc_offset_seconds) ?? 0;
+  const local = (iso: unknown): number | null => {
+    if (typeof iso !== 'string') return null;
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - offset * 1000 : null;
+  };
   const code = num(c.weather_code);
   if (code === null) throw new Error('Open-Meteo returned no current weather');
   return {
@@ -94,6 +103,8 @@ export async function fetchOutsideWeather(settings: TreeSettings, now = Date.now
       wind: num(c.wind_speed_10m),
       gusts: num(c.wind_gusts_10m),
       isDay: c.is_day == null ? null : c.is_day === 1,
+      sunrise: local(data?.daily?.sunrise?.[0]),
+      sunset: local(data?.daily?.sunset?.[0]),
     },
   };
 }

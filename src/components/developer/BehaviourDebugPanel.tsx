@@ -37,6 +37,10 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
         <Row label="Recent event" value={lastEvent ? `${lastEvent.type.replace('_', ' ')} ${ago(lastEvent.timestamp)}` : '–'} />
         <Row label="Time of day" value={b.timeOfDay} />
         <Row label="Outside (context, never health)" value={x.atmosphere.weather ? x.atmosphere.weather.label : 'unknown / stale'} />
+        <Row label="Dragonfly (the air of the last hours)" value={b.habitat?.dragonfly ? `${b.habitat.dragonfly.value} · ${b.habitat.dragonfly.active ? 'active' : 'not active'} · ${b.habitat.dragonfly.visitsToday.count} visits today${b.habitat.dragonfly.visit?.route ? ` · route: ${b.habitat.dragonfly.visit.route.map((x) => x.perch.replace("_", " ") + (x.mode === "hovering" ? " (hover)" : "")).join(" → ")}` : ""} — ${b.habitat.dragonfly.why}` : '–'} />
+        <Row label="Sloth (warm, humid, still air)" value={b.habitat?.sloth ? `${b.habitat.sloth.value} · ${b.habitat.sloth.active ? 'active' : 'not active'} · ${b.habitat.sloth.visitsToday.count} visits (${b.habitat.sloth.visitsToday.minutes} min) today${b.habitat.sloth.visit ? ` · grip ${b.habitat.sloth.visit.grip.replace(/_/g, ' ')}` : ''} — ${b.habitat.sloth.why}` : '–'} />
+        <Row label="Encounters (visitors together)" value={x.encounters?.length ? x.encounters.map((e) => e.replace('_', ' + ')).join(', ') : '–'} />
+        <Row label="Thoughts of the day" value={b.voice ? (b.voice.budget > 0 ? `${b.voice.budget} today, ≥ ${Math.round(b.voice.gapMs / 60000)} min apart · true now: ${b.voice.musings.map((x) => x.id.replace(/_/g, ' ')).join(', ') || '–'}` : b.voice.why) : '–'} />
         <Row label="Canopy (last weeks, drawn only)" value={b.canopy ? `${Math.round(b.canopy.fullness * 100)}% · ${b.canopy.trend}${b.canopy.refilling ? ` · fresh tips ${Math.round(b.canopy.refilling * 100)}%` : ''} — ${b.canopy.reasons.join('; ')}` : '–'} />
       </Section>
 

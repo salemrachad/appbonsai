@@ -81,7 +81,10 @@ export type DayLine =
   | 'weather_storm'
   | 'weather_fog'
   | 'weather_snow'
-  | 'weather_cold_outside';
+  | 'weather_cold_outside'
+  // The sun's real moments (perception.sun times): once a day each, when calm
+  | 'sunrise_greeting'
+  | 'sunset_line';
 
 // Lines about recent care, spoken at most once a day while the context lasts.
 export type CareLine = 'settling_in' | 'new_spot' | 'new_shape';
@@ -147,15 +150,88 @@ export interface DreyState {
   stage: 'none' | 'started' | 'built'; // with hysteresis
   builtAt: number | null; // when it last became built
 }
+// The dragonfly: the habitat's second wanderer (the air over hours, not the tree's history)
+export type DragonflyPerch = 'left_tip' | 'right_tip' | 'crown_tip' | 'left_top' | 'on_sloth'; // on_sloth: only from an encounter
+// One stop of its route: it arrives at `at` (having flown in during the flight time before) and stays
+// until it leaves for the next stop. Perched on a tip, or hovering by it.
+export interface DragonflyStop {
+  at: number;
+  perch: DragonflyPerch;
+  mode: 'perched' | 'hovering';
+}
+export interface DragonflyState {
+  value: number; // 0-1: how good the air has been lately (rises ~45 min, falls ~15 min)
+  active: boolean; // latch (enter/exit) on value
+  presence: 'none' | 'hovering' | 'perched';
+  // perch: its home perch (it keeps coming back to it); route: where it goes during the visit
+  visit: { id: string; startedAt: number; endsAt: number; perch: DragonflyPerch; style: 'perched' | 'hovering'; route: DragonflyStop[] } | null;
+  visitsToday: { count: number; firstAt: number | null };
+  insideTemp: number | null; // for its liveliness (wing tempo)
+  why: string;
+}
+
+// The sloth: the third wanderer (warm, humid, still air; slow to come and go; stays the night)
+export type SlothBranch = 'left_branch' | 'right_branch';
+// How it holds on, from its comfort: all four when it has just arrived (or the air is marginal), relaxed
+// grips (one arm, by the legs) after long warm, humid, still air. Asleep: always curled in all four.
+export type SlothGrip = 'four' | 'arms' | 'legs' | 'one_arm' | 'two_legs_one_arm';
+export interface SlothState {
+  value: number; // 0-1: how warm, humid and still the air has been lately (rises ~90 min, falls ~60 min)
+  active: boolean;
+  presence: 'none' | 'hanging' | 'climbing' | 'sleeping';
+  visit: { id: string; startedAt: number; endsAt: number; branch: SlothBranch; pose: 'hanging' | 'climbing' | 'sleeping'; grip: SlothGrip } | null;
+  visitsToday: { count: number; firstAt: number | null; minutes: number };
+  insideTemp: number | null;
+  why: string;
+}
+
+// Two visitors in the tree at the same time (art): the squirrel peeks at the sloth, the squirrel watches the
+// dragonfly, the dragonfly rests on the sloth
+export type HabitatEncounter = 'squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth';
+
 export interface HabitatState {
   value: number; // 0-1: how welcoming the tree has been (slow to rise, quick to fall)
   welcoming: boolean; // latch (enter/exit) on value: do visitors come at all
   presence: 'none' | 'visiting' | 'hiding' | 'sleeping'; // right now: out on a branch, tucked into the leaves, asleep in the drey
   visit: HabitatVisit | null;
   drey: DreyState;
+  visitsToday: { count: number; firstAt: number | null }; // squirrel visits so far today (for its thoughts)
+  dragonfly?: DragonflyState; // the second wanderer (set by the behaviour engine)
+  sloth?: SlothState; // the third wanderer
+  encounters?: HabitatEncounter[]; // visitors in the tree together right now (behaviour/encounters.ts)
   calmHours14d: number; // observed hours that raised it
   stressHours14d: number; // observed hours that lowered it
   lastChangeAt: number | null; // when the latch last flipped
+  why: string; // developer panel
+}
+
+// The tree's thoughts through a calm day, each grounded in today's data (wording in messages.ts by id)
+export type MusingId =
+  | 'soil_steady' // soil comfortable; facts: soil, hoursToThirsty (-1 = barely drying)
+  | 'days_since_water' // days
+  | 'brightest_hour' // peak (%)
+  | 'good_light_day' // usefulHours
+  | 'days_shorter' // minPerDay, daylight
+  | 'days_longer'
+  | 'humid_morning' // rh, fog (1 = the glass may fog)
+  | 'warmest_hour' // temp
+  | 'warmer_than_outside' // inside, outside
+  | 'squirrel_came' // count, firstAt
+  | 'dragonfly_came' // count, firstAt
+  | 'sloth_came' // count, minutes
+  | 'visitors_met' // pair (index in ENCOUNTER_PAIRS: 0 squirrel+sloth, 1 squirrel+dragonfly, 2 dragonfly+sloth)
+  | 'new_tips' // fullness
+  | 'drey_growing';
+export interface Musing {
+  id: MusingId;
+  facts: Record<string, number>;
+  weight: number; // how much it matters today (higher first)
+}
+// How much the tree has to say today, and what is true right now
+export interface VoiceState {
+  budget: number; // thoughts for the day (0 = not musing now)
+  gapMs: number; // at least this long between two thoughts (spreads them over the daylight)
+  musings: Musing[]; // candidates, most relevant first
   why: string; // developer panel
 }
 
@@ -209,6 +285,9 @@ export interface PlantBehaviourState {
   relationship: RelationshipContext;
   habitat: HabitatState; // visitors: expressive only, nothing above reads it
   canopy: CanopyState; // the foliage over the last weeks: expressive only, nothing above reads it
+  voice: VoiceState; // the day's thoughts (the speech policy decides when one is said)
+  // Where the day is relative to the real sunrise / sunset (null outside their windows)
+  twilight: { event: 'sunrise' | 'sunset' | null; minutes: number | null };
   reasons: string[]; // why the engine chose this behaviour (developer panel)
   evaluatedAt: number;
 }

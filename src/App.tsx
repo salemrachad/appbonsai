@@ -6,7 +6,7 @@ import { DEV_PRESETS } from './health/developerOverrides';
 import type { DailySummary } from './history/historyTypes';
 import { importBrowserHistoryOnce } from './history/legacyBrowserHistory';
 import { useLivingState } from './hooks/useLivingState';
-import { usePlantBehaviour, type CanopyPreview, type DreyPreview, type VisitorPreview, type WeatherPreview } from './hooks/usePlantBehaviour';
+import { usePlantBehaviour, type CanopyPreview, type DragonflyPreview, type SlothPreview, type DreyPreview, type TwilightPreview, type VisitorPreview, type WeatherPreview } from './hooks/usePlantBehaviour';
 import { OUTSIDE_SKIES } from './telemetry/outsideWeather';
 import { usePlantHealth } from './hooks/usePlantHealth';
 import { DEFAULT_SETTINGS, loadSettings, TreeSettings } from './settings/settings';
@@ -69,10 +69,25 @@ export default function App() {
     if (!m) return null;
     return m[1] === 'refilling' ? { fullness: 0.72, refilling: 0.8 } : { fullness: Math.max(0.6, Math.min(1, Number(m[1]))), refilling: 0 };
   });
+  // #dragonfly=perched or #dragonfly=hovering:crown_tip shows the dragonfly (presentation only)
+  const [devDragonfly, setDevDragonfly] = useState<DragonflyPreview | null>(() => {
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/dragonfly=(hovering|perched)(?::(left_tip|right_tip|crown_tip|left_top))?/) : null;
+    return m ? { presence: m[1] as DragonflyPreview['presence'], perch: (m[2] ?? 'right_tip') as DragonflyPreview['perch'] } : null;
+  });
+  // #sloth=hanging or #sloth=climbing:right_branch or #sloth=hanging:left_branch:one_arm or #sloth=sleeping shows the sloth (presentation only)
+  const [devSloth, setDevSloth] = useState<SlothPreview | null>(() => {
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/sloth=(hanging|climbing|sleeping)(?::(left_branch|right_branch))?(?::(four|arms|legs|one_arm|two_legs_one_arm))?/) : null;
+    return m ? { pose: m[1] as SlothPreview['pose'], branch: (m[2] ?? 'left_branch') as SlothPreview['branch'], grip: m[3] as SlothPreview['grip'] } : null;
+  });
   // #drey=started or #drey=built shows the nest in the crown (presentation only)
   const [devDrey, setDevDrey] = useState<DreyPreview | null>(() => {
     const m = typeof window !== 'undefined' ? window.location.hash.match(/drey=(none|started|built)/) : null;
     return m ? (m[1] as DreyPreview) : null;
+  });
+  // #twilight=sunrise-10 (10 min before) or #twilight=sunset+5 previews the twilight layer (presentation only)
+  const [devTwilight, setDevTwilight] = useState<TwilightPreview | null>(() => {
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/twilight=(sunrise|sunset)([+-]\d+)?/) : null;
+    return m ? { event: m[1] as 'sunrise' | 'sunset', minutes: Number(m[2] ?? 0) } : null;
   });
   // #weather=rain previews the outside weather layer (presentation only)
   const [devWeather, setDevWeather] = useState<WeatherPreview | null>(() => {
@@ -161,7 +176,7 @@ export default function App() {
   }, [serverOffline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { live, display } = usePlantHealth(snapshot?.health ?? null, devPresetId);
-  const { behaviour, expression } = usePlantBehaviour(snapshot, display, devSeason, settings.latitude, devVisitor, devWeather, devDrey, devCanopy);
+  const { behaviour, expression } = usePlantBehaviour(snapshot, display, devSeason, settings.latitude, devVisitor, devWeather, devDrey, devCanopy, devTwilight, devDragonfly, devSloth);
   const perception = snapshot?.perception ?? null;
   const reading = perception?.lastReading ?? null;
 
@@ -215,7 +230,7 @@ export default function App() {
   // ---- Header status ----
   const collector = snapshot?.status.collector;
   const sensorDown = !!perception && !perception.telemetry;
-  const previewing = !!devPresetId || !!devSeason || !!devVisitor || !!devWeather || !!devDrey || !!devCanopy;
+  const previewing = !!devPresetId || !!devSeason || !!devVisitor || !!devWeather || !!devDrey || !!devCanopy || !!devTwilight || !!devDragonfly || !!devSloth;
   // Petting is attention, not care: one record per session, and none during a developer preview
   // (previews never write to the server)
   const recordPetSession = useCallback(
@@ -273,6 +288,7 @@ export default function App() {
         season={atmosphere?.season ?? perception?.season?.id ?? 'summer'}
         intensity={atmosphere?.intensity ?? 0.5}
         weather={atmosphere?.weather ?? null}
+        twilight={atmosphere?.twilight ?? null}
       />
       <header className="relative z-10 shrink-0 h-16 px-8 flex items-center justify-between border-b border-[var(--line)]">
         <div className="flex items-baseline gap-4 min-w-0">
@@ -317,18 +333,22 @@ export default function App() {
         health={display}
         expression={expression}
         offlineMessage={offlineMessage}
-        devPresetLabel={[devPreset?.label, devSeason && `${devSeason[0].toUpperCase()}${devSeason.slice(1)} season`, devVisitor && `Squirrel ${devVisitor.action ?? devVisitor.mode}`, devDrey && `Drey ${devDrey}`, devCanopy && `Canopy ${Math.round(devCanopy.fullness * 100)}%${devCanopy.refilling ? ' refilling' : ''}`, devWeather && `Outside: ${devWeather.replace('_', ' ')}`].filter(Boolean).join(' · ') || null}
+        devPresetLabel={[devPreset?.label, devSeason && `${devSeason[0].toUpperCase()}${devSeason.slice(1)} season`, devVisitor && `Squirrel ${devVisitor.action ?? devVisitor.mode}`, devDrey && `Drey ${devDrey}`, devDragonfly && `Dragonfly ${devDragonfly.presence}`, devSloth && `Sloth ${devSloth.pose}`, devCanopy && `Canopy ${Math.round(devCanopy.fullness * 100)}%${devCanopy.refilling ? ' refilling' : ''}`, devTwilight && `${devTwilight.event === 'sunrise' ? 'Sunrise' : 'Sunset'} ${devTwilight.minutes >= 0 ? '+' : ''}${devTwilight.minutes} min`, devWeather && `Outside: ${devWeather.replace('_', ' ')}`].filter(Boolean).join(' · ') || null}
         onReturnToLive={() => {
           setDevSeason(null);
           setDevVisitor(null);
           setDevWeather(null);
           setDevDrey(null);
           setDevCanopy(null);
+          setDevTwilight(null);
+          setDevDragonfly(null);
+          setDevSloth(null);
           selectDevPreset(null);
         }}
         onOpenDetails={() => setShowDetail(true)}
         onPetSession={recordPetSession}
         outside={perception?.outside ?? null}
+        air={perception?.air ?? null}
         // Inside vs outside only with the real sensor (in weather mode the 'inside' values ARE the outside estimate)
         inside={perception?.source === 'esp32_sensor' ? { temperature: perception.readings.temperature, humidity: perception.readings.humidity } : { temperature: null, humidity: null }}
       />
@@ -372,6 +392,18 @@ export default function App() {
                   setDevVisitor(v);
                   notify(v ? `Squirrel ${v.mode} (${v.spot.replace('_', ' ')})` : 'Back to real visitors');
                 }}
+                devSloth={devSloth}
+                onSelectDevSloth={(sl) => {
+                  setDevSloth(sl);
+                  notify(sl ? `Sloth ${sl.pose}` : 'Back to real sloths');
+                }}
+                devDragonfly={devDragonfly}
+                onSelectDevDragonfly={(d) => {
+                  setDevDragonfly(d);
+                  notify(d ? `Dragonfly ${d.presence}` : 'Back to real dragonflies');
+                }}
+                devTwilight={devTwilight}
+                onSelectDevTwilight={setDevTwilight}
                 devCanopy={devCanopy}
                 onSelectDevCanopy={(c) => {
                   setDevCanopy(c);

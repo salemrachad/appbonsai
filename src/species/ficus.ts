@@ -57,6 +57,16 @@ export const FICUS: SpeciesProfile = {
     leafDrop: { peakDay: 310, halfWidthDays: 40 },
   },
 
+  // PROVISIONAL (not calibrated yet): derived environmental metrics.
+  // Coupling is DIAGNOSTIC ONLY: shown in the developer panel and the soil card notes, never in vitality,
+  // mood or the avatar until validated against this tree (slow drying is not necessarily stress).
+  // Temperature exposure feeds the existing temperature score: sustained heat or cold above/below the
+  // optimal range lingers for hours and fades (τ 6 h), without permanent penalties.
+  environment: {
+    coupling: { minVpdKpa: 0.5, baselineTauDays: 7, establishAfterDays: 3, establishAfterHours: 12, slowerRatio: 0.6, fasterRatio: 1.6 },
+    temperatureExposure: { windowHours: 24, decayTauHours: 6, scorePerDegreeHour: 2, maxPenalty: 25 },
+  },
+
   // INFERENCE / PROTOTYPE: ficus drops leaves after a sustained stress (drought, cold, low light) and after
   // being moved, then refills over weeks, slowly in winter. Two days very dry ≈ a quarter of the canopy;
   // three calm summer weeks mostly refill it. To be checked against photos of the real tree.

@@ -63,6 +63,8 @@ const toOutside = (r: Row): OutsideObservation => ({
   wind: r.wind,
   gusts: r.gusts,
   isDay: r.is_day === null ? null : r.is_day === 1,
+  sunrise: r.sunrise_at ?? null,
+  sunset: r.sunset_at ?? null,
 });
 
 const toEpisode = (r: Row): BehaviourEpisode => ({
@@ -251,9 +253,9 @@ export class AppDatabase {
   insertOutsideWeather(o: OutsideObservation, raw: unknown) {
     this.db
       .prepare(
-        'INSERT INTO outside_weather (timestamp, sky, code, temperature, humidity, precipitation, cloud_cover, wind, gusts, is_day, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO outside_weather (timestamp, sky, code, temperature, humidity, precipitation, cloud_cover, wind, gusts, is_day, sunrise_at, sunset_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(o.at, o.sky, o.code, o.temperature, o.humidity, o.precipitation, o.cloudCover, o.wind, o.gusts, o.isDay === null ? null : o.isDay ? 1 : 0, raw === undefined ? null : JSON.stringify(raw));
+      .run(o.at, o.sky, o.code, o.temperature, o.humidity, o.precipitation, o.cloudCover, o.wind, o.gusts, o.isDay === null ? null : o.isDay ? 1 : 0, o.sunrise ?? null, o.sunset ?? null, raw === undefined ? null : JSON.stringify(raw));
   }
   latestOutsideWeather(): OutsideObservation | null {
     const r = this.db.prepare('SELECT * FROM outside_weather ORDER BY timestamp DESC LIMIT 1').get() as Row | undefined;

@@ -86,6 +86,24 @@ export interface SpeciesProfile {
     leafDrop: SeasonalCurve; // a few of them let go
   };
 
+  // Derived environmental metrics (PROVISIONAL until calibrated against this tree). See perception/environment.ts.
+  environment: {
+    coupling: {
+      minVpdKpa: number; // below this mean demand, drying per kPa means nothing
+      baselineTauDays: number; // this pot's usual coupling, an exponential average
+      establishAfterDays: number; // the baseline is "learning" until it spans this many days…
+      establishAfterHours: number; // …and has this many hours of confident segments
+      slowerRatio: number; // current / baseline below this: drying slower than usual (diagnostic)
+      fasterRatio: number; // above this: drying faster than usual (diagnostic)
+    };
+    temperatureExposure: {
+      windowHours: number; // degree-hours counted over this window…
+      decayTauHours: number; // …each fading with this time constant (recovers gradually)
+      scorePerDegreeHour: number; // temperature score lost per decayed degree-hour
+      maxPenalty: number; // the exposure never costs more than this on the temperature score
+    };
+  };
+
   // The canopy over weeks (INFERENCE / PROTOTYPE): leaf loss after a long stress or a move, refilling at
   // the pace of the season. Drawn by the avatar only; never part of health. See behaviour/canopy.ts.
   canopy: {

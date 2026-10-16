@@ -1,6 +1,6 @@
 import { APP_CONFIG } from '../config/appConfig';
 import type { Severity } from '../health/healthTypes';
-import type { CareLine, DayLine, IntensityTier, ObservationId, PlantBehaviourState } from './behaviourTypes';
+import type { CareLine, DayLine, IntensityTier, Musing, ObservationId, PlantBehaviourState } from './behaviourTypes';
 import { messageKey, variantCount } from './messages';
 
 // When the tree speaks, and when it stays quiet.
@@ -11,6 +11,8 @@ import { messageKey, variantCount } from './messages';
 // - Only strong/critical states are repeated, after a long cooldown, with a different variant.
 // - Relationship observations: once per episode. Time-of-day lines: once per day. Season lines: once per season.
 // - The variant is stable for an episode + message, so refreshing never reshuffles the words.
+// - Thoughts (musings): on a calm day the tree shares a few grounded thoughts, up to the day's budget
+//   (behaviour.voice), each at most once a day, spaced over the daylight, never over something else.
 // The memory is persisted by the server, so browser refreshes and restarts don't replay anything.
 
 const MIN = 60 * 1000;
@@ -20,6 +22,7 @@ export const SPEECH = {
   visibleMs: { quiet: 10 * MIN, mild: 20 * MIN, moderate: 30 * MIN, strong: 45 * MIN, critical: 60 * MIN },
   repeatMs: { strong: 2 * 60 * MIN, critical: 60 * MIN }, // only these are ever re-said
   reactionVisibleMs: APP_CONFIG.watering.reactionMinutes * MIN,
+  musingVisibleMs: 15 * MIN, // a thought stays on screen this long (a calm tree stays mostly silent)
   maxOnceFlags: 60,
 } as const;
 
@@ -37,7 +40,12 @@ export interface MessageMemory {
   lastCareLine?: CareLine | null;
   onceFlags: string[]; // "episode:observationId" already said
   dayLinesSaid: Partial<Record<DayLine | CareLine, string>>; // time-of-day / care line → local date it was said
+  musingsSaid?: { date: string; ids: string[] }; // today's thoughts already shared
+  lastMusingAt?: number | null;
+  lastMusing?: SpokenMusing | null; // the thought on screen
 }
+
+export type SpokenMusing = Musing & { variant: number };
 
 export const INITIAL_MESSAGE_MEMORY: MessageMemory = {
   version: 1,
@@ -64,6 +72,8 @@ export interface SpeechDecision {
   observation: { id: ObservationId; hours?: number } | null; // part of the line on screen
   dayLine: DayLine | null;
   careLine: CareLine | null;
+  musing: SpokenMusing | null; // a thought of the day, while it is on screen
+  musingsToday: string; // e.g. "2 of 4 thoughts today" (developer panel)
   cooldownRemainingMs: number; // until it might speak about this again (0 = it may)
   onceStatus: string;
 }
@@ -79,8 +89,9 @@ export function stableVariant(seed: string, count: number): number {
 }
 
 // A weather contrast line (calm tree, outside turned) not yet said today
+// (the sun's real moments are news the same way: the sun just rose, or is about to set)
 const weatherNews = (b: PlantBehaviourState, m: MessageMemory, now: number) =>
-  !!b.dayLine?.startsWith('weather_') && m.dayLinesSaid[b.dayLine] !== localDate(now);
+  !!b.dayLine && /^(weather_|sunrise_|sunset_)/.test(b.dayLine) && m.dayLinesSaid[b.dayLine] !== localDate(now);
 
 const localDate = (t: number) => {
   const d = new Date(t);
@@ -103,7 +114,7 @@ export function decideSpeech({
   const context = `${episode}|${key}|${b.reaction?.eventId ?? ''}`;
   const critical = severity === 'critical';
   const quiet = QUIET_INTENTS.includes(b.messageIntent) || b.primaryState === 'sleeping';
-  const visibleFor = b.reaction
+  let visibleFor: number = b.reaction
     ? SPEECH.reactionVisibleMs
     : critical
     ? SPEECH.visibleMs.critical
@@ -112,6 +123,13 @@ export function decideSpeech({
     : SPEECH.visibleMs[b.intensityTier];
   const repeatEvery = b.reaction || quiet ? null : critical ? SPEECH.repeatMs.critical : b.intensityTier === 'strong' ? SPEECH.repeatMs.strong : null;
   const sinceSpoken = m.lastSpokenAt !== null ? now - m.lastSpokenAt : Infinity;
+  // Thoughts of the day: budget and spacing from behaviour.voice, once each per day
+  const today = localDate(now);
+  const saidToday = m.musingsSaid?.date === today ? m.musingsSaid.ids : [];
+  const voice = b.voice;
+  const nextThought = voice && voice.budget > saidToday.length ? voice.musings.find((x) => !saidToday.includes(x.id)) ?? null : null;
+  if (m.lastMusing && m.lastContext === context) visibleFor = Math.max(visibleFor, SPEECH.musingVisibleMs);
+  let musing: SpokenMusing | null = null;
 
   let next: MessageMemory = { ...m };
   let reason: string;
@@ -142,7 +160,18 @@ export function decideSpeech({
   } else if (weatherNews(b, m, now) && sinceSpoken >= SPEECH.minGapMs) {
     // Outside weather turned (rain, a storm, fog, snow, a cold snap): one word about it, once a day
     speakNow = true;
-    reason = `outside: ${b.dayLine!.replace('weather_', '').replace(/_/g, ' ')}`;
+    reason = b.dayLine!.startsWith('weather_') ? `outside: ${b.dayLine!.replace('weather_', '').replace(/_/g, ' ')}` : `the sun: ${b.dayLine!.replace(/_/g, ' ')}`;
+  } else if (
+    nextThought &&
+    sinceSpoken >= visibleFor &&
+    sinceSpoken >= SPEECH.minGapMs &&
+    now - (m.lastMusingAt ?? 0) >= voice!.gapMs
+  ) {
+    // A calm moment and something true to share: one of the day's thoughts
+    speakNow = true;
+    musing = { ...nextThought, variant: stableVariant(`${today}:${nextThought.id}`, 3) };
+    reason = `a thought of the day (${saidToday.length + 1} of ${voice!.budget}): ${nextThought.id.replace(/_/g, ' ')}`;
+    next = { ...next, musingsSaid: { date: today, ids: [...saidToday, nextThought.id] }, lastMusingAt: now };
   } else if (sinceSpoken < visibleFor) {
     reason = 'same thought, still showing';
   } else if (repeatEvery !== null && sinceSpoken >= repeatEvery) {
@@ -174,7 +203,7 @@ export function decideSpeech({
       careLine = b.careLine;
       next.dayLinesSaid = { ...next.dayLinesSaid, [b.careLine]: localDate(now) };
     }
-    next = { ...next, lastSpokenAt: now, lastVariant: variant, lastObservation: observation, lastDayLine: dayLine, lastCareLine: careLine };
+    next = { ...next, lastSpokenAt: now, lastVariant: variant, lastObservation: observation, lastDayLine: dayLine, lastCareLine: careLine, lastMusing: musing };
   }
 
   const spokenAt = next.lastContext === context ? next.lastSpokenAt : null;
@@ -191,6 +220,8 @@ export function decideSpeech({
       observation: visible ? observation : null,
       dayLine: visible ? dayLine : null,
       careLine: visible ? careLine : null,
+      musing: visible && next.lastContext === context ? next.lastMusing ?? null : null,
+      musingsToday: voice && voice.budget > 0 ? `${(next.musingsSaid?.date === today ? next.musingsSaid.ids : []).length} of ${voice.budget} thoughts today` : 'not musing now',
       cooldownRemainingMs: nextAllowed ? Math.max(0, nextAllowed - now) : spokenAt !== null && context === next.lastContext ? Infinity : 0,
       onceStatus: obs ? `${obs.id}: ${next.onceFlags.includes(`${episode}:${obs.id}`) ? 'already said this episode' : 'not said yet'}` : 'no observation',
     },

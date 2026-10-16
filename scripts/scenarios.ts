@@ -10,7 +10,7 @@ import { perceive, toSample } from '../src/perception/PerceptionEngine';
 import { seasonState } from '../src/perception/season';
 import type { PerceptionSample } from '../src/perception/perceptionTypes';
 import { FICUS } from '../src/species/ficus';
-import { calculateVPD } from '../src/telemetry/telemetryNormalizer';
+import { absoluteHumidity, calculateVPD, dewPoint } from '../src/telemetry/telemetryNormalizer';
 import { skyFromCode, type OutsideObservation } from '../src/telemetry/outsideWeather';
 import type { PlantTelemetry } from '../src/telemetry/types';
 
@@ -141,6 +141,176 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   const k = cave.run(at(10), 5 * 60, () => ({ soil: 60, light: 6 }));
   check('D5 overcast but LDR 6%: still too dark (darker than even a grey sky explains)', k.h.condition === 'too_dark', show(k));
   check('D6 a grey day scores fairer light than the same reading on a clear day', (o.h.scores.light ?? 0) > (c.h.scores.light ?? 0), `${o.h.scores.light} vs ${c.h.scores.light}`);
+}
+
+// DD1-DD8. Soil dry-down: one uninterrupted segment, with a confidence
+{
+  const { soilDryDown, dryingCoupling, temperatureExposure } = await import('../src/perception/environment');
+  const t0 = at(8);
+  const smp = (t: number, soil: number | null, temp = 24, hum = 55) => ({ t, soil, soilRaw: null, temp, hum, light: 50, radiation: null, lightRaw: null, isDay: true, lightExpected: true });
+  // minute readings drying at `rate` %/h with ±1 % jitter (the FC-28's real noise)
+  const series = (from: number, minutes: number, start: number, rate: number, noise = 1) =>
+    Array.from({ length: minutes }, (_, i) => smp(from + i * MIN, start + (rate * i) / 60 + Math.sin(i * 1.7) * noise + Math.cos(i * 0.9) * noise * 0.6));
+  const dd = (samples: ReturnType<typeof smp>[], now: number, extra: Partial<Parameters<typeof soilDryDown>[0]> = {}) =>
+    soilDryDown({ samples, events: [], breaks: [], gapMs: 15 * MIN, soilSuspect: false, now, ...extra });
+
+  const steady = series(t0, 6 * 60, 70, -0.4);
+  const d1 = dd(steady, t0 + 6 * 60 * MIN);
+  check('DD1 noisy steady dry-down: slope ≈ −0.4 %/h with high confidence', !!d1 && Math.abs(d1.perHour + 0.4) <= 0.08 && d1.confidence === 'high', JSON.stringify(d1));
+
+  // A watering inside the window: the regression never bridges it
+  const wAt = t0 + 3 * 60 * MIN;
+  const before = series(t0, 3 * 60, 50, -0.6);
+  const after = series(wAt, 5 * 60, 80, -0.3);
+  const watered = [...before, ...after];
+  const ev = [{ id: 1, timestamp: wAt, type: 'watering' as const, note: null, metadata: {} }];
+  const soon = dd(watered.filter((x) => x.t <= wAt + 2 * 60 * MIN), wAt + 2 * 60 * MIN, { events: ev });
+  const later = dd(watered, wAt + 5 * 60 * MIN, { events: ev });
+  check('DD2 after a watering: no estimate until the new segment is long enough (never bridged)', soon === null, JSON.stringify(soon));
+  check('DD2b then only the new segment counts, started by the watering', !!later && later.startedBy === 'watering' && later.since >= wAt + 45 * MIN && Math.abs(later.perHour + 0.3) <= 0.1, JSON.stringify(later));
+
+  // A disconnection (40 min without readings) starts a new segment after it
+  const gapped = [...series(t0, 120, 70, -0.4), ...series(t0 + 160 * MIN, 4 * 60, 69, -0.4)];
+  const d3 = dd(gapped, t0 + 400 * MIN);
+  check('DD3 a gap (disconnection) is never bridged', !!d3 && d3.startedBy === 'gap' && d3.since >= t0 + 160 * MIN, JSON.stringify(d3 && { since: (d3.since - t0) / MIN, by: d3.startedBy }));
+
+  // Calibration: a change starts a new segment; a pause going on gives no estimate
+  const calAt = t0 + 2 * 60 * MIN;
+  const d4 = dd(steady, t0 + 6 * 60 * MIN, { breaks: [calAt] });
+  const paused = dd(steady, t0 + 6 * 60 * MIN, { breaks: [t0 + 7 * 60 * MIN] });
+  check('DD4 a calibration change starts a new segment; during a pause: no estimate', !!d4 && d4.startedBy === 'calibration' && d4.since >= calAt && paused === null);
+  check('DD5 a suspect soil sensor: no estimate', dd(steady, t0 + 6 * 60 * MIN, { soilSuspect: true }) === null);
+  check('DD6 missing history (1 h): no estimate', dd(series(t0, 60, 70, -0.4), t0 + 60 * MIN) === null);
+  const noisy = dd(series(t0, 4 * 60, 70, -0.2, 9), t0 + 4 * 60 * MIN);
+  check('DD7 very noisy readings: low confidence', !!noisy && noisy.confidence === 'low', JSON.stringify(noisy && { se: noisy.se, c: noisy.confidence }));
+
+  // The voice predicts only with enough evidence
+  const sim = new Sim();
+  const short = sim.run(at(9), 60, (i) => ({ soil: 70 - i * 0.008 }));
+  const shortThought = short.b.voice.musings.find((m) => m.id === 'soil_steady');
+  const long = sim.run(at(10), 5 * 60, (i) => ({ soil: 69.5 - i * 0.008 }));
+  const longThought = long.b.voice.musings.find((m) => m.id === 'soil_steady');
+  check('DD8 the voice predicts thirst only from a confident segment', (!shortThought || shortThought.facts.hoursToThirsty === -1) && !!longThought && longThought.facts.hoursToThirsty > 0, `short ${shortThought?.facts.hoursToThirsty}, long ${longThought?.facts.hoursToThirsty} h (${long.p.trends.soilDryDown?.confidence})`);
+
+  // ---- CP1-CP4. Moisture–VPD coupling: diagnostic only ----
+  const cp = dryingCoupling(d1, steady, FICUS, t0 + 6 * 60 * MIN);
+  check('CP1 coupling = drying rate / mean VPD, from a confident drying segment', !!cp && Math.abs(cp.perHourPerKpa - -d1!.perHour / cp.meanVpd) < 0.01 && cp.meanVpd > 1, JSON.stringify(cp));
+  const lowDemand = series(t0, 6 * 60, 70, -0.4).map((x) => ({ ...x, temp: 15, hum: 95 }));
+  check('CP1b too little evaporative demand (VPD < 0.5): no coupling', dryingCoupling(dd(lowDemand, t0 + 6 * 60 * MIN), lowDemand, FICUS, t0 + 6 * 60 * MIN) === null);
+
+  const { updateCouplingBaseline, interpretEnvironment, INITIAL_COUPLING } = await import('../src/health/environment');
+  const fakeP = (perHourPerKpa: number | null, atT: number) =>
+    ({ at: atT, drying: perHourPerKpa === null ? null : { perHourPerKpa, meanVpd: 1.2, hours: 5 }, quality: { suspect: { soil: false, light: false, air: false } }, exposure: { temperature: null } }) as any;
+  let mem = INITIAL_COUPLING;
+  const start = at(0);
+  for (let h = 0; h < 30; h++) mem = updateCouplingBaseline(mem, fakeP(0.35, start + h * 60 * MIN), true, FICUS);
+  const day2 = interpretEnvironment(fakeP(0.15, start + 30 * 60 * MIN), mem, FICUS);
+  check('CP2 missing history: the baseline is still learning before 3 days, whatever the hours', day2.coupling.status === 'learning' && day2.coupling.note === null, `${day2.coupling.status} (${mem.hours}h)`);
+  for (let h = 0; h < 4 * 24; h++) mem = updateCouplingBaseline(mem, fakeP(0.35, start + h * 60 * MIN), h % 24 < 10, FICUS); // only live hours learn
+  const typical = interpretEnvironment(fakeP(0.34, start + 4 * 24 * 60 * MIN), mem, FICUS);
+  const slower = interpretEnvironment(fakeP(0.14, start + 4 * 24 * 60 * MIN), mem, FICUS);
+  check('CP3 an established baseline: typical vs slower, with a diagnostic note', typical.coupling.status === 'typical' && slower.coupling.status === 'slower' && /diagnostic/.test(slower.coupling.note ?? ''), `baseline ${mem.baseline} (${mem.hours}h) · ${typical.coupling.status} ×${typical.coupling.ratio} · ${slower.coupling.status} ×${slower.coupling.ratio}`);
+  const notLive = updateCouplingBaseline(mem, fakeP(0.9, start + 5 * 24 * 60 * MIN), false, FICUS);
+  check('CP3b no live data: the baseline learns nothing', JSON.stringify(notLive) === JSON.stringify(mem));
+  // Diagnostic only: the same perception with a very different baseline → identical biology
+  const live = new Sim();
+  const o = live.run(at(9), 5 * 60, (i) => ({ soil: 70 - i * 0.008, temp: 27, hum: 40 }));
+  const memA = { ...live.memory, environment: { coupling: { baseline: 0.01, hours: 200, firstAt: at(9) - 10 * 24 * 60 * MIN, updatedAt: at(9) } } };
+  const memB = { ...live.memory, environment: { coupling: { baseline: 5, hours: 200, firstAt: at(9) - 10 * 24 * 60 * MIN, updatedAt: at(9) } } };
+  const ha = evaluatePlantHealth({ perception: o.p, species: FICUS, memory: memA }).state;
+  const hb = evaluatePlantHealth({ perception: o.p, species: FICUS, memory: memB }).state;
+  const bio = (h: typeof ha) => JSON.stringify({ c: h.condition, m: h.modifiers, v: h.vitality, s: h.scores, tones: h.metrics.map((x) => [x.id, x.status, x.tone]) });
+  check('CP4 coupling never reaches vitality, conditions or metric tones (diagnostic only)', bio(ha) === bio(hb) && ha.environment?.coupling.status !== hb.environment?.coupling.status, `${ha.environment?.coupling.status} vs ${hb.environment?.coupling.status}; vitality ${ha.vitality} = ${hb.vitality}`);
+
+  // ---- TX1-TX4. Temperature exposure: accumulates, recovers gradually, observed time only ----
+  const tx = new Sim();
+  tx.run(at(6), 120, () => ({ soil: 60, temp: 24 }));
+  const scoreTrace: number[] = [];
+  let hot: any;
+  for (let i = 0; i < 6 * 60; i++) {
+    hot = tx.step(at(8) + i * MIN, { soil: 60, temp: 31 });
+    scoreTrace.push(hot.h.scores.temperature ?? 0);
+  }
+  const atHotEnd = hot.h.environment.temperatureExposure;
+  const back: number[] = [];
+  let last: any;
+  for (let i = 0; i < 24 * 60; i++) {
+    last = tx.step(at(14) + i * MIN, { soil: 60, temp: 24 });
+    back.push(last.h.scores.temperature ?? 0);
+  }
+  const jumps = Math.max(...back.slice(1).map((v, i) => Math.abs(v - back[i])));
+  check(
+    'TX1 six hours at 31 °C (below the 32 °C "hot" latch): exposure builds; back at 24 °C the score lingers instead of snapping to 100',
+    atHotEnd.heatDegreeHours > 5 && atHotEnd.penalty > 15 && hot.h.condition !== 'hot' && back[0] < 90,
+    `heat ${atHotEnd.heatDegreeHours} °C·h (−${atHotEnd.penalty}), score at 31 °C ${scoreTrace[scoreTrace.length - 1]}, first minute back at 24 °C ${back[0]}`
+  );
+
+  check('TX2 back to 24 °C: it recovers gradually, never resets abruptly, and fully after a day', back[60] < back[6 * 60] && back[6 * 60] <= 100 && back[back.length - 1] === 100 && jumps <= 3, `+1h ${back[60]}, +6h ${back[6 * 60]}, +24h ${back[back.length - 1]}, biggest step ${jumps}`);
+  // Downstream: only through vitality (gradual, smoothed) → behaviour's energy; nothing parallel
+  const control = new Sim();
+  control.run(at(6), 120, () => ({ soil: 60, temp: 24 }));
+  control.run(at(8), 6 * 60, () => ({ soil: 60, temp: 24 }));
+  const ctrl1h = control.run(at(14), 60, () => ({ soil: 60, temp: 24 }));
+  const exposed1h = tx; // already 24 h past the heat; replay a fresh one for the 1 h comparison
+  const tx2 = new Sim();
+  tx2.run(at(6), 120, () => ({ soil: 60, temp: 24 }));
+  tx2.run(at(8), 6 * 60, () => ({ soil: 60, temp: 31 }));
+  const exp1h = tx2.run(at(14), 60, () => ({ soil: 60, temp: 24 }));
+  check(
+    'TX5 downstream: an hour after the heat, vitality and energy are a little lower than a tree that stayed at 24 °C; the same condition',
+    exp1h.h.vitality < ctrl1h.h.vitality && exp1h.b.energy <= ctrl1h.b.energy && exp1h.h.condition === ctrl1h.h.condition,
+    `vitality ${ctrl1h.h.vitality} vs ${exp1h.h.vitality}, energy ${ctrl1h.b.energy} vs ${exp1h.b.energy}, ${exp1h.h.condition}`
+  );
+  void exposed1h;
+  const brief = new Sim();
+  brief.run(at(6), 120, () => ({ soil: 60, temp: 24 }));
+  const b1 = brief.run(at(8), 60, () => ({ soil: 60, temp: 29 }));
+  check('TX3 a brief hour at 29 °C barely matters', (b1.h.environment?.temperatureExposure?.penalty ?? 0) <= 3, `penalty ${b1.h.environment?.temperatureExposure?.penalty}`);
+  const gapSamples = [...Array.from({ length: 60 }, (_, i) => smp(t0 + i * MIN, 60, 31)), ...Array.from({ length: 60 }, (_, i) => smp(t0 + 300 * MIN + i * MIN, 60, 31))];
+  const ex = temperatureExposure(gapSamples, FICUS, 3 * MIN, t0 + 360 * MIN);
+  check('TX4 a 4-hour gap in the readings counts for nothing', !!ex && Math.abs(ex.observedHours - 2) < 0.1, JSON.stringify(ex));
+}
+
+// R1-R3. Sunrise / sunset to the minute: published (Open-Meteo) when available, else computed
+{
+  const { sunTimes } = await import('../src/perception/sun');
+  // Open-Meteo for Feytroun on 2026-10-16: sunrise 06:42, sunset 18:02 local (UTC+3) = 03:42Z / 15:02Z
+  const t = sunTimes(Date.UTC(2026, 9, 16, 9), LOC.latitude, LOC.longitude);
+  const off = (a: number | null, b: number) => (a === null ? Infinity : Math.abs(a - b) / MIN);
+  const dr = off(t.sunrise, Date.UTC(2026, 9, 16, 3, 42));
+  const ds = off(t.sunset, Date.UTC(2026, 9, 16, 15, 2));
+  check('R1 computed sunrise/sunset within 3 min of the published times', dr <= 3 && ds <= 3, `sunrise ±${dr.toFixed(1)} min, sunset ±${ds.toFixed(1)} min`);
+  const sim = new Sim();
+  const noon = at(12);
+  const pub = { sunrise: at(5, 31), sunset: at(19, 52) };
+  sim.outside.push({ at: noon - 5 * MIN, sky: 'clear', code: 0, temperature: 25, humidity: 50, precipitation: 0, cloudCover: 0, wind: 5, gusts: 8, isDay: true, ...pub });
+  const withPub = sim.step(noon, { soil: 60 });
+  check('R2 published times win when they are today\'s', withPub.p.sun.timesFrom === 'open-meteo' && withPub.p.sun.sunrise === pub.sunrise && withPub.p.sun.sunset === pub.sunset);
+  const plain = new Sim().step(noon, { soil: 60 });
+  check('R3 without them: computed from the location', plain.p.sun.timesFrom === 'solar' && plain.p.sun.sunrise !== null && plain.p.sun.sunset !== null && plain.p.sun.sunrise! < noon && plain.p.sun.sunset! > noon);
+}
+
+// H1-H4. Inside vs outside air, compared by dew point (RH depends on temperature). Facts only.
+{
+  const near = (a: number | null, b: number, tol: number) => a !== null && Math.abs(a - b) <= tol;
+  check('H1 dew point: 19°C/55% ≈ 9.8°C, 23°C/81% ≈ 19.6°C', near(dewPoint(19, 55), 9.8, 0.3) && near(dewPoint(23, 81), 19.6, 0.3), `${dewPoint(19, 55)} · ${dewPoint(23, 81)}`);
+  check('H1b absolute humidity: 19°C/55% ≈ 8.9 g/m³; missing input → null', near(absoluteHumidity(19, 55), 8.9, 0.3) && absoluteHumidity(null, 50) === null && dewPoint(20, null) === null, `${absoluteHumidity(19, 55)}`);
+  const withOutside = (outTemp: number, outHum: number, inTemp: number, inHum: number) => {
+    const sim = new Sim();
+    const t = at(12);
+    sim.outside.push({ at: t - 5 * MIN, sky: 'overcast', code: 3, temperature: outTemp, humidity: outHum, precipitation: 0, cloudCover: 100, wind: 5, gusts: 10, isDay: true });
+    return sim.run(t - 30 * MIN, 30, () => ({ soil: 60, temp: inTemp, hum: inHum }));
+  };
+  const balcony = withOutside(12, 55, 23, 81);
+  check(
+    'H2 closed balcony 23°C/81% vs outside 12°C/55%: much more moisture inside, the glass may fog',
+    !!balcony.p.air && balcony.p.air.moistureRatio >= 2.5 && balcony.p.air.glassMayFog,
+    JSON.stringify(balcony.p.air)
+  );
+  const mild = withOutside(22, 60, 23, 60);
+  check('H3 similar air inside and out: about the same, no fog', !!mild.p.air && mild.p.air.moistureRatio >= 0.9 && mild.p.air.moistureRatio <= 1.2 && !mild.p.air.glassMayFog, JSON.stringify(mild.p.air));
+  const none = new Sim().run(at(12), 20, () => ({ soil: 60, temp: 23, hum: 81 }));
+  check('H4 no outside weather → no comparison; health never reads it', none.p.air === null && JSON.stringify(withOutside(12, 55, 23, 60).h.condition) === JSON.stringify(new Sim().run(at(11, 30), 30, () => ({ soil: 60, temp: 23, hum: 60 })).h.condition));
 }
 
 // E. High temperature briefly → little/no vitality damage

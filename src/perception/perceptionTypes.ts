@@ -1,4 +1,5 @@
-import type { OutsideWeather } from '../telemetry/outsideWeather';
+import type { DryingCoupling, SoilDryDown, TemperatureExposure } from './environment';
+import type { OutsideObservation, OutsideWeather } from '../telemetry/outsideWeather';
 import type { PlantEvent } from '../history/historyTypes';
 import type { DataQuality } from '../telemetry/dataQuality';
 import type { PlantTelemetry, TelemetrySource } from '../telemetry/types';
@@ -34,6 +35,13 @@ export interface PerceivedReadings {
   radiation: number | null;
 }
 
+export interface AirComparison {
+  insideDewPoint: number; // °C
+  outsideDewPoint: number; // °C
+  moistureRatio: number; // absolute humidity inside / outside
+  glassMayFog: boolean; // the inside dew point reaches the outside temperature: the glass may fog
+}
+
 export interface PerceptionState {
   at: number;
   source: TelemetrySource | null;
@@ -49,7 +57,11 @@ export interface PerceptionState {
     ageMs: number | null;
     wifiRssi: number | null;
   };
-  trends: { soilPerHour: number | null; temperaturePerHour: number | null; humidityPerHour: number | null };
+  // soilPerHour is the dry-down slope (soilDryDown.perHour), null without a confident segment
+  trends: { soilPerHour: number | null; temperaturePerHour: number | null; humidityPerHour: number | null; soilDryDown: SoilDryDown | null };
+  // Derived environmental metrics (calculated here, interpreted by Health)
+  drying: DryingCoupling | null; // moisture–VPD coupling of the current dry-down (diagnostic only)
+  exposure: { temperature: TemperatureExposure | null };
   // continuous recent coverage; gapMs = longest gap that keeps hysteresis timers running;
   // cadenceMs = normal spacing of readings (beyond it, time between readings is unobserved)
   history: { minutes: number; samples: number; gapMs: number; cadenceMs: number };
@@ -61,4 +73,8 @@ export interface PerceptionState {
   // Context and expression. Its one effect on interpretation is through `light`: a grey sky explains a dim
   // LDR reading (dailyLight.ts). Health never reads this field. null = unknown/stale.
   outside: OutsideWeather | null;
+  outsideToday: OutsideObservation[]; // today's outside observations (the collector's; the dragonfly reads them)
+  // Inside (the ESP32) vs outside air, compared by the water it actually holds (RH depends on temperature).
+  // Facts for the Outside panel only; health never reads it. null without the real sensor or fresh weather.
+  air: AirComparison | null;
 }

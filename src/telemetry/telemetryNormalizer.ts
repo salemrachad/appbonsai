@@ -20,6 +20,21 @@ export function calculateVPD(temperatureC: number, relativeHumidityPct: number):
   return Math.round(Math.max(0.05, es - ea) * 100) / 100;
 }
 
+// Dew point (°C), Magnus formula: the temperature at which this air's water would condense. Unlike RH it
+// doesn't depend on how warm the air is, so it compares inside and outside air honestly.
+export function dewPoint(temperatureC: number | null, relativeHumidityPct: number | null): number | null {
+  if (temperatureC === null || relativeHumidityPct === null || relativeHumidityPct <= 0) return null;
+  const g = Math.log(relativeHumidityPct / 100) + (17.27 * temperatureC) / (temperatureC + 237.3);
+  return Math.round(((237.3 * g) / (17.27 - g)) * 10) / 10;
+}
+
+// Absolute humidity (g of water per m³ of air): how much water the air actually holds.
+export function absoluteHumidity(temperatureC: number | null, relativeHumidityPct: number | null): number | null {
+  if (temperatureC === null || relativeHumidityPct === null) return null;
+  const es = 6.112 * Math.exp((17.67 * temperatureC) / (temperatureC + 243.5)); // hPa
+  return Math.round(((es * relativeHumidityPct * 2.1674) / (273.15 + temperatureC)) * 10) / 10;
+}
+
 // Single place that reads soil fields from the ESP32 JSON.
 export function readSoilFields(raw: any): { apiSoilMoisture: number | null; soilRaw: number | null } {
   return {

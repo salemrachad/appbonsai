@@ -64,6 +64,33 @@ export interface HabitatInput {
 
 export type HabitatChange = { at: number; kind: 'welcoming' | 'left' | 'drey_started' | 'drey_built' | 'drey_gone' };
 
+// ---- Shared by every wanderer (squirrel, dragonfly): one habitat mechanism, different inputs and numbers ----
+// Exponential drift toward 0 or 1 over observed time.
+export const driftToward = (value: number, toward: 0 | 1, dtHours: number, tauHours: number) => toward + (value - toward) * Math.exp(-dtHours / tauHours);
+// Schmitt trigger: switches on above `enter`, off below `exit`, holds in between.
+export const schmitt = (active: boolean, value: number, enter: number, exit: number) => (!active && value >= enter ? true : active && value < exit ? false : active);
+export const dayKeyOf = (t: number) => {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+};
+// The deterministic visit window of the slot covering `now` (null: no visit in this slot, or not right now).
+// `prefix` keeps each species' slots independent; the same day + slot always rolls the same.
+export function slotWindow(prefix: string, now: number, slotMinutes: number, chance: number, visitMinutes: { min: number; max: number }) {
+  const slotMs = slotMinutes * MIN;
+  const d = new Date(now);
+  const dayKey = dayKeyOf(now);
+  d.setHours(0, 0, 0, 0);
+  const slot = Math.floor((now - d.getTime()) / slotMs);
+  const roll = (salt: string, n = 1000) => stableVariant(`${prefix}:${dayKey}:${slot}:${salt}`, n) / n;
+  if (roll('visit') >= chance) return null;
+  const minutes = visitMinutes.min + Math.round(roll('len') * (visitMinutes.max - visitMinutes.min));
+  const slotStart = d.getTime() + slot * slotMs;
+  const startedAt = slotStart + Math.round(roll('offset') * Math.max(0, slotMs - minutes * MIN));
+  const endsAt = startedAt + minutes * MIN;
+  if (now < startedAt || now >= endsAt) return null;
+  return { id: `${dayKey}:${slot}`, dayKey, slot, startedAt, endsAt, roll };
+}
+
 // Replays the episodes into the habitat value, its latch and the drey. `trace` keeps the trajectory (for
 // the diary); without it only the end state is returned.
 export function replayHabitat(episodes: BehaviourEpisode[], now: number, trace = false) {
@@ -101,17 +128,15 @@ export function replayHabitat(episodes: BehaviourEpisode[], now: number, trace =
     const steps = Math.max(1, Math.ceil(hours));
     for (let i = 1; i <= steps; i++) {
       const t = start + (span * i) / steps;
-      if (d) value = d.toward + (value - d.toward) * Math.exp(-hours / steps / d.tauHours);
+      if (d) value = driftToward(value, d.toward, hours / steps, d.tauHours);
       const was = welcoming;
-      if (!welcoming && value >= cfg.enter) welcoming = true;
-      else if (welcoming && value < cfg.exit) welcoming = false;
+      welcoming = schmitt(welcoming, value, cfg.enter, cfg.exit);
       if (was !== welcoming) {
         lastChangeAt = t;
         changes.push({ at: t, kind: welcoming ? 'welcoming' : 'left' });
       }
       // The drey grows with welcoming time (held time included: a sleeping tree is still a home)
-      const toward = welcoming ? 1 : 0;
-      drey = toward + (drey - toward) * Math.exp(-(hours / steps) / ((welcoming ? D.riseDays : D.fallDays) * 24));
+      drey = driftToward(drey, welcoming ? 1 : 0, hours / steps, (welcoming ? D.riseDays : D.fallDays) * 24);
       const before = stage;
       if (stage === 'none' && drey >= D.startedEnter) stage = 'started';
       if (stage === 'started' && drey >= D.builtEnter) stage = 'built';
@@ -139,31 +164,18 @@ export function replayHabitat(episodes: BehaviourEpisode[], now: number, trace =
 }
 
 const SPOTS: VisitSpot[] = ['left_branch', 'right_branch', 'crown'];
-const dayKeyOf = (t: number) => {
-  const d = new Date(t);
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-};
 
 // The visit (if any) whose slot covers `now`. Pure function of the day, the slot and the habitat value.
 function visitAt(value: number, chanceScale: number, season: string, now: number): HabitatVisit | null {
   const cfg = APP_CONFIG.habitat;
-  const slotMs = cfg.slotMinutes * MIN;
-  const d = new Date(now);
-  const dayKey = dayKeyOf(now);
-  d.setHours(0, 0, 0, 0);
-  const slot = Math.floor((now - d.getTime()) / slotMs);
-  const roll = (salt: string, n = 1000) => stableVariant(`habitat:${dayKey}:${slot}:${salt}`, n) / n;
   const f = clamp((value - cfg.exit) / (1 - cfg.exit), 0, 1);
   const chance = (cfg.visitChance.min + (cfg.visitChance.max - cfg.visitChance.min) * f) * chanceScale;
-  if (roll('visit') >= chance) return null;
-  const minutes = cfg.visitMinutes.min + Math.round(roll('len') * (cfg.visitMinutes.max - cfg.visitMinutes.min));
-  const slotStart = d.getTime() + slot * slotMs;
-  const startedAt = slotStart + Math.round(roll('offset') * Math.max(0, slotMs - minutes * MIN));
-  const endsAt = startedAt + minutes * MIN;
-  if (now < startedAt || now >= endsAt) return null;
+  const w = slotWindow('habitat', now, cfg.slotMinutes, chance, cfg.visitMinutes);
+  if (!w) return null;
+  const { dayKey, slot, startedAt, endsAt } = w;
   return {
     kind: 'squirrel',
-    id: `${dayKey}:${slot}`,
+    id: w.id,
     startedAt,
     endsAt,
     spot: SPOTS[stableVariant(`habitat:${dayKey}:${slot}:spot`, SPOTS.length)],
@@ -256,11 +268,33 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
     presence: visit ? presence : 'none',
     visit,
     drey: r.drey,
+    visitsToday: r.welcoming ? visitsToday(episodes, r.value, season, now) : { count: 0, firstAt: null },
     calmHours14d: r.calmHours,
     stressHours14d: r.stressHours,
     lastChangeAt: r.lastChangeAt,
     why,
   };
+}
+
+// Visits earlier today (slot visits while the tree was calm and awake): the same slots the live view uses.
+// The calm episodes stand in for daylight (asleep = night), so no location is needed.
+function visitsToday(episodes: BehaviourEpisode[], value: number, season: { id: string; energy: number }, now: number) {
+  const cfg = APP_CONFIG.habitat;
+  const start = new Date(now).setHours(0, 0, 0, 0);
+  const slotMs = cfg.slotMinutes * MIN;
+  let count = 0;
+  let firstAt: number | null = null;
+  for (let t = start; t + slotMs <= now; t += slotMs) {
+    const ep = episodes.find((e) => e.startedAt <= t && t < (e.endedAt ?? now));
+    if (!ep || !WELCOMING.includes(ep.condition)) continue;
+    let v: HabitatVisit | null = null;
+    for (let m = 0; m < cfg.slotMinutes && !v; m += 2) v = visitAt(value, chanceScaleAt(t + m * MIN, season.energy), season.id, t + m * MIN);
+    if (v && v.endsAt <= now) {
+      count++;
+      firstAt = firstAt ?? v.startedAt;
+    }
+  }
+  return { count, firstAt };
 }
 
 // ---- Diary: what the visitors did, derived from history (nothing stored) ----
@@ -271,11 +305,12 @@ export interface HabitatDiaryInput {
   days: number; // diary range
   location: { latitude: number | null; longitude: number | null };
   seasonAt: (t: number) => { id: string; energy: number }; // the same blended season the behaviour uses
+  windowsOut?: { from: number; to: number }[]; // filled with the visit windows (for the encounter diary)
 }
 
 const ABSENCE_DAYS = 7;
 
-export function habitatDiary({ episodes, now, days, location, seasonAt }: HabitatDiaryInput): DiaryItem[] {
+export function habitatDiary({ episodes, now, days, location, seasonAt, windowsOut }: HabitatDiaryInput): DiaryItem[] {
   const cfg = APP_CONFIG.habitat;
   const r = replayHabitat(episodes, now, true);
   const since = now - days * DAY;
@@ -305,6 +340,7 @@ export function habitatDiary({ episodes, now, days, location, seasonAt }: Habita
     let v: HabitatVisit | null = null;
     for (let m = 0; m < cfg.slotMinutes && !v; m += 2) v = visitAt(s.value, chanceScaleAt(t + m * MIN, season.energy), season.id, t + m * MIN);
     if (!v) continue;
+    windowsOut?.push({ from: v.startedAt, to: v.endsAt });
     const key = dayKeyOf(v.startedAt);
     const d = visitsByDay.get(key);
     if (d) d.count++;

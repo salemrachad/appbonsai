@@ -4,7 +4,10 @@ import { decideSpeech, INITIAL_MESSAGE_MEMORY, SpeechDecision } from '../behavio
 import type { HealthCondition, HealthModifier, PlantHealthState, QualitativeState } from '../health/healthTypes';
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { Season } from '../perception/season';
-import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gesture, SceneId, TouchKind, TouchResponse, DreyLook, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
+import { spotByPerch } from '../behaviour/encounters';
+import { GRIP_WORDS } from '../behaviour/sloth';
+import type { HabitatEncounter } from '../behaviour/behaviourTypes';
+import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gaze, Gesture, SceneId, TouchKind, TouchResponse, DragonflyPresentation, DreyLook, SlothPresentation, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
 import { APP_CONFIG } from '../config/appConfig';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 
@@ -253,6 +256,33 @@ function touchResponse(condition: HealthCondition, modifiers: HealthModifier[], 
 
 // How the squirrel plays when the leaves are petted: from the tree's state, never its own mood. Its tail
 // wags in the tree's rhythm (the tree's sway). Evidence class "art"; attention only, nothing is stored.
+// Encounter cues on the presentations (the live view after behaviour arranged the spots, and the browser
+// previews): the squirrel watches the dragonfly (else the sloth), the sloth turns toward the squirrel unless
+// asleep, a dragonfly resting on the sloth makes it blink slowly, and the squirrel's play keeps off the
+// sloth's branch and the leaves the dragonfly rests by.
+export function encounterCues(
+  c: { visitor: VisitorPresentation | null; dragonfly: DragonflyPresentation | null; sloth: SlothPresentation | null },
+  encounters: HabitatEncounter[]
+) {
+  const has = (e: HabitatEncounter) => encounters.includes(e);
+  let { visitor, dragonfly, sloth } = c;
+  if (visitor && (has('squirrel_sloth') || has('squirrel_dragonfly'))) {
+    const avoid: VisitorPresentation['spot'][] = [];
+    if (sloth && has('squirrel_sloth')) avoid.push(sloth.branch);
+    const by = dragonfly ? spotByPerch(dragonfly.perch) : null;
+    if (by && has('squirrel_dragonfly') && !avoid.includes(by)) avoid.push(by);
+    visitor = { ...visitor, lookAt: visitor.mode === 'sleeping' ? null : has('squirrel_dragonfly') ? 'dragonfly' : 'sloth', avoid };
+  }
+  if (sloth && (has('squirrel_sloth') || has('dragonfly_sloth'))) {
+    sloth = { ...sloth, lookAt: has('squirrel_sloth') && sloth.pose !== 'sleeping' ? 'squirrel' : null, rider: has('dragonfly_sloth') };
+  }
+  const route = dragonfly?.route ?? [];
+  if (dragonfly && !sloth && (dragonfly.perch === 'on_sloth' || route.some((x) => x.perch === 'on_sloth')))
+    // never on a sloth that isn't drawn
+    dragonfly = { ...dragonfly, perch: dragonfly.perch === 'on_sloth' ? 'left_tip' : dragonfly.perch, route: route.map((x) => (x.perch === 'on_sloth' ? { ...x, perch: 'left_tip' as const } : x)) };
+  return { visitor, dragonfly, sloth };
+}
+
 export function visitorPlay(condition: HealthCondition, mode: VisitorPresentation['mode'], b: PlantBehaviourState, motion: ExpressionState['motion']): VisitorPlay {
   const cfg = APP_CONFIG.habitat.play;
   if (mode === 'sleeping') {
@@ -291,6 +321,8 @@ const TAP_LABEL: Record<Mood, string> = {
   overwhelmed: '😟 Overwhelmed',
   confused: '🤔 Unsure',
 };
+
+const MUTED_SKIES: OutsideSky[] = ['overcast', 'fog', 'drizzle', 'rain', 'heavy_rain', 'thunderstorm', 'snow'];
 
 // Outside weather → the background weather layer. The tree's own scene, look and droop never change for it.
 const SKY_INTENSITY: Record<OutsideSky, number> = {
@@ -382,6 +414,13 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     diffraction = `${b.previousState?.replace(/_/g, ' ')} ended recently → still settling (afterglow)`;
   }
 
+  // The sun's real moments: a calm, awake tree stretches toward the rising sun and yawns toward the
+  // setting one. Stress looks and care reactions always win.
+  const tw = b.twilight;
+  const calmAwake = (condition === 'comfortable' || condition === 'thriving') && !modifiers.includes('sleeping') && !r;
+  if (calmAwake && tw?.event === 'sunrise' && tw.minutes! >= -5) Object.assign(look, { gesture: every('stretch_up', 9), gaze: 'east' as Gaze, posture: 'perky' as const });
+  if (calmAwake && tw?.event === 'sunset' && tw.minutes! <= 10) Object.assign(look, { gesture: every('yawn', 12), gaze: 'west' as Gaze });
+
   // Leaf droop: continuous, from state × intensity, easing off through recovery
   let leafDroop = (DROOP[condition] ?? 0) * (0.45 + 0.55 * b.expressionIntensity);
   if (b.recoveryStage) leafDroop = RECOVERY_DROOP[b.recoveryStage];
@@ -408,6 +447,8 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     motion.flutter = r2(motion.flutter * (1 - 0.3 * b.care.calm));
   }
   if (look.animation === 'animate-tree-breathe' && e < 0.4) look.animation = 'animate-tree-breathe-slow';
+  // Winding down toward sunset: a softer sway
+  if (calmAwake && tw?.event === 'sunset') motion.swayAmount = r2(motion.swayAmount * 0.85);
 
   // Words: wording is chosen here, the speech policy decided whether it's said
   const s = speech ?? decideSpeech({ behaviour: b, severity: health.severity, memory: INITIAL_MESSAGE_MEMORY, now }).decision;
@@ -425,6 +466,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     reactionWhy: r?.why ?? null,
     seasonalCare: r?.seasonal ?? null,
     season: perception.season.id,
+    musing: s.musing ?? null,
   });
   let tip = rendered.tip;
   if (modifiers.includes('sensor_uncertain')) {
@@ -461,13 +503,37 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
         }
       : null;
   const drey: DreyLook = h?.drey?.stage ?? 'none';
+  // The dragonfly: what behaviour decided, its wing tempo from the warmth of the air
+  const df = h?.dragonfly;
+  const dragonfly: DragonflyPresentation | null =
+    df?.visit && df.presence !== 'none'
+      ? {
+          id: df.visit.id,
+          presence: df.presence,
+          perch: df.visit.perch,
+          wingTempo: r2(clamp(0.7 + ((df.insideTemp ?? 24) - 20) / 14 * 0.6, 0.6, 1.4)),
+          route: df.visit.route ?? [{ at: df.visit.startedAt, perch: df.visit.perch, mode: df.visit.style }],
+          flightMs: APP_CONFIG.habitat.dragonfly.route.flightMs,
+        }
+      : null;
+  // The sloth: what behaviour decided; slow in everything, a little livelier in warmer air
+  const sl = h?.sloth;
+  const sloth: SlothPresentation | null =
+    sl?.visit && sl.presence !== 'none'
+      ? { id: sl.visit.id, pose: sl.visit.pose, branch: sl.visit.branch, grip: sl.visit.grip ?? 'arms', tempo: r2(clamp(0.4 + ((sl.insideTemp ?? 24) - 22) / 13 * 0.3, 0.4, 0.7)) }
+      : null;
+  // Encounters (arranged by behaviour): who looks at whom, where the squirrel's play never hops
+  const met = encounterCues({ visitor, dragonfly, sloth }, h?.encounters ?? []);
   return {
     avatar,
     leafDroop,
     motion,
     reactionStrength: b.responsiveness,
     touch: touchResponse(condition, modifiers, b),
-    visitor,
+    visitor: met.visitor,
+    dragonfly: met.dragonfly,
+    sloth: met.sloth,
+    encounters: h?.encounters ?? [],
     drey,
     atmosphere: {
       theme: night ? 'night' : 'day',
@@ -477,6 +543,9 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
       seasonStage: season.stage,
       intensity: r2(calmScene ? 0.5 : clamp(0.35 + 0.65 * b.expressionIntensity, 0, 1)),
       weather: weatherLook(perception.outside),
+      sun: { sunrise: perception.sun.sunrise ?? null, sunset: perception.sun.sunset ?? null, timesFrom: perception.sun.timesFrom ?? 'none' },
+      // Clouds, fog or rain outside mute the colours of the sky
+      twilight: { event: tw?.event ?? null, minutes: tw?.minutes ?? null, at: now, muted: !!perception.outside && MUTED_SKIES.includes(perception.outside.sky) },
     },
     gauge,
     tapLabel: TAP_LABEL[b.mood],
@@ -493,12 +562,12 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
       onceStatus: s.onceStatus,
     },
     intensity: b.expressionIntensity,
-    layers: { epidermal: describeBody(avatar, b, leafDroop, motion, visitor, drey), wording: rendered.text, diffraction },
+    layers: { epidermal: describeBody(avatar, b, leafDroop, motion, met.visitor, drey, met.dragonfly, met.sloth), wording: rendered.text, diffraction },
   };
 }
 
 // Plain-language description of the body language, for the developer panel.
-function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: number, m: ExpressionState['motion'], v: VisitorPresentation | null, drey: DreyLook): string[] {
+function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: number, m: ExpressionState['motion'], v: VisitorPresentation | null, drey: DreyLook, df: DragonflyPresentation | null = null, sl: SlothPresentation | null = null): string[] {
   const mood = b.mood;
   const eyes: Record<AvatarPresentation['eyes'], string> = {
     happy: 'soft open eyes', joy: 'smiling closed eyes', closed: 'eyes closed (asleep)', drowsy: 'half-closed drowsy eyes',
@@ -528,6 +597,13 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
     const thin = a.canopy.fullness < 0.75 ? 'canopy thin' : 'canopy a little thin';
     out.push(`${thin} after a hard stretch${a.canopy.refilling > 0.05 ? ', refilling with fresh tips' : ''} (${Math.round(a.canopy.fullness * 100)}%)`);
   }
+  if (sl) out.push(sl.pose === 'sleeping' ? 'a sloth asleep on a branch, curled up' : sl.pose === 'climbing' ? 'a sloth inching along a branch' : `a sloth ${GRIP_WORDS[sl.grip ?? 'arms']}`);
+  if (df) {
+    const tips = new Set((df.route ?? []).map((x) => x.perch)).size;
+    out.push(df.perch === 'on_sloth' ? 'a dragonfly resting on the sloth between flights' : df.presence === 'perched' ? `a dragonfly perched on a leaf tip (${df.perch.replace('_', ' ')})` : 'a dragonfly hovering by the leaves');
+    if (tips > 1) out.push(`it flits between ${tips} spots and keeps coming back`);
+  }
+  if (v?.lookAt) out.push(`the squirrel watching the ${v.lookAt}`);
   if (drey !== 'none') out.push(drey === 'built' ? 'a drey tucked into the crown' : 'a few twigs of a drey in the crown');
   if (v) {
     const doing = { drinking: 'drinking at the pot rim after the watering', inspecting: 'inspecting the pruning', shake_off: 'shaking off after the rain' } as const;

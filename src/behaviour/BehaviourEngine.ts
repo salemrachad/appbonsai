@@ -21,6 +21,10 @@ import type {
   TimeOfDay,
 } from './behaviourTypes';
 import { evaluateCanopy } from './canopy';
+import { evaluateDragonfly } from './dragonfly';
+import { evaluateSloth } from './sloth';
+import { applyEncounters } from './encounters';
+import { evaluateVoice } from './voice';
 import { evaluateHabitat } from './habitat';
 import { computeRelationship } from './relationship';
 
@@ -233,11 +237,29 @@ function outsideLine(p: PerceptionState): DayLine | null {
   return null;
 }
 
+// Time of day from the sun's real moments when known (morning until 3 h after sunrise, evening from 2 h
+// before sunset), else from the clock.
+const MORNING_AFTER_SUNRISE_MS = 3 * HOUR;
+const EVENING_BEFORE_SUNSET_MS = 2 * HOUR;
 function timeOfDay(p: PerceptionState, now: number): TimeOfDay {
-  const h = new Date(now).getHours();
   if (p.sun.phase === 'dawn') return 'morning'; // first light, sun not quite up yet
   if (!p.sun.isDay) return 'night';
+  const { sunrise, sunset } = p.sun;
+  if (sunrise != null && sunset != null) return now < sunrise + MORNING_AFTER_SUNRISE_MS ? 'morning' : now >= sunset - EVENING_BEFORE_SUNSET_MS ? 'evening' : 'day';
+  const h = new Date(now).getHours();
   return h < 11 ? 'morning' : h >= 17 ? 'evening' : 'day';
+}
+
+// Minutes from the nearest real sunrise / sunset, within its twilight window (the same window the sky uses)
+const TWILIGHT = { beforeMin: 45, afterMin: 40 } as const;
+function twilightOf(p: PerceptionState, now: number): PlantBehaviourState['twilight'] {
+  for (const event of ['sunrise', 'sunset'] as const) {
+    const at = p.sun[event];
+    if (at == null) continue;
+    const minutes = (now - at) / MIN;
+    if (minutes >= -TWILIGHT.beforeMin && minutes <= TWILIGHT.afterMin) return { event, minutes: Math.round(minutes * 10) / 10 };
+  }
+  return { event: null, minutes: null };
 }
 
 // A real stress (moderate or critical), not mild discomfort like a humid night
@@ -312,6 +334,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
 
   // ---- Energy: movement and liveliness ----
   const tod = timeOfDay(perception, now);
+  const twilight = twilightOf(perception, now);
   let energy = 0.35 + 0.65 * (health.vitality / 100);
   if (condition === 'sleeping') energy = 0.15;
   else {
@@ -323,6 +346,9 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     if (reaction?.kind === 'watering_relief') energy += reaction.seasonal === 'resting_drink' ? 0.05 : 0.1; // resting: drinks slowly
     if (reaction?.seasonal === 'growing_prune') energy += 0.05;
     if (season.energy !== 1) energy *= season.energy; // livelier in the spring flush, quieter at winter rest
+    // Waking with the sun, winding down toward dusk (art: health and vitality are untouched)
+    if (twilight.event === 'sunrise' && twilight.minutes! >= 0) energy *= 1.06;
+    if (twilight.event === 'sunset' && twilight.minutes! <= 0) energy *= 0.9;
     if (care.settling > 0) {
       energy *= 1 - 0.25 * care.settling;
       careEffects.push(`settling after repotting: quieter (energy ×${round2(1 - 0.25 * care.settling)})`);
@@ -378,6 +404,11 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (!dayLine && perception.season.progress < 0.1 && (tod === 'morning' || tod === 'day') && CALM.includes(condition) && !reaction) {
     dayLine = `season_${season.id}` as DayLine;
   }
+  // The sun's real moments, once a day each, when calm and awake
+  if (!dayLine && CALM.includes(condition) && !reaction && perception.sun.isDay) {
+    if (twilight.event === 'sunrise' && twilight.minutes! >= 0) dayLine = 'sunrise_greeting';
+    else if (twilight.event === 'sunset' && twilight.minutes! < 0) dayLine = 'sunset_line';
+  }
   // Outside weather in contrast with a calm inside (context only: the sensors say how the tree is)
   if (!dayLine && tod !== 'night' && CALM.includes(condition) && !reaction) dayLine = outsideLine(perception);
   if (dayLine) reasons.push(`Time of day: ${dayLine.replace(/_/g, ' ')}`);
@@ -413,8 +444,41 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     outside: perception.outside ? { sky: perception.outside.sky, rainEndedAt: perception.outside.rainEndedAt ?? null } : null,
     reaction: reaction ? { kind: reaction.kind, eventId: reaction.eventId, at: reaction.at, seasonal: reaction.seasonal } : null,
   });
+  // ---- The dragonfly: the same habitat mechanism, reading the air of the last hours ----
+  habitat.dragonfly = evaluateDragonfly({
+    samples: perception.recent,
+    outsideToday: perception.outsideToday ?? [],
+    species,
+    cadenceMs: perception.history.cadenceMs,
+    condition,
+    modifiers: health.modifiers,
+    isDay: perception.sun.isDay,
+    insideTemp: perception.readings.temperature,
+    now,
+  });
+  if (habitat.dragonfly.active) reasons.push(`Dragonfly ${habitat.dragonfly.value}: ${habitat.dragonfly.why}`);
+  // ---- The sloth: the same air-wanderer engine, warm, humid and still ----
+  habitat.sloth = evaluateSloth({
+    samples: perception.recent,
+    outsideToday: perception.outsideToday ?? [],
+    species,
+    cadenceMs: perception.history.cadenceMs,
+    condition,
+    modifiers: health.modifiers,
+    isDay: perception.sun.isDay,
+    insideTemp: perception.readings.temperature,
+    now,
+  });
+  if (habitat.sloth.active) reasons.push(`Sloth ${habitat.sloth.value}: ${habitat.sloth.why}`);
+  // ---- Encounters: visitors in the tree together arrange themselves (art; nothing above reads it) ----
+  const met = applyEncounters(habitat);
+  if (met.length) reasons.push(`Encounters: ${met.map((e) => e.replace('_', ' + ')).join(', ')}`);
+
   // ---- Canopy over the last weeks (drawn only) ----
   const canopy = evaluateCanopy({ episodes, events, growth: season.growth, species, now });
+  // ---- The day's thoughts (grounded in today's data; the speech policy spaces them) ----
+  const voice = evaluateVoice({ health, perception, species, intent: messageIntent, timeOfDay: tod, season, relationship, habitat, canopy, now });
+  if (voice.budget > 0) reasons.push(`Voice: ${voice.why}`);
   if (canopy.fullness < 0.985) reasons.push(`Canopy: ${canopy.reasons.join('; ')}`);
   if (habitat.welcoming || habitat.value > 0) reasons.push(`Habitat ${habitat.value}${habitat.welcoming ? ' (welcoming)' : ''}: ${habitat.presence === 'none' ? habitat.why : `squirrel ${habitat.presence}`}`);
 
@@ -441,6 +505,8 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     relationship,
     habitat,
     canopy,
+    voice,
+    twilight,
     reasons,
     evaluatedAt: now,
   };

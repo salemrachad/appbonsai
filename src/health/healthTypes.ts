@@ -116,6 +116,29 @@ export interface StressSummary {
   recoveryRemainingHours: number | null;
 }
 
+// The pot's usual moisture–VPD coupling, learned from live, confident dry-down segments (HealthMemory).
+export interface CouplingMemory {
+  baseline: number | null; // %/h per kPa, exponential average (~7 days)
+  hours: number; // hours of confident segments it has learned from
+  firstAt: number | null;
+  updatedAt: number | null;
+}
+
+// Health's reading of the derived environmental metrics (see health/environment.ts).
+export interface HealthEnvironment {
+  // DIAGNOSTIC ONLY: never part of vitality, conditions, mood or expression until validated
+  coupling: {
+    current: number | null; // %/h per kPa of the current dry-down
+    baseline: number | null;
+    baselineHours: number;
+    ratio: number | null; // current / baseline
+    status: 'unavailable' | 'learning' | 'typical' | 'slower' | 'faster';
+    note: string | null; // shown in the soil card's notes
+  };
+  // What the decayed exposure costs the existing temperature score (null without enough data)
+  temperatureExposure: { heatDegreeHours: number; coldDegreeHours: number; penalty: number } | null;
+}
+
 export interface PlantHealthState {
   condition: HealthCondition;
   modifiers: HealthModifier[];
@@ -127,6 +150,7 @@ export interface PlantHealthState {
   confidenceScore: number; // 0-1
   dataIssues: string[];
   metrics: MetricAssessment[];
+  environment?: HealthEnvironment; // derived metrics as Health reads them (coupling: diagnostic only)
   stress: StressSummary;
   activeSince: Partial<Record<HealthCondition, number>>; // when each active condition started
   observation: ObservationStatus;

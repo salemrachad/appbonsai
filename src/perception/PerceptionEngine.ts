@@ -4,11 +4,13 @@ import type { PlantEvent } from '../history/historyTypes';
 import type { SpeciesProfile } from '../species';
 import { assessDataQuality } from '../telemetry/dataQuality';
 import type { PlantTelemetry } from '../telemetry/types';
-import type { PerceivedReadings, PerceptionSample, PerceptionState } from './perceptionTypes';
+import type { AirComparison, PerceivedReadings, PerceptionSample, PerceptionState } from './perceptionTypes';
+import { absoluteHumidity, dewPoint } from '../telemetry/telemetryNormalizer';
 import { computeCareContext } from './careContext';
 import { computeDailyLight } from './dailyLight';
+import { dryingCoupling, soilDryDown, temperatureExposure } from './environment';
 import { seasonState } from './season';
-import { sunState } from './sun';
+import { sunState, sunTimes, type SunState } from './sun';
 
 const HOUR = 3600 * 1000;
 const EMPTY_READINGS: PerceivedReadings = {
@@ -34,6 +36,36 @@ export interface PerceptionInput {
   now: number;
   outside?: OutsideObservation | null; // latest outside weather (context; health never reads it directly)
   outsideToday?: OutsideObservation[]; // today's outside observations: a grey sky explains dim light
+  soilBreaks?: number[]; // calibration changes / detection pauses: a dry-down segment never bridges them
+}
+
+// Inside vs outside air by dew point and absolute humidity. Only with the real inside sensor (in weather
+// mode the "inside" readings ARE the outside estimate) and fresh outside weather.
+function compareAir(r: PerceivedReadings, source: string | null, o: { temperature: number | null; humidity: number | null } | null): AirComparison | null {
+  if (source !== 'esp32_sensor' || !o) return null;
+  const inside = dewPoint(r.temperature, r.humidity);
+  const outside = dewPoint(o.temperature, o.humidity);
+  const ahIn = absoluteHumidity(r.temperature, r.humidity);
+  const ahOut = absoluteHumidity(o.temperature, o.humidity);
+  if (inside === null || outside === null || ahIn === null || !ahOut || o.temperature === null) return null;
+  return {
+    insideDewPoint: inside,
+    outsideDewPoint: outside,
+    moistureRatio: Math.round((ahIn / ahOut) * 10) / 10,
+    // The glass sits near the outside temperature: inside air that would condense at or above it fogs it
+    glassMayFog: inside >= o.temperature,
+  };
+}
+
+// Today's sunrise and sunset: Open-Meteo's published times when the latest observation carries today's,
+// else our own calculation from the location.
+function withSunTimes(sun: SunState, o: OutsideObservation | null, location: PerceptionInput['location'], now: number): SunState {
+  const dayStart = new Date(now).setHours(0, 0, 0, 0);
+  const sameDay = (t: number | null | undefined) => t != null && t >= dayStart && t < dayStart + 24 * 3600 * 1000;
+  if (o && sameDay(o.sunrise) && sameDay(o.sunset)) return { ...sun, sunrise: o.sunrise!, sunset: o.sunset!, timesFrom: 'open-meteo' };
+  if (location.latitude == null || location.longitude == null) return sun;
+  const t = sunTimes(now, location.latitude, location.longitude);
+  return { ...sun, sunrise: t.sunrise, sunset: t.sunset, timesFrom: 'solar' };
 }
 
 export function toSample(t: PlantTelemetry, species: SpeciesProfile, location: PerceptionInput['location']): PerceptionSample {
@@ -113,6 +145,8 @@ export function perceive(input: PerceptionInput): PerceptionState {
   const recentCare = sorted.filter((e) => e.timestamp >= now - 7 * 24 * HOUR && e.timestamp <= now);
   const careContext = computeCareContext(events, species, now);
   const cadenceMs = Math.max(APP_CONFIG.dataQuality.minStaleMs, pollMs * APP_CONFIG.dataQuality.staleAfterPolls);
+  // Soil dry-down: one uninterrupted segment (never across a watering, calibration, gap or suspect sensor)
+  const dryDown = soilDryDown({ samples: recent, events, breaks: input.soilBreaks ?? [], gapMs, soilSuspect: quality.suspect.soil, now });
   const light = computeDailyLight({ samples: recent, species, location, cadenceMs, movedAt: careContext.recentMove?.at ?? null, now, outside: input.outsideToday ?? [] });
 
   return {
@@ -121,7 +155,7 @@ export function perceive(input: PerceptionInput): PerceptionState {
     telemetry: fresh,
     lastReading: latest,
     readings,
-    sun,
+    sun: withSunTimes(sun, input.outside ?? null, location, now),
     season: seasonState(now, location.latitude),
     device: {
       online: !!fresh && !deviceError,
@@ -131,7 +165,8 @@ export function perceive(input: PerceptionInput): PerceptionState {
       wifiRssi: latest?.wifiRssi ?? null,
     },
     trends: {
-      soilPerHour: trend(recent, (s) => s.soil, now),
+      soilPerHour: dryDown?.perHour ?? null,
+      soilDryDown: dryDown,
       temperaturePerHour: trend(recent, (s) => s.temp, now),
       humidityPerHour: trend(recent, (s) => s.hum, now),
     },
@@ -150,6 +185,10 @@ export function perceive(input: PerceptionInput): PerceptionState {
     },
     light,
     quality,
+    drying: dryingCoupling(dryDown, recent, species, now),
+    exposure: { temperature: temperatureExposure(recent, species, cadenceMs, now) },
     outside: outsideNow(input.outside ?? null, now, input.outsideToday ?? []),
+    outsideToday: input.outsideToday ?? [],
+    air: compareAir(readings, latest?.source ?? null, outsideNow(input.outside ?? null, now)),
   };
 }

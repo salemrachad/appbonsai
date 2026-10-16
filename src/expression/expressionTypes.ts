@@ -38,7 +38,7 @@ export type BlushStyle = 'normal' | 'happy' | 'hot' | 'cold' | 'pale' | 'none';
 export type Posture = 'perky' | 'normal' | 'droop' | 'wilt' | 'shrink';
 
 // Where the eyes go when nobody is pointing at the tree (the avatar adds saccades and pointer tracking).
-export type Gaze = 'around' | 'center' | 'down' | 'up' | 'toward_light' | 'away' | 'search';
+export type Gaze = 'around' | 'center' | 'down' | 'up' | 'toward_light' | 'away' | 'search' | 'east' | 'west'; // east/west: toward the rising / setting sun
 
 // Leaf colour and texture: the state shows in the foliage, the season tints the calm states.
 export type Foliage =
@@ -207,6 +207,34 @@ export interface VisitorPresentation {
   // shaking off after the rain outside (null: just visiting)
   action: 'drinking' | 'inspecting' | 'shake_off' | null;
   play: VisitorPlay; // how it answers petting, decided from the tree's state
+  // Encounters: who it watches (its head follows them), and the spots its play never hops to (the sloth's
+  // branch, the branch the dragonfly rests by)
+  lookAt?: 'sloth' | 'dragonfly' | null;
+  avoid?: VisitorPresentation['spot'][];
+}
+
+// The dragonfly (from behaviour.habitat.dragonfly): perched on a leaf tip or hovering near it. Its wings
+// beat at `wingTempo` (livelier in warmer air). A stroke makes it dart off and return to the same tip (UI).
+export interface DragonflyPresentation {
+  id: string;
+  presence: 'hovering' | 'perched';
+  perch: 'left_tip' | 'right_tip' | 'crown_tip' | 'left_top' | 'on_sloth'; // on_sloth: resting on the sloth (drawn with it)
+  wingTempo: number; // ~0.6 cool … 1.4 hot
+  // Its route through the visit (decided by behaviour): the avatar flies it on the clock. perch is its home.
+  route: { at: number; perch: DragonflyPresentation['perch']; mode: 'perched' | 'hovering' }[];
+  flightMs: number; // how long one flight between stops takes
+}
+
+// The sloth (from behaviour.habitat.sloth): hanging under a branch, inching along it, or asleep curled up.
+// Everything it does is slow (`tempo`, warmer air a little livelier). A stroke gets a slow look and blink.
+export interface SlothPresentation {
+  id: string;
+  pose: 'hanging' | 'climbing' | 'sleeping';
+  branch: 'left_branch' | 'right_branch';
+  grip: 'four' | 'arms' | 'legs' | 'one_arm' | 'two_legs_one_arm'; // how it holds on (from its comfort)
+  tempo: number; // ~0.4 … 0.7
+  lookAt?: 'squirrel' | null; // encounter: it slowly turns its head toward the squirrel
+  rider?: boolean; // encounter: a dragonfly rests on it (slow blinks)
 }
 
 // The drey (nest) in the crown: weeks of a welcoming tree made visible. Drawn even when nobody is home.
@@ -237,6 +265,9 @@ export interface ExpressionState {
   reactionStrength: number; // 0-1, from responsiveness: how visibly touch and care register
   touch: TouchResponse; // how a stroke registers right now
   visitor: VisitorPresentation | null;
+  dragonfly: DragonflyPresentation | null;
+  sloth: SlothPresentation | null;
+  encounters: ('squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth')[]; // visitors meeting right now (art)
   drey: DreyLook;
   atmosphere: {
     theme: 'day' | 'night';
@@ -246,6 +277,10 @@ export interface ExpressionState {
     seasonStage: 'early' | 'mid' | 'late';
     intensity: number; // 0-1: how strongly the scene shows (follows the state's intensity)
     weather: WeatherLook | null; // outside weather layer (null = unknown or stale)
+    // Today's sunrise and sunset (ms): the twilight layer follows them to the minute
+    sun: { sunrise: number | null; sunset: number | null; timesFrom: 'open-meteo' | 'solar' | 'none' };
+    // The twilight now (from behaviour): which moment, minutes from it at `at`, and whether clouds mute it
+    twilight: { event: 'sunrise' | 'sunset' | null; minutes: number | null; at: number; muted: boolean };
   };
   gauge: { label: string; tone: GaugeTone }; // vitality chip label/colour, decided upstream
   tapLabel: string; // short mood label shown when the tree is tapped

@@ -347,6 +347,56 @@ async function main() {
     for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
   }
 
+  console.log('\n— Health memory migration (derived metrics) —');
+  {
+    // A memory saved before the coupling baseline existed (same version, no `environment`)
+    const b = new Bench();
+    await b.boot();
+    await b.run(90, (i) => ({ soil: i < 60 ? 60 : 30 }));
+    b.collector.recordInteraction({ kind: 'pet', startedAt: b.clock - 60_000, endedAt: b.clock - 30_000, count: 3, activeMs: 20_000 });
+    const saved = b.db.getMeta<any>('health_memory');
+    const { environment: _drop, ...oldShape } = saved.memory;
+    b.db.setMeta('health_memory', { ...saved, memory: oldShape });
+    const beforeEpisodeIds = b.db.episodesSince(0).map((e) => e.id);
+    const before = { health: b.state().health, events: b.db.eventsSince(0).length, episodes: b.db.episodesSince(0).length, pets: b.db.interactionsSince(0).length, speech: JSON.stringify(b.db.getMeta('message_memory')) };
+    const r = new Bench(b.db);
+    r.clock = b.clock;
+    r.payload = b.payload;
+    await r.boot();
+    const after = r.state().health;
+    check('MG1 an older saved memory resumes as is: no replay, same latches and vitality', r.logs.some((l) => l.includes('resumed saved health memory')) && !r.logs.some((l) => l.includes('replayed')) && after.condition === before.health.condition && Math.abs(after.vitality - before.health.vitality) <= 1, `${before.health.condition} v${before.health.vitality} → ${after.condition} v${after.vitality}`);
+    check('MG1b the coupling baseline simply starts learning', (r.db.getMeta<any>('health_memory').memory.environment?.coupling.hours ?? 0) === 0 && ['learning', 'unavailable'].includes(after.environment?.coupling.status ?? ''));
+    const kept = (ids: number[]) => ids.every((id) => r.db.episodesSince(0).some((e) => e.id === id));
+    check(
+      'MG2 care history, episodes, attention and speech memory untouched',
+      r.db.eventsSince(0).length === before.events && kept(beforeEpisodeIds) && r.db.interactionsSince(0).length === before.pets && JSON.stringify(r.db.getMeta('message_memory')) === before.speech,
+      `events ${before.events}→${r.db.eventsSince(0).length}, pets ${before.pets}→${r.db.interactionsSince(0).length}, speech same: ${JSON.stringify(r.db.getMeta('message_memory')) === before.speech}`
+    );
+
+    // A forced replay (saved memory unusable): 48 h of telemetry rebuild the short-term state
+    const c = new Bench();
+    await c.boot();
+    await c.run(60, () => ({ soil: 60 }));
+    await c.run(120, () => ({ soil: 30 }));
+    const live = c.state().health;
+    c.db.setMeta('health_memory', { engineVersion: 'older-engine', source: 'esp32_sensor', memory: c.db.getMeta<any>('health_memory').memory });
+    const evs = c.db.eventsSince(0).length;
+    const eps = JSON.stringify(c.db.episodesSince(0).filter((e) => e.startedAt < c.clock).map((e) => [e.condition, e.startedAt]));
+    const sp = JSON.stringify(c.db.getMeta('message_memory'));
+    const d = new Bench(c.db);
+    d.clock = c.clock;
+    d.payload = c.payload;
+    await d.boot();
+    const rebuilt = d.state().health;
+    check('MG3 a forced replay rebuilds the latches from stored telemetry (still thirsty)', d.logs.some((l) => l.includes('replayed')) && rebuilt.condition === live.condition && rebuilt.condition === 'thirsty', `${live.condition} → ${rebuilt.condition}`);
+    const epsAfter = JSON.stringify(d.db.episodesSince(0).filter((e) => e.startedAt < c.clock).map((e) => [e.condition, e.startedAt]));
+    check(
+      'MG3b the replay leaves care history, past episodes and speech memory as they were',
+      d.db.eventsSince(0).length === evs && epsAfter === eps && sp === JSON.stringify(d.db.getMeta('message_memory')),
+      `events ${evs}→${d.db.eventsSince(0).length}, episodes same: ${epsAfter === eps}, speech same: ${sp === JSON.stringify(d.db.getMeta('message_memory'))}`
+    );
+  }
+
   console.log('\n— Light min / max set by hand —');
   {
     const { CalibrationService } = await import('../server/calibration');

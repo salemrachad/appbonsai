@@ -1,6 +1,7 @@
 import React from 'react';
 import { CloudRain, Droplets, Thermometer, Wind } from 'lucide-react';
 import type { WeatherLook } from '../../expression/expressionTypes';
+import type { AirComparison } from '../../perception/perceptionTypes';
 import type { OutsideWeather } from '../../telemetry/outsideWeather';
 import { WEATHER_ICON } from './WeatherChip';
 
@@ -8,6 +9,7 @@ interface OutsidePanelProps {
   weather: WeatherLook | null; // the look (sky + label), as the Expression Engine decided (previews included)
   outside: OutsideWeather | null; // the observation's numbers (perception.outside)
   inside: { temperature: number | null; humidity: number | null }; // the greenhouse sensors (null without the ESP32: no inside to compare)
+  air?: AirComparison | null; // inside vs outside by dew point (perception.air)
 }
 
 const ago = (ms: number) => {
@@ -17,7 +19,7 @@ const ago = (ms: number) => {
 
 // A small dashboard of the weather OUTSIDE the greenhouse, next to what the sensors measure inside.
 // Context only: facts, no verdicts (the tree's state comes from the sensors). Shows nothing it doesn't know.
-export const OutsidePanel: React.FC<OutsidePanelProps> = ({ weather, outside, inside }) => {
+export const OutsidePanel: React.FC<OutsidePanelProps> = ({ weather, outside, inside, air = null }) => {
   if (!weather) {
     return (
       <div className="glass rounded-2xl px-4 py-2.5 sans text-xs text-[var(--ink)]/45 flex items-center gap-2">
@@ -43,7 +45,7 @@ export const OutsidePanel: React.FC<OutsidePanelProps> = ({ weather, outside, in
 
   return (
     <div className="glass rounded-2xl px-4 py-3" title="Outside weather at the tree's location (Open-Meteo). The tree's own sensors measure inside the greenhouse.">
-      <div className="grid grid-cols-4 gap-3 items-center">
+      <div className="grid grid-cols-[1.15fr_0.95fr_1.35fr_0.85fr] gap-3 items-center">
         {/* The sky */}
         <div className="flex items-center gap-2.5 min-w-0">
           <Icon className="w-7 h-7 text-[#356077] shrink-0" />
@@ -60,17 +62,25 @@ export const OutsidePanel: React.FC<OutsidePanelProps> = ({ weather, outside, in
           </span>
           <span className={big}>{tOut !== null ? `${Math.round(tOut)}°` : '–'}</span>
           <span className={small}>
-            {tIn !== null ? `inside ${Math.round(tIn)}°` : ''}
-            {diff !== null && diff !== 0 ? ` · ${Math.abs(diff)}° ${diff > 0 ? 'warmer' : 'cooler'} in` : ''}
+            {tIn !== null ? `in ${Math.round(tIn)}°` : ''}
+            {diff !== null && diff !== 0 ? ` (${diff > 0 ? '+' : '−'}${Math.abs(diff)}°)` : ''}
           </span>
         </div>
         {/* Humidity: outside vs inside */}
-        <div className={tile}>
+        <div
+          className={tile}
+          title={air ? 'Relative humidity depends on temperature. The dew point (outside / inside) shows the actual water in the air, so inside and outside compare honestly.' : undefined}
+        >
           <span className={head}>
             <Droplets className="w-3 h-3 text-[#4A6741]" /> Humidity
           </span>
           <span className={big}>{hOut !== null ? `${Math.round(hOut)}%` : '–'}</span>
-          <span className={small}>{hIn !== null ? `inside ${Math.round(hIn)}%` : ''}</span>
+          <span className={small}>
+            {hIn !== null ? `in ${Math.round(hIn)}%` : ''}
+            {air ? ` · dew ${Math.round(air.outsideDewPoint)}°/${Math.round(air.insideDewPoint)}°` : ''}
+          </span>
+          {air && <span className={small}>{air.moistureRatio >= 1.2 ? `${air.moistureRatio}× more water inside` : air.moistureRatio <= 0.8 ? 'drier air inside' : 'same water in the air'}</span>}
+          {air?.glassMayFog && <span className={`${small} text-[#356077]`}>glass may fog</span>}
         </div>
         {/* Wind, or rain when it's raining */}
         <div className={tile}>

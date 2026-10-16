@@ -4,7 +4,9 @@ import { AvatarEffects, BodyDetails, ForegroundEffects, Lanterns, SoilEffects } 
 import { AvatarFace } from './AvatarFace';
 import { FoliageDefs, PadBranchlets, PadLeaves, PADS, paletteFor } from './Foliage';
 import { PetSession, usePetting } from './usePetting';
-import { Drey, useVisitorPlay, Visitor } from './Visitor';
+import { Dragonfly, dragonflyAt, useDragonflyFlight } from './Dragonfly';
+import { Sloth, slothAt, slothRiderAt } from './Sloth';
+import { Drey, useVisitorPlay, Visitor, visitorAt } from './Visitor';
 
 interface BonsaiAvatarProps {
   expression: ExpressionState | null;
@@ -69,6 +71,8 @@ const GAZE_BASE: Record<Gaze, { x: number; y: number; spread: number }> = {
   toward_light: { x: 3.2, y: -0.8, spread: 0.6 }, // the lantern on the right branch
   away: { x: -2.6, y: 1.8, spread: 0.7 }, // away from the glaring sun (top right)
   search: { x: 0, y: 0, spread: 3.4 },
+  east: { x: -3.2, y: -1.2, spread: 0.6 }, // toward the rising sun (left of the sky)
+  west: { x: 3.2, y: -0.4, spread: 0.6 }, // toward the setting sun (right)
 };
 
 const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -182,6 +186,19 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
   // Petting while the squirrel visits is play (attention only); how it plays was decided upstream
   const visitor = expression?.visitor ?? null;
   const visitorPose = useVisitorPlay(visitor, petting.strokeAt, expression?.touch.habituation ?? null);
+  // Encounters (decided upstream): where each visitor is, so the others can look at it
+  const squirrelAt = visitorAt(visitorPose);
+  const slothGrip = expression?.sloth ? slothAt(expression.sloth.branch) : null;
+  // The dragonfly flies its route on the clock; the sloth's rider spot is where it lands on the sloth
+  const dragonfly = expression?.dragonfly ?? null;
+  const flight = useDragonflyFlight(dragonfly);
+  const riderSpot = expression?.sloth ? slothRiderAt(expression.sloth) : null;
+  const watchAt =
+    visitor?.lookAt === 'dragonfly' && dragonfly
+      ? dragonflyAt(flight, riderSpot)
+      : visitor?.lookAt === 'sloth' && slothGrip
+      ? { x: slothGrip.x, y: slothGrip.y + 30 }
+      : null;
 
   // Petting's acknowledgement is nonverbal: a soft or slow eye-close, nothing said
   useEffect(() => {
@@ -397,7 +414,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
             </g>
 
             {/* A hiding visitor sits behind the pads, so only its head peeks over the leaves */}
-            <Visitor visitor={visitor} pose={visitorPose} layer="behind" />
+            <Visitor visitor={visitor} pose={visitorPose} layer="behind" watchAt={watchAt} />
 
             {/* Foliage pads: a soft body plus individual leaves */}
             <g id="bonsai-foliage">
@@ -458,7 +475,12 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
             </g>
 
             <BodyDetails effects={look.effects} shielding={gesture === 'shield'} shaking={gesture === 'shake_off'} />
-            <Visitor visitor={visitor} pose={visitorPose} layer="front" />
+            <Visitor visitor={visitor} pose={visitorPose} layer="front" watchAt={watchAt} />
+            <Sloth sloth={expression?.sloth ?? null} strokeAt={petting.strokeAt} lookToward={squirrelAt?.x ?? null}>
+              {/* Encounter: a dragonfly resting on the sloth rides along with it */}
+              <Dragonfly dragonfly={dragonfly} flight={flight} rider={riderSpot} strokeAt={petting.strokeAt} onSloth />
+            </Sloth>
+            <Dragonfly dragonfly={dragonfly} flight={flight} rider={riderSpot} strokeAt={petting.strokeAt} />
           </g>
           </g>
         </g>

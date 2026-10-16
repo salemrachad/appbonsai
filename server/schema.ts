@@ -1,7 +1,7 @@
 // SQLite schema for the local Appbonsai database (data/appbonsai.db).
 // All timestamps are INTEGER milliseconds since the Unix epoch (UTC).
 
-export const SCHEMA_VERSION = 5; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL on open, no migration step needed)
+export const SCHEMA_VERSION = 6; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather
 
 export const SCHEMA_SQL = `
 -- Raw observations: the permanent truth. Health can be re-evaluated from these later.
@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS outside_weather (
   wind          REAL,
   gusts         REAL,
   is_day        INTEGER,
+  sunrise_at    INTEGER,                       -- the day's published sunrise (ms)
+  sunset_at     INTEGER,
   raw_json      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_outside_weather_ts ON outside_weather(timestamp);
@@ -105,4 +107,6 @@ export const MIGRATIONS: { version: number; sql: string; check?: { table: string
     sql: 'ALTER TABLE behaviour_episodes ADD COLUMN unobserved_ms INTEGER NOT NULL DEFAULT 0',
     check: { table: 'behaviour_episodes', column: 'unobserved_ms' },
   },
+  { version: 6, sql: 'ALTER TABLE outside_weather ADD COLUMN sunrise_at INTEGER', check: { table: 'outside_weather', column: 'sunrise_at' } },
+  { version: 6, sql: 'ALTER TABLE outside_weather ADD COLUMN sunset_at INTEGER', check: { table: 'outside_weather', column: 'sunset_at' } },
 ];

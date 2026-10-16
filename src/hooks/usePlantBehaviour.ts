@@ -3,8 +3,11 @@ import type { LivingSnapshot } from '../api/types';
 import { evaluateBehaviour } from '../behaviour/BehaviourEngine';
 import type { PlantBehaviourState } from '../behaviour/behaviourTypes';
 import { expressBehaviour } from '../expression/ExpressionEngine';
-import { visitorPlay, weatherLook } from '../expression/ExpressionEngine';
-import type { DreyLook, ExpressionState, VisitorPresentation } from '../expression/expressionTypes';
+import { encounterCues, visitorPlay, weatherLook } from '../expression/ExpressionEngine';
+import type { DreyLook, ExpressionState, SlothPresentation, VisitorPresentation } from '../expression/expressionTypes';
+import { meet } from '../behaviour/encounters';
+import { dragonflyRoute } from '../behaviour/dragonfly';
+import { APP_CONFIG } from '../config/appConfig';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 import type { PlantHealthState } from '../health/healthTypes';
 import { midSeasonState, type Season } from '../perception/season';
@@ -21,6 +24,13 @@ export type VisitorPreview = Pick<VisitorPresentation, 'mode' | 'spot'> & { acti
 export type DreyPreview = DreyLook;
 // A canopy preview shows the foliage after some weeks (real changes need weeks of history).
 export type CanopyPreview = { fullness: number; refilling: number };
+// A twilight preview places "now" this many minutes from today's sunrise or sunset (behaviour responds too).
+export type TwilightPreview = { event: 'sunrise' | 'sunset'; minutes: number };
+// A dragonfly preview puts it on a leaf tip or hovering (real visits need warm, bright, calm air).
+// A sloth preview hangs it on a branch (real visits need warm, humid, still air).
+export type SlothPreview = { pose: 'hanging' | 'climbing' | 'sleeping'; branch: 'left_branch' | 'right_branch'; grip?: SlothPresentation['grip'] };
+// Visitors previewed together (or with live ones) meet, arranged by the same encounter rules as the server.
+export type DragonflyPreview = { presence: 'hovering' | 'perched'; perch: 'left_tip' | 'right_tip' | 'crown_tip' | 'left_top' };
 // A weather preview swaps only the outside weather layer (a sky, or 'windy' for a clear windy day).
 export type WeatherPreview = OutsideSky | 'windy';
 
@@ -32,10 +42,13 @@ export function usePlantBehaviour(
   previewVisitor: VisitorPreview | null = null,
   previewWeather: WeatherPreview | null = null,
   previewDrey: DreyPreview | null = null,
-  previewCanopy: CanopyPreview | null = null
+  previewCanopy: CanopyPreview | null = null,
+  previewTwilight: TwilightPreview | null = null,
+  previewDragonfly: DragonflyPreview | null = null,
+  previewSloth: SlothPreview | null = null
 ) {
   return useMemo<{ behaviour: PlantBehaviourState | null; expression: ExpressionState | null }>(() => {
-    let r = evaluate(snapshot, display, previewSeason, latitude);
+    let r = evaluate(snapshot, display, previewSeason, latitude, previewTwilight);
     if (previewVisitor && r.expression && r.behaviour) {
       const carrying = r.behaviour?.season.id === 'autumn' ? 'nut' : null;
       const play = visitorPlay(r.behaviour.primaryState, previewVisitor.mode, r.behaviour, r.expression.motion);
@@ -50,6 +63,44 @@ export function usePlantBehaviour(
       // Asleep means a drey to sleep in
       const drey = previewVisitor.mode === 'sleeping' ? 'built' : r.expression.drey;
       r = { behaviour: r.behaviour, expression: { ...r.expression, visitor, drey } };
+    }
+    if (previewSloth && r.expression) {
+      const grip = previewSloth.pose === 'hanging' ? previewSloth.grip ?? 'arms' : 'four';
+      r = { behaviour: r.behaviour, expression: { ...r.expression, sloth: { id: `preview:${previewSloth.pose}:${previewSloth.branch}:${grip}`, ...previewSloth, grip, tempo: 0.55 } } };
+    }
+    if (previewDragonfly && r.expression) {
+      // A preview visit runs through the current hour (and the next), on its own route
+      const id = `preview:${previewDragonfly.presence}:${previewDragonfly.perch}`;
+      const startedAt = new Date().setMinutes(0, 0, 0);
+      const visit = { id, startedAt, endsAt: startedAt + 2 * 3600 * 1000, style: previewDragonfly.presence };
+      const route = dragonflyRoute(visit, { home: previewDragonfly.perch, liveliness: 0.5 });
+      r = { behaviour: r.behaviour, expression: { ...r.expression, dragonfly: { id, ...previewDragonfly, wingTempo: 1, route, flightMs: APP_CONFIG.habitat.dragonfly.route.flightMs } } };
+    }
+    if ((previewVisitor || previewSloth || previewDragonfly) && r.expression) {
+      // Re-arrange with the previewed cast (the live arrangement didn't know about them)
+      const x = r.expression;
+      const v = x.visitor;
+      const m = meet({
+        squirrel: v ? { id: v.id, spot: v.spot, mode: v.mode, fixed: !!v.action } : null,
+        dragonfly: x.dragonfly ? { id: x.dragonfly.id, perch: x.dragonfly.perch === 'on_sloth' ? 'left_tip' : x.dragonfly.perch, perched: x.dragonfly.presence === 'perched' } : null,
+        sloth: x.sloth ? { id: x.sloth.id, branch: x.sloth.branch, asleep: x.sloth.pose === 'sleeping' } : null,
+      });
+      const cast = encounterCues(
+        {
+          visitor: v && m.squirrelSpot ? { ...v, spot: m.squirrelSpot, lookAt: null, avoid: [] } : v,
+          dragonfly:
+            x.dragonfly && m.dragonflyPerch
+              ? {
+                  ...x.dragonfly,
+                  perch: m.dragonflyPerch,
+                  route: dragonflyRoute({ id: x.dragonfly.id, startedAt: x.dragonfly.route[0]?.at ?? Date.now(), endsAt: (x.dragonfly.route[0]?.at ?? Date.now()) + 2 * 3600 * 1000, style: x.dragonfly.presence }, { home: m.dragonflyPerch, avoid: m.dragonflyAvoid, liveliness: 0.5 }),
+                }
+              : x.dragonfly,
+          sloth: x.sloth && m.slothBranch ? { ...x.sloth, branch: m.slothBranch, lookAt: null, rider: false } : x.sloth,
+        },
+        m.encounters
+      );
+      r = { behaviour: r.behaviour, expression: { ...x, ...cast, encounters: m.encounters } };
     }
     if (previewCanopy && r.expression) {
       r = { behaviour: r.behaviour, expression: { ...r.expression, avatar: { ...r.expression.avatar, canopy: previewCanopy } } };
@@ -66,20 +117,31 @@ export function usePlantBehaviour(
         windy: previewWeather === 'windy',
         rainEndedAt: null,
       });
-      r = { behaviour: r.behaviour, expression: { ...r.expression, atmosphere: { ...r.expression.atmosphere, weather } } };
+      const muted = ['overcast', 'fog', 'drizzle', 'rain', 'heavy_rain', 'thunderstorm', 'snow'].includes(previewWeather);
+      const twilight = { ...r.expression.atmosphere.twilight, muted };
+      r = { behaviour: r.behaviour, expression: { ...r.expression, atmosphere: { ...r.expression.atmosphere, weather, twilight } } };
     }
     return r;
-  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy]);
+  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy, previewTwilight, previewDragonfly, previewSloth]);
 }
 
-function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previewSeason: Season | null, latitude: number | null) {
+function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previewSeason: Season | null, latitude: number | null, previewTwilight: TwilightPreview | null = null) {
   {
     if (!snapshot || !display) return { behaviour: null, expression: null };
-    if ((!display.isOverride && !previewSeason) || !snapshot.perception) return { behaviour: snapshot.behaviour, expression: snapshot.expression };
+    if ((!display.isOverride && !previewSeason && !previewTwilight) || !snapshot.perception) return { behaviour: snapshot.behaviour, expression: snapshot.expression };
     const now = Date.now();
-    const perception = previewSeason
+    let perception = previewSeason
       ? { ...snapshot.perception, season: midSeasonState(previewSeason, latitude) }
       : snapshot.perception;
+    if (previewTwilight) {
+      // Today's moment placed `minutes` from now; the sun is up after sunrise and before sunset
+      const at = now - previewTwilight.minutes * 60000;
+      const up = previewTwilight.event === 'sunrise' ? previewTwilight.minutes >= 0 : previewTwilight.minutes <= 0;
+      perception = {
+        ...perception,
+        sun: { ...perception.sun, [previewTwilight.event]: at, isDay: up, phase: up ? 'low_sun' : previewTwilight.event === 'sunrise' ? 'dawn' : 'dusk' },
+      };
+    }
     const behaviour = evaluateBehaviour({
       health: display,
       perception,

@@ -1,7 +1,7 @@
 import React from 'react';
 import { RotateCcw, Wrench } from 'lucide-react';
 import { DEV_PRESETS } from '../../health/developerOverrides';
-import type { CanopyPreview, DreyPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
+import type { CanopyPreview, DragonflyPreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
 import { SEASONS, type Season } from '../../perception/season';
 
 interface StateTesterProps {
@@ -11,6 +11,12 @@ interface StateTesterProps {
   onSelectSeason: (season: Season | null) => void;
   activeVisitor: VisitorPreview | null;
   onSelectVisitor: (v: VisitorPreview | null) => void;
+  activeSloth: SlothPreview | null;
+  onSelectSloth: (s: SlothPreview | null) => void;
+  activeDragonfly: DragonflyPreview | null;
+  onSelectDragonfly: (d: DragonflyPreview | null) => void;
+  activeTwilight: TwilightPreview | null;
+  onSelectTwilight: (t: TwilightPreview | null) => void;
   activeCanopy: CanopyPreview | null;
   onSelectCanopy: (c: CanopyPreview | null) => void;
   activeDrey: DreyPreview | null;
@@ -37,147 +43,348 @@ const chip = (active: boolean) =>
 
 const SEASON_EMOJI: Record<Season, string> = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' };
 
-// Preview any health state. Presentation only: telemetry, the database, care events and episodes are untouched.
-export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSelectPreset, activeSeason, onSelectSeason, activeVisitor, onSelectVisitor, activeDrey, onSelectDrey, activeCanopy, onSelectCanopy, activeWeather, onSelectWeather }) => (
-  <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <div className="p-1 rounded-md bg-[#4A6741]/10 text-[#4A6741]">
-          <Wrench className="w-3.5 h-3.5" />
-        </div>
-        <span className="sans text-xs font-bold uppercase tracking-wider text-[#2D332A]">Test Tree State</span>
-      </div>
+// The health presets, sorted by what they are about. Any preset not listed here lands in "Other", so a new
+// preset never disappears from the panel.
+const PRESET_GROUPS: { label: string; ids: string[] }[] = [
+  { label: 'Calm', ids: ['thriving', 'comfortable', 'recovering', 'sleeping'] },
+  { label: 'Water', ids: ['thirsty', 'very_dry', 'too_wet'] },
+  { label: 'Air & heat', ids: ['hot', 'hot_and_dry', 'cold', 'freezing_risk', 'dry_air', 'high_humidity'] },
+  { label: 'Light', ids: ['too_dark', 'very_bright'] },
+  { label: 'Combined', ids: ['multiple_stress', 'thirsty_hot_dryair', 'sleeping_thirsty'] },
+  { label: 'Data', ids: ['sensor_uncertain'] },
+];
+const listed = new Set(PRESET_GROUPS.flatMap((g) => g.ids));
+const PRESET_SETS = [...PRESET_GROUPS, { label: 'Other', ids: DEV_PRESETS.map((p) => p.id).filter((id) => !listed.has(id)) }].filter((g) => g.ids.length > 0);
 
-      {activePresetId ? (
+// Sunrise / sunset simulation: the perceived sun times are shifted so that "now" sits `minutes` from the
+// moment. Behaviour and expression respond (the tree stretches at sunrise, yawns at sunset), not only the
+// sky. Play runs the whole twilight window (−45 … +40 min) in about 20 s; close the panel to watch it.
+const SUN_JUMPS: { label: string; t: TwilightPreview }[] = [
+  { label: '🌅 −20', t: { event: 'sunrise', minutes: -20 } },
+  { label: 'Sunrise', t: { event: 'sunrise', minutes: 0 } },
+  { label: '+15', t: { event: 'sunrise', minutes: 15 } },
+  { label: '🌇 −15', t: { event: 'sunset', minutes: -15 } },
+  { label: 'Sunset', t: { event: 'sunset', minutes: 0 } },
+  { label: '+20', t: { event: 'sunset', minutes: 20 } },
+];
+const PLAY_FROM = -45;
+const PLAY_TO = 40;
+const PLAY_STEP_MS = 240;
+
+const SunPreviewChips: React.FC<{ active: TwilightPreview | null; onSelect: (t: TwilightPreview | null) => void }> = ({ active, onSelect }) => {
+  const [playing, setPlaying] = React.useState<'sunrise' | 'sunset' | null>(null);
+  const timer = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const stop = () => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+    setPlaying(null);
+  };
+  // No stop on unmount: closing the panel lets the twilight play on (it ends by itself after ~20 s)
+  const play = (event: 'sunrise' | 'sunset') => {
+    stop();
+    let minutes = PLAY_FROM;
+    setPlaying(event);
+    onSelect({ event, minutes });
+    timer.current = setInterval(() => {
+      minutes += 1;
+      if (minutes > PLAY_TO) {
+        stop();
+        return;
+      }
+      onSelect({ event, minutes });
+    }, PLAY_STEP_MS);
+  };
+  const same = (t: TwilightPreview) => !playing && active?.event === t.event && active.minutes === t.minutes;
+  return (
+    <>
+      <button
+        onClick={() => {
+          stop();
+          onSelect(null);
+        }}
+        className={chip(!active)}
+      >
+        Live
+      </button>
+      {SUN_JUMPS.map(({ label, t }) => (
         <button
-          id="return-to-live-header-btn"
-          onClick={() => onSelectPreset(null)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#D97757]/15 text-[#9E3E20] border border-[#D97757]/30 hover:bg-[#D97757] hover:text-white text-[11px] font-semibold cursor-pointer"
+          key={label}
+          onClick={() => {
+            stop();
+            onSelect(t);
+          }}
+          className={chip(same(t))}
         >
-          <RotateCcw className="w-3 h-3" />
-          <span>Return to Live Data</span>
-        </button>
-      ) : (
-        <span className="sans text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#4A6741]/15 text-[#334D2E] border border-[#4A6741]/30 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#4A6741] animate-ping" />
-          <span>Live Data</span>
-        </span>
-      )}
-    </div>
-
-    <div className="grid grid-cols-3 gap-1.5">
-      {DEV_PRESETS.map((p) => {
-        const active = activePresetId === p.id;
-        return (
-          <button
-            key={p.id}
-            id={`test-state-btn-${p.id}`}
-            onClick={() => onSelectPreset(active ? null : p.id)}
-            className={`py-2 px-2 rounded-xl border text-[11px] font-medium sans flex items-center gap-1.5 cursor-pointer select-none ${
-              active
-                ? 'bg-[#4A6741] text-white border-[#334A2C] shadow-md ring-2 ring-[#4A6741]/30'
-                : 'bg-white text-[#2D332A] border-[#D8D2C9] hover:border-[#4A6741] hover:bg-[#4A6741]/5'
-            }`}
-            title={p.modifiers.length ? `${p.condition} + ${p.modifiers.join(', ')}` : p.condition}
-          >
-            <span className="text-sm">{p.emoji}</span>
-            <span className="truncate">{p.label}</span>
-          </button>
-        );
-      })}
-    </div>
-
-    <div className="flex items-center gap-1.5 pt-1">
-      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Season</span>
-      {[null, ...SEASONS].map((s) => {
-        const active = activeSeason === s;
-        return (
-          <button
-            key={s ?? 'live'}
-            onClick={() => onSelectSeason(s)}
-            className={`py-1 px-2 rounded-lg border text-[11px] font-medium sans cursor-pointer ${
-              active ? 'bg-[#4A6741] text-white border-[#334A2C]' : 'bg-white text-[#2D332A] border-[#D8D2C9] hover:border-[#4A6741]'
-            }`}
-          >
-            {s ? `${SEASON_EMOJI[s]} ${s[0].toUpperCase()}${s.slice(1)}` : 'Live'}
-          </button>
-        );
-      })}
-    </div>
-
-    {/* Real visits need days of calm history; this shows the squirrel now */}
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Squirrel</span>
-      <button onClick={() => onSelectVisitor(null)} className={chip(!activeVisitor)}>Live</button>
-      {(['visiting', 'hiding'] as const).map((mode) => (
-        <button
-          key={mode}
-          onClick={() => onSelectVisitor({ mode, spot: activeVisitor?.spot ?? 'left_branch' })}
-          className={chip(activeVisitor?.mode === mode && !activeVisitor.action)}
-        >
-          {mode === 'visiting' ? '🐿️ Visiting' : '🍃 Hiding'}
-        </button>
-      ))}
-      <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: 'pot_rim', action: 'drinking' })} className={chip(activeVisitor?.action === 'drinking')}>
-        💧 Drinking
-      </button>
-      <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: 'left_branch', action: 'inspecting' })} className={chip(activeVisitor?.action === 'inspecting')}>
-        ✂️ Inspecting
-      </button>
-      <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: activeVisitor?.spot ?? 'right_branch', action: 'shake_off' })} className={chip(activeVisitor?.action === 'shake_off')}>
-        🌦️ Shaking off
-      </button>
-      <button onClick={() => onSelectVisitor({ mode: 'sleeping', spot: 'crown' })} className={chip(activeVisitor?.mode === 'sleeping')}>
-        🌙 Asleep
-      </button>
-      {activeVisitor && activeVisitor.mode !== 'sleeping' && !activeVisitor.action &&
-        (Object.keys(SPOT_LABEL) as VisitorPreview['spot'][]).map((spot) => (
-          <button key={spot} onClick={() => onSelectVisitor({ ...activeVisitor, spot })} className={chip(activeVisitor.spot === spot)}>
-            {SPOT_LABEL[spot]}
-          </button>
-        ))}
-    </div>
-
-    {/* The canopy: how full the foliage is after the last weeks */}
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Canopy</span>
-      <button onClick={() => onSelectCanopy(null)} className={chip(!activeCanopy)}>Live</button>
-      {[
-        { label: 'Full', c: { fullness: 1, refilling: 0 } },
-        { label: 'A little thin', c: { fullness: 0.82, refilling: 0 } },
-        { label: 'Thin', c: { fullness: 0.64, refilling: 0 } },
-        { label: '🌱 Refilling', c: { fullness: 0.72, refilling: 0.8 } },
-      ].map(({ label, c }) => (
-        <button key={label} onClick={() => onSelectCanopy(c)} className={chip(activeCanopy?.fullness === c.fullness && activeCanopy.refilling === c.refilling)}>
           {label}
         </button>
       ))}
-    </div>
-
-    {/* The drey: weeks of a welcoming tree, as a nest in the crown */}
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Drey</span>
-      <button onClick={() => onSelectDrey(null)} className={chip(!activeDrey)}>Live</button>
-      {(['none', 'started', 'built'] as const).map((d) => (
-        <button key={d} onClick={() => onSelectDrey(d)} className={chip(activeDrey === d)}>
-          {d === 'none' ? 'None' : d === 'started' ? 'A few twigs' : 'Built'}
+      {(['sunrise', 'sunset'] as const).map((event) => (
+        <button key={event} onClick={() => (playing === event ? stop() : play(event))} className={chip(playing === event)}>
+          {playing === event ? `■ ${active ? `${active.minutes >= 0 ? '+' : ''}${active.minutes} min` : 'Stop'}` : `▶ ${event === 'sunrise' ? 'Sunrise' : 'Sunset'}`}
         </button>
       ))}
-    </div>
+    </>
+  );
+};
 
-    {/* Outside weather: only the background layer changes, never the tree */}
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Outside</span>
-      <button onClick={() => onSelectWeather(null)} className={chip(!activeWeather)}>Live</button>
-      {WEATHER_PREVIEWS.map((w) => (
-        <button key={w.id} onClick={() => onSelectWeather(w.id)} className={chip(activeWeather === w.id)}>
-          {w.label}
-        </button>
-      ))}
+// A titled, collapsible group of preview rows. A dot on the header shows a preview in it is on.
+const Group: React.FC<{ title: string; icon: string; active: boolean; defaultOpen?: boolean; children: React.ReactNode }> = ({ title, icon, active, defaultOpen = false, children }) => {
+  const [open, setOpen] = React.useState(defaultOpen || active);
+  return (
+    <div className="rounded-xl border border-[#E6E0D7] bg-white/60">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between px-2.5 py-1.5 cursor-pointer select-none" aria-expanded={open}>
+        <span className="flex items-center gap-1.5 sans text-[11px] font-bold uppercase tracking-wider text-[#2D332A]/75">
+          <span className="text-xs">{icon}</span>
+          {title}
+          {active && <span className="w-1.5 h-1.5 rounded-full bg-[#D97757]" title="A preview is on in this group" />}
+        </span>
+        <span className="sans text-[11px] text-[#2D332A]/40">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && <div className="px-2.5 pb-2.5 space-y-2">{children}</div>}
     </div>
+  );
+};
 
-    <p className="text-[11px] sans text-[#2D332A]/55 px-1">
-      Changes only health, behaviour and expression on screen. Sensor values, the database, care events and episodes stay real.
-    </p>
+// One preview row: a fixed-width label, then its chips (so rows line up)
+const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="flex items-start gap-2">
+    <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/50 w-[4.5rem] shrink-0 pt-1.5">{label}</span>
+    <div className="flex flex-wrap items-center gap-1.5 min-w-0">{children}</div>
   </div>
 );
+
+// Preview any health state, time, weather and visitor. Presentation only: telemetry, the database, care
+// events and episodes are untouched. Grouped: tree health · time & season · outside · the tree over time · visitors.
+export const StateTester: React.FC<StateTesterProps> = ({
+  activePresetId,
+  onSelectPreset,
+  activeSeason,
+  onSelectSeason,
+  activeVisitor,
+  onSelectVisitor,
+  activeDrey,
+  onSelectDrey,
+  activeCanopy,
+  onSelectCanopy,
+  activeTwilight,
+  onSelectTwilight,
+  activeDragonfly,
+  onSelectDragonfly,
+  activeSloth,
+  onSelectSloth,
+  activeWeather,
+  onSelectWeather,
+}) => {
+  const anyActive = !!(activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeWeather);
+  const resetAll = () => {
+    onSelectPreset(null);
+    onSelectSeason(null);
+    onSelectVisitor(null);
+    onSelectDrey(null);
+    onSelectCanopy(null);
+    onSelectTwilight(null);
+    onSelectDragonfly(null);
+    onSelectSloth(null);
+    onSelectWeather(null);
+  };
+  return (
+    <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="p-1 rounded-md bg-[#4A6741]/10 text-[#4A6741]">
+            <Wrench className="w-3.5 h-3.5" />
+          </div>
+          <span className="sans text-xs font-bold uppercase tracking-wider text-[#2D332A]">Test Tree State</span>
+        </div>
+        {anyActive ? (
+          <button
+            id="return-to-live-header-btn"
+            onClick={resetAll}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#D97757]/15 text-[#9E3E20] border border-[#D97757]/30 hover:bg-[#D97757] hover:text-white text-[11px] font-semibold cursor-pointer"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Reset all previews</span>
+          </button>
+        ) : (
+          <span className="sans text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#4A6741]/15 text-[#334D2E] border border-[#4A6741]/30 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#4A6741] animate-ping" />
+            <span>Live Data</span>
+          </span>
+        )}
+      </div>
+
+      {/* 1. The tree's health: what the engines would make of each condition */}
+      <Group title="Tree health" icon="🩺" active={!!activePresetId} defaultOpen>
+        {PRESET_SETS.map((set) => (
+          <Row key={set.label} label={set.label}>
+            {set.ids.flatMap((pid) => {
+              const p = DEV_PRESETS.find((x) => x.id === pid);
+              if (!p) return [];
+              const active = activePresetId === p.id;
+              return [
+                <button
+                  key={p.id}
+                  id={`test-state-btn-${p.id}`}
+                  onClick={() => onSelectPreset(active ? null : p.id)}
+                  className={chip(active)}
+                  title={p.modifiers.length ? `${p.condition} + ${p.modifiers.join(', ')}` : p.condition}
+                >
+                  {p.emoji} {p.label}
+                </button>,
+              ];
+            })}
+          </Row>
+        ))}
+      </Group>
+
+      {/* 2. Time: the season and the sun's moments */}
+      <Group title="Time & season" icon="🕰️" active={!!activeSeason || !!activeTwilight}>
+        <Row label="Season">
+          {[null, ...SEASONS].map((sn) => (
+            <button key={sn ?? 'live'} onClick={() => onSelectSeason(sn)} className={chip(activeSeason === sn)}>
+              {sn ? `${SEASON_EMOJI[sn]} ${sn[0].toUpperCase()}${sn.slice(1)}` : 'Live'}
+            </button>
+          ))}
+        </Row>
+        <Row label="Sun">
+          <SunPreviewChips active={activeTwilight} onSelect={onSelectTwilight} />
+        </Row>
+      </Group>
+
+      {/* 3. Outside the greenhouse: only the background changes, never the tree */}
+      <Group title="Outside" icon="🌦️" active={!!activeWeather}>
+        <Row label="Weather">
+          <button onClick={() => onSelectWeather(null)} className={chip(!activeWeather)}>
+            Live
+          </button>
+          {WEATHER_PREVIEWS.map((w) => (
+            <button key={w.id} onClick={() => onSelectWeather(w.id)} className={chip(activeWeather === w.id)}>
+              {w.label}
+            </button>
+          ))}
+        </Row>
+      </Group>
+
+      {/* 4. The tree over the last weeks */}
+      <Group title="The tree over time" icon="🌿" active={!!activeCanopy}>
+        <Row label="Canopy">
+          <button onClick={() => onSelectCanopy(null)} className={chip(!activeCanopy)}>
+            Live
+          </button>
+          {[
+            { label: 'Full', c: { fullness: 1, refilling: 0 } },
+            { label: 'A little thin', c: { fullness: 0.82, refilling: 0 } },
+            { label: 'Thin', c: { fullness: 0.64, refilling: 0 } },
+            { label: '🌱 Refilling', c: { fullness: 0.72, refilling: 0.8 } },
+          ].map(({ label, c }) => (
+            <button key={label} onClick={() => onSelectCanopy(c)} className={chip(activeCanopy?.fullness === c.fullness && activeCanopy.refilling === c.refilling)}>
+              {label}
+            </button>
+          ))}
+        </Row>
+      </Group>
+
+      {/* 5. The habitat's visitors (real visits need their own conditions; these show them now) */}
+      <Group title="Visitors" icon="🐾" active={!!activeVisitor || !!activeDrey || !!activeDragonfly || !!activeSloth}>
+        <Row label="Squirrel">
+          <button onClick={() => onSelectVisitor(null)} className={chip(!activeVisitor)}>
+            Live
+          </button>
+          {(['visiting', 'hiding'] as const).map((mode) => (
+            <button key={mode} onClick={() => onSelectVisitor({ mode, spot: activeVisitor?.spot ?? 'left_branch' })} className={chip(activeVisitor?.mode === mode && !activeVisitor.action)}>
+              {mode === 'visiting' ? '🐿️ Visiting' : '🍃 Hiding'}
+            </button>
+          ))}
+          <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: 'pot_rim', action: 'drinking' })} className={chip(activeVisitor?.action === 'drinking')}>
+            💧 Drinking
+          </button>
+          <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: 'left_branch', action: 'inspecting' })} className={chip(activeVisitor?.action === 'inspecting')}>
+            ✂️ Inspecting
+          </button>
+          <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: activeVisitor?.spot ?? 'right_branch', action: 'shake_off' })} className={chip(activeVisitor?.action === 'shake_off')}>
+            🌦️ Shaking off
+          </button>
+          <button onClick={() => onSelectVisitor({ mode: 'sleeping', spot: 'crown' })} className={chip(activeVisitor?.mode === 'sleeping')}>
+            🌙 Asleep
+          </button>
+        </Row>
+        {activeVisitor && activeVisitor.mode !== 'sleeping' && !activeVisitor.action && (
+          <Row label="· spot">
+            {(Object.keys(SPOT_LABEL) as VisitorPreview['spot'][]).map((spot) => (
+              <button key={spot} onClick={() => onSelectVisitor({ ...activeVisitor, spot })} className={chip(activeVisitor.spot === spot)}>
+                {SPOT_LABEL[spot]}
+              </button>
+            ))}
+          </Row>
+        )}
+        <Row label="· Drey">
+          <button onClick={() => onSelectDrey(null)} className={chip(!activeDrey)}>
+            Live
+          </button>
+          {(['none', 'started', 'built'] as const).map((d) => (
+            <button key={d} onClick={() => onSelectDrey(d)} className={chip(activeDrey === d)}>
+              {d === 'none' ? 'None' : d === 'started' ? 'A few twigs' : 'Built'}
+            </button>
+          ))}
+        </Row>
+        <Row label="Dragonfly">
+          <button onClick={() => onSelectDragonfly(null)} className={chip(!activeDragonfly)}>
+            Live
+          </button>
+          {(['perched', 'hovering'] as const).map((presence) => (
+            <button key={presence} onClick={() => onSelectDragonfly({ presence, perch: activeDragonfly?.perch ?? 'right_tip' })} className={chip(activeDragonfly?.presence === presence)}>
+              {presence === 'perched' ? '✨ Perched' : '🪽 Hovering'}
+            </button>
+          ))}
+        </Row>
+        {activeDragonfly && (
+          <Row label="· perch">
+            {(['left_tip', 'left_top', 'crown_tip', 'right_tip'] as const).map((perch) => (
+              <button key={perch} onClick={() => onSelectDragonfly({ ...activeDragonfly, perch })} className={chip(activeDragonfly.perch === perch)}>
+                {perch.replace('_', ' ')}
+              </button>
+            ))}
+          </Row>
+        )}
+        <Row label="Sloth">
+          <button onClick={() => onSelectSloth(null)} className={chip(!activeSloth)}>
+            Live
+          </button>
+          {(['hanging', 'climbing', 'sleeping'] as const).map((pose) => (
+            <button key={pose} onClick={() => onSelectSloth({ pose, branch: activeSloth?.branch ?? 'left_branch' })} className={chip(activeSloth?.pose === pose)}>
+              {pose === 'hanging' ? '🦥 Hanging' : pose === 'climbing' ? 'Climbing' : '🌙 Asleep'}
+            </button>
+          ))}
+        </Row>
+        {activeSloth && (
+          <Row label="· branch">
+            {(['left_branch', 'right_branch'] as const).map((branch) => (
+              <button key={branch} onClick={() => onSelectSloth({ ...activeSloth, branch })} className={chip(activeSloth.branch === branch)}>
+                {branch === 'left_branch' ? 'Left' : 'Right'}
+              </button>
+            ))}
+          </Row>
+        )}
+        {activeSloth?.pose === 'hanging' && (
+          <Row label="· grip">
+            {([
+              ['four', 'All four'],
+              ['arms', 'Arms'],
+              ['legs', 'Legs'],
+              ['one_arm', 'One arm'],
+              ['two_legs_one_arm', 'Legs + arm'],
+            ] as const).map(([grip, label]) => (
+              <button key={grip} onClick={() => onSelectSloth({ ...activeSloth, grip })} className={chip((activeSloth.grip ?? 'arms') === grip)}>
+                {label}
+              </button>
+            ))}
+          </Row>
+        )}
+      </Group>
+
+      <p className="text-[11px] sans text-[#2D332A]/55 px-1">
+        Changes only health, behaviour and expression on screen. Sensor values, the database, care events and episodes stay real.
+      </p>
+    </div>
+  );
+};

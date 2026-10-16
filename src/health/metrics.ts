@@ -1,6 +1,6 @@
 import { ComfortRange, relativeLightBand, relativeLightRange, RelativeLightId, SpeciesProfile } from '../species';
 import type { PerceptionState } from '../perception/perceptionTypes';
-import { MetricAssessment, MetricTone } from './healthTypes';
+import { MetricAssessment, MetricId, MetricTone } from './healthTypes';
 import { metricGuide } from './metricGuides';
 
 const NOT_CONNECTED = 'Sensor not connected';
@@ -47,7 +47,7 @@ function band(
 }
 
 // Display-ready view of each perceived measurement against the species ranges.
-export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempUnit: 'C' | 'F' = 'C'): MetricAssessment[] {
+export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempUnit: 'C' | 'F' = 'C', extraNotes: Partial<Record<MetricId, string[]>> = {}): MetricAssessment[] {
   const r = p.readings;
   const estimated = p.source === 'weather_estimate';
   const isSensor = p.source === 'esp32_sensor';
@@ -173,6 +173,8 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
     const guide = metricGuide(m.id, species, { isSensor: !estimated, tempUnit, value: m.value });
     // Light is judged over the day: say what today looked like
     if (m.id === 'light') guide.notes = [...p.light.reasoning.map((r) => `Today: ${r}`), ...guide.notes];
+    // Health's interpretations for this metric (e.g. the soil's diagnostic drying note)
+    if (extraNotes[m.id]?.length) guide.notes = [...extraNotes[m.id]!, ...guide.notes];
     return { ...(m.tone !== 'off' && isSuspect(m.id) ? { ...m, status: 'Check sensor', tone: 'info' as MetricTone } : m), guide };
   });
 }

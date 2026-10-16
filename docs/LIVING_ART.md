@@ -217,6 +217,65 @@ real, felt answer, it is remembered, and it changes nothing about the tree's sta
   - `npm run test:behaviour` H1–H3: habituation settles above its floor and recovers after a rest.
   - `npm run test:collector` A1–A5, M2: session merging, refusals, no care events, migration.
 
+### Derived environmental metrics [Implemented, V1]
+
+Five derived metrics, each owned by one engine and interpreted through the existing contracts. No second
+health score and no parallel decision system. Thresholds are in `ficus.ts` `environment` and are
+**provisional** (evidence class *inference*) until calibrated against this tree.
+
+| Metric | Perception (calculates) | Health (interprets) | Behaviour / Expression |
+|---|---|---|---|
+| **VPD** (unchanged) | per reading, from temperature + humidity | metric card only (diagnostic); not in vitality, since air is already scored | none |
+| **Soil dry-down** | least-squares slope over ONE uninterrupted segment: never across a watering (restarts once drained), a calibration change or pause, a reading gap or a suspect sensor. With a confidence (span, samples, standard error) | not used directly | the voice predicts thirst only at medium/high confidence |
+| **Moisture–VPD coupling** | drying per kPa of mean VPD, only from a high-confidence drying segment with VPD ≥ 0.5 kPa | **diagnostic only**: compared with this pot's own ~7-day baseline (HealthMemory, learned only from live, confident segments; "learning" for the first 3 days). Shown in the developer panel and the soil card's notes. It never reaches vitality, conditions, mood, watchfulness or the avatar, because slow drying is not necessarily stress | none (until validated) |
+| **Temperature exposure** | decayed degree-hours outside the optimal range over 24 h (τ 6 h), observed time only | lowers the **existing** temperature score (same component, same weight): the worse of "now" and "recently". It builds with sustained heat or cold below the latch thresholds and fades gradually (no permanent penalty, no abrupt reset) | through vitality → energy and mood, as before |
+| **Prolonged wetness** (unchanged) | soil readings | the `too_wet` latch, observed `wetHours`, the vitality penalty | tiers, looks, the watering-on-wet-soil reaction |
+
+- **Memory:** the coupling baseline is an optional field of HealthMemory, so older saved memories load
+  unchanged (no version bump, no replay). A soil recalibration replays health from telemetry and the
+  baseline starts over, which is right because the % scale changed. Care history, episodes, attention and
+  speech memory are never touched by a replay.
+- **Tested:** `npm run test:scenarios` DD1–DD8, CP1–CP4, TX1–TX5; `npm run test:collector` MG1–MG3b.
+- **Open:** validate coupling against the real pot (and possibly the new sensor) before it may inform
+  health; calibrate the exposure rate.
+
+### Sunrise and sunset [Implemented, V1]
+
+The sun's real moments at the tree's location (Open-Meteo's published times, else computed to about a minute)
+run through the whole loop:
+- **Perception** knows them (`perception.sun`).
+- **Health** deliberately doesn't use them. It is biology from measurements, and the sun's elevation plus the
+  light sensor already say what matters (is light expected, is it night).
+- **Behaviour** lives by them: morning and evening follow the real sunrise and sunset, the tree is a little
+  livelier as the sun comes up and quieter toward dusk, and it says so once a day ("The sun is up. Good
+  morning." / "The sun is going down.") when calm.
+- **Expression** shows it:
+  - a calm tree stretches toward the rising sun and yawns toward the setting one, and a stressed tree keeps
+    its stress look;
+  - the sky glows and the sun's disk crosses the horizon at the minute, muted when it's cloudy, foggy or
+    raining outside.
+
+### Thoughts of the day [Implemented, V1]
+
+A calm day is not one sentence long. The tree shares a few thoughts through the day, but only things it can
+back with today's data. Its personality comes from real patterns, never filler.
+
+- **How much it has to say follows its energy:** vitality × the growth phase of the season. A thriving
+  summer day has about 6 thoughts, a calm autumn day about 3, a winter rest day about 2
+  (`behaviour/voice.ts`).
+- **What it says is grounded:**
+  - soil still comfortable, with the estimate from its trend ("at this pace, thirsty in about 2 days");
+  - days since the last drink;
+  - the brightest hour, a good light day, the days getting shorter or longer;
+  - a humid morning (and whether the glass may fog);
+  - the warmest hour, warmer inside than outside;
+  - the squirrel's visit, new leaf tips while the canopy refills, the drey taking shape.
+  No data, no thought.
+- **When:** spread over the daylight (at least an hour apart), each at most once a day, shown for 15 min,
+  so a calm tree stays mostly silent. Never over something more important: a stress, a care reaction, a
+  reading being watched. At night it rests.
+- Wording lives in `messages.ts` by id with facts, so it can be rewritten freely without changing behaviour.
+
 ### Canopy: the last weeks [Implemented, V1]
 
 The tree's look has three timescales:
@@ -280,6 +339,10 @@ tree's world, but **not its condition**: the ESP32 inside says how the tree is. 
   outside while it is warm inside), e.g. "Rain outside. Dry and calm in here." The lines never claim the
   tree is wet or cold. A stressed tree talks about its own state instead.
 - **Diary:** one line per notable spell ("Rain outside, 14:00–17:30", "Frost outside · down to -3°C").
+- **Inside vs outside air (the Outside panel).** Relative humidity depends on temperature, so 81 % inside
+  next to 55 % outside isn't a contradiction: the plant and the damp soil add water that the glass keeps
+  in. The panel compares the **dew points** and the water the air holds (`perception.air`, only with the
+  real sensor), and notes when the glass may fog. These are facts, never health.
 - **Open:** tuning `skyFactor` against this LDR on real grey days; outside forecasts ("rain tonight").
 
 ### Visitors and habitat (the squirrel) [Implemented, V1]
@@ -340,6 +403,42 @@ trust a place, quick to leave it.
   - A pruning brings it to inspect the cut (8 min; 3 min out of season).
   - One care visit per event (`care:<id>`). Watering on wet soil gets no answer: more water is never
     rewarded. A stressed tree, or a place that isn't welcoming yet, gets none either.
+- **The dragonfly: the habitat's second wanderer** (`behaviour/dragonfly.ts`, numbers in `APP_CONFIG.habitat.dragonfly`). The same mechanism as the squirrel (observed-time drift, a Schmitt latch, deterministic slots: shared helpers in `habitat.ts`), with a different character:
+  - **The air, not the tree's history:** it rises over ~45 min of warm (20–34 °C inside), bright (daylight with useful light) and calm (no rain, storm, snow or strong gusts outside) air, and falls within ~15 min of anything else. Enter 0.6, exit 0.35, so a few cool minutes don't drop it, while 25 min of rain does. Gaps hold it.
+  - **Looser rules:** the tree's health only gates it (none at night, in a critical or multiple stress, or without trustworthy data). A thirsty tree can still get a dragonfly.
+  - **More often:** 15-min slots, 35–70% chance (busier around midday), 2–6 min each. A warm day brings about 25–35 visits.
+  - **Expression:** perched on a leaf tip (wings flat, a small bob) or hovering near it; wings beat faster in warmer air. Petting: it darts off and lands back where it was after ~4 s. It never plays.
+  - **It flies around, by rules** (`dragonflyRoute()`, numbers in `APP_CONFIG.habitat.dragonfly.route`). Behaviour plans each visit's route; the avatar flies it on the clock between polls (`useDragonflyFlight`, ~1.4 s per flight, facing where it flies):
+    - it sits on a tip 25–70 s (shorter in warmer air, when it is livelier), then flies;
+    - from its **home tip** (where the visit started): now and then a short hovering sortie and it lands again, otherwise it moves to another tip, the high crown tip (where the light is) a little more often;
+    - from anywhere else it mostly flies **back home** (perch fidelity: about half of its landings are on the home tip);
+    - a hovering visit drifts in the air from tip to tip and lands only now and then, briefly;
+    - with the squirrel there, the route never reaches the tips by the squirrel; resting on the sloth makes **the sloth its home**: it flies off, hovers, visits a tip, and comes back to the sloth (it shrinks to its resting size as it lands, and the sloth draws it from then on).
+
+    Deterministic per visit (every refresh and every screen sees the same flight). Reduced motion: no flights, it is just where it is. Tested: DF7.
+  - **Words and diary:** a "dragonfly came by" thought of the day; "A dragonfly visited (n visits)" per day, replayed from the stored readings.
+  - Nothing is stored; health, mood, energy and the squirrel never read it. Tested: `npm run test:behaviour` DF1–DF7.
+- **The sloth: the third wanderer** (`behaviour/sloth.ts`, numbers in `APP_CONFIG.habitat.sloth`). The dragonfly and the sloth are both *air wanderers*: one shared engine (`behaviour/wanderer.ts`, on the habitat helpers) where each species only brings its spec. The sloth's character:
+  - **Warm, humid, still air** (≥ 22 °C and ≥ 55 % RH inside, no storm or strong gusts outside). **Rain doesn't bother it**: a greenhouse in the rain is perfect sloth weather.
+  - **Slow in everything:** ~90 min to settle in, ~60 min to leave (half an hour of dry air doesn't move it). Visits are long (20–50 min) and come most hours, so a warm, humid day brings ~10 visits and 5–7 hours of sloth.
+  - **It stays the night:** once settled, it sleeps the night through on one branch instead of coming and going.
+  - **Looser rules:** the tree's state only gates it. No trustworthy data, a critical or multiple stress, or a **cold** tree keep it away; a thirsty tree still gets its sloth.
+  - **Expression:** hanging under a branch (slow sway), inching along it (all four limbs), or curled up asleep in all four. Its tempo rises a little in warmer air. Its eyes are open (pale rims on the dark eye stripes) except asleep.
+  - **Grips from comfort** (`slothGrip()`, `APP_CONFIG.habitat.sloth.grip`): a hanging sloth holds on with all four for the first stretch of a visit (it has just arrived). After that, every ~12-min stretch rolls a grip from its comfort band (its value, i.e. how long and how fully the air has been warm, humid and still):
+    - marginal air: four limbs or both arms;
+    - comfortable: both arms, or two legs and one arm;
+    - long, perfect air: one arm (a wider, slower swing) or upside down by its legs.
+
+    Stable within a stretch (a refresh never changes it); a new grip fades in slowly. Preview `#sloth=hanging:left_branch:one_arm`, or the grip chips in Developer → Visitors.
+  - **Petting:** a slow look toward you and a long, slow blink (at most every 6 s). It never flees and never plays: the squirrel plays, the dragonfly darts, the sloth just looks at you.
+  - **Words and diary:** a "sloth came" thought of the day; "A sloth spent time in the tree · about 5.3 h across 8 visits" per day.
+  - Nothing is stored; health, mood, energy, the squirrel and the dragonfly never read it. Tested: `npm run test:behaviour` SL1–SL7.
+- **Encounters: visitors in the tree together** (`behaviour/encounters.ts`, evidence class *art*). Each visitor's own engine decides whether it comes; when two coincide, `meet()` only arranges who sits where and names the encounter (`habitat.encounters` → `expression.encounters` plus cues on the presentations):
+  - **The squirrel peeks at the sloth.** It never sits on the sloth's branch: it takes the other branch or the crown, and its play never hops there. If it came for that spot (a care answer), the sloth hangs on the other branch instead. They look at each other: the squirrel faces it, and the sloth turns its head slowly toward the squirrel and keeps it there (not while asleep).
+  - **The squirrel watches the dragonfly.** The dragonfly never rests on the leaves right by the squirrel; the squirrel's head follows it.
+  - **The dragonfly rests on the sloth.** In about half of its perched visits while a sloth is there (`APP_CONFIG.habitat.encounters`), it lands on the sloth's head, back or flank (drawn as the sloth's rider, so it sways with it; a stroke makes it dart and land back on the sloth). The sloth blinks slowly while it rests there.
+  - **Remembered in words:** a rare "visitors met" thought of the day, only while it happens and at most once a day ("The squirrel and the sloth are sharing my branches."). In the diary, one line per pair and day where their visit windows overlapped ("The squirrel and the sloth shared the tree · 2 times").
+  - Deterministic (stable rolls on visit ids), derived, nothing stored; health, mood and energy never read it. Previews of two visitors meet by the same rules. Tested: EN1–EN7.
 - **Remembered in the diary.** `habitatDiary()` replays the same history:
   - "A squirrel visited" (once a day, with the count and the first time)
   - "The squirrel came back" (after 7+ days away)

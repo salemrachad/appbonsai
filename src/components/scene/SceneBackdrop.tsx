@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { SceneId, WeatherLook } from '../../expression/expressionTypes';
 import type { OutsideSky } from '../../telemetry/outsideWeather';
+import { TwilightSky } from './TwilightSky';
 import type { Season } from '../../perception/season';
 
 // The whole screen's backdrop for the tree's state, like night always did: gradient + ambient motion.
@@ -11,6 +12,7 @@ interface SceneBackdropProps {
   season: Season;
   intensity: number; // 0-1: how strongly the scene shows
   weather?: WeatherLook | null; // outside weather: its own layer, on top of the state scene, behind the tree
+  twilight?: { event: 'sunrise' | 'sunset' | null; minutes: number | null; at: number; muted: boolean } | null; // the sun's real moments
 }
 
 function rng(seed: number) {
@@ -183,7 +185,7 @@ const WeatherLayer: React.FC<{ weather: WeatherLook }> = ({ weather }) => {
 
 const FADE_MS = 1600;
 
-export const SceneBackdrop: React.FC<SceneBackdropProps> = ({ scene, season, intensity, weather = null }) => {
+export const SceneBackdrop: React.FC<SceneBackdropProps> = ({ scene, season, intensity, weather = null, twilight = null }) => {
   // Keep the previous scene for a moment so the new one fades in over it
   const [layers, setLayers] = useState<{ key: string; scene: SceneId; season: Season; visible: boolean }[]>([
     { key: `${scene}-${season}`, scene, season, visible: true },
@@ -208,6 +210,7 @@ export const SceneBackdrop: React.FC<SceneBackdropProps> = ({ scene, season, int
       {layers.map((l) => (
         <Layer key={l.key} scene={l.scene} season={l.season} visible={l.visible} />
       ))}
+      <TwilightSky twilight={twilight} />
       {weather && (weather.sky !== 'clear' || weather.windy) && <WeatherLayer key={`${weather.sky}-${weather.windy}`} weather={weather} />}
     </div>
   );

@@ -7,6 +7,7 @@ import { SensorCardGrid } from '../components/sensors/SensorCard';
 import { VitalityGauge } from '../components/VitalityGauge';
 import type { ExpressionState } from '../expression/expressionTypes';
 import { PlantHealthState } from '../health/healthTypes';
+import type { AirComparison } from '../perception/perceptionTypes';
 import type { OutsideWeather } from '../telemetry/outsideWeather';
 
 interface HomeProps {
@@ -19,10 +20,11 @@ interface HomeProps {
   onPetSession?: (s: PetSession) => void; // attention: one report per petting session
   outside?: OutsideWeather | null; // outside weather numbers (context; the look comes from the expression)
   inside?: { temperature: number | null; humidity: number | null }; // what the sensors measure inside
+  air?: AirComparison | null; // inside vs outside by dew point
 }
 
 // The companion screen: shows what the engines concluded, never recalculates it.
-export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null } }) => {
+export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null }) => {
   const msg = expression?.message;
 
   return (
@@ -35,7 +37,7 @@ export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, 
 
       <div className="flex flex-col gap-5">
         {/* The world outside the greenhouse, next to what the sensors measure inside (context only) */}
-        <OutsidePanel weather={expression?.atmosphere.weather ?? null} outside={outside} inside={inside} />
+        <OutsidePanel weather={expression?.atmosphere.weather ?? null} outside={outside} inside={inside} air={air} />
 
         <div className="flex items-center gap-6 min-h-[150px]">
           <div className="shrink-0">

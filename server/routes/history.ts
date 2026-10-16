@@ -1,7 +1,12 @@
 import { Router } from 'express';
 import { APP_CONFIG } from '../../src/config/appConfig';
 import { STRESS_CONDITIONS } from '../../src/health/statePriority';
+import { dragonflyDiary } from '../../src/behaviour/dragonfly';
+import { slothDiary } from '../../src/behaviour/sloth';
+import { encounterDiary, type Window } from '../../src/behaviour/encounters';
 import { habitatDiary } from '../../src/behaviour/habitat';
+import { toSample } from '../../src/perception/PerceptionEngine';
+import { fromRecord } from '../collector';
 import { buildDiary } from '../../src/history/diary';
 import { seasonState } from '../../src/perception/season';
 import { ACTIVE_SPECIES } from '../../src/species';
@@ -97,8 +102,21 @@ export function historyRoutes(db: AppDatabase, collector: LivingCollector): Rout
     const { settings } = collector.getSettings();
     const location = { latitude: settings.latitude ?? null, longitude: settings.longitude ?? null };
     // The squirrel's story, derived from the same episodes the habitat replays (nothing stored)
-    const visitors = habitatDiary({ episodes: db.episodesSince(now - APP_CONFIG.habitat.replayDays * DAY), now, days, location, seasonAt: seasonEnergyAt(location.latitude) });
-    res.json([...buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs, db.outsideWeatherSince(since)), ...visitors].sort((a, b) => b.at - a.at));
+    const windows: { squirrel: Window[]; dragonfly: Window[]; sloth: Window[] } = { squirrel: [], dragonfly: [], sloth: [] };
+    const visitors = habitatDiary({ episodes: db.episodesSince(now - APP_CONFIG.habitat.replayDays * DAY), now, days, location, seasonAt: seasonEnergyAt(location.latitude), windowsOut: windows.squirrel });
+    // The dragonfly's days: the stored readings as samples, through the same replay as the live view
+    const cal = collector.getCalibration();
+    const samples = db.telemetrySince(source(), since - 6 * HOUR).flatMap((row) => {
+      const t = fromRecord(row, cal);
+      return t ? [toSample(t, ACTIVE_SPECIES, location)] : [];
+    });
+    const cadenceMs = Math.max(APP_CONFIG.dataQuality.minStaleMs, collector.pollMs() * APP_CONFIG.dataQuality.staleAfterPolls);
+    const outside = db.outsideWeatherSince(since - 6 * HOUR);
+    const dragonflies = dragonflyDiary(samples, outside, db.episodesSince(since), ACTIVE_SPECIES, cadenceMs, now, days, windows.dragonfly);
+    const sloths = slothDiary(samples, outside, db.episodesSince(since), ACTIVE_SPECIES, cadenceMs, now, days, windows.sloth);
+    // Who shared the tree: where those visits overlapped
+    const encounters = encounterDiary(windows, since, now);
+    res.json([...buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs, db.outsideWeatherSince(since)), ...visitors, ...dragonflies, ...sloths, ...encounters].sort((a, b) => b.at - a.at));
   });
 
   // Outside weather observations (context only; the tree's own readings are /api/history)

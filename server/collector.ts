@@ -277,6 +277,7 @@ export class LivingCollector {
     dayStart.setHours(0, 0, 0, 0);
     return perceive({
       outside,
+      soilBreaks: this.soilBreaks(),
       // Today's skies: a grey day explains dim light (also on replay, from the stored observations)
       outsideToday: this.db.outsideWeatherSince(dayStart.getTime() - 3600_000).filter((o) => o.at <= now + 15 * 60_000),
       latest: this.latest,
@@ -289,6 +290,13 @@ export class LivingCollector {
       species: ACTIVE_SPECIES,
       now,
     });
+  }
+
+  // Soil calibration changes and the detection pause (probe being handled): a dry-down never bridges them
+  private soilBreaks(): number[] {
+    const changes = this.db.calibrationHistory(20).filter((h) => h.sensor === 'soil').map((h) => h.timestamp);
+    const pausedUntil = this.db.getMeta<number>(SUPPRESS_KEY) ?? 0;
+    return pausedUntil > 0 ? [...changes, pausedUntil] : changes;
   }
 
   // ---- polling ----

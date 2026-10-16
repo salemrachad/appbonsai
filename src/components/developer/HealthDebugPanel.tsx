@@ -44,6 +44,24 @@ export const HealthDebugPanel: React.FC<Props> = ({ live, perception: p, preview
         <Row label="Sun" value={`${p.sun.phase.replace('_', ' ')}${p.sun.elevation !== null ? ` · ${p.sun.elevation}°` : ''} (${p.sun.method})`} />
         <Row label="Daylight expected" value={p.sun.lightExpected ? 'yes' : 'no — light is neutral'} />
         <Row label="Trends / hour" value={`soil ${fmt(p.trends.soilPerHour, '%')} · temp ${fmt(p.trends.temperaturePerHour, '°')} · RH ${fmt(p.trends.humidityPerHour, '%')}`} />
+        <Row
+          label="Soil dry-down"
+          value={p.trends.soilDryDown ? `${p.trends.soilDryDown.perHour}%/h over ${p.trends.soilDryDown.hours}h (${p.trends.soilDryDown.samples} readings, ±${p.trends.soilDryDown.se}) · ${p.trends.soilDryDown.confidence} · since ${p.trends.soilDryDown.startedBy}` : 'no confident segment (too short, a gap, a pause or a suspect sensor)'}
+        />
+        <Row
+          label="Moisture–VPD coupling (diagnostic)"
+          value={(() => {
+            const c = live?.environment?.coupling;
+            if (!c) return '–';
+            const cur = p.drying ? `${p.drying.perHourPerKpa} %/h per kPa (VPD ${p.drying.meanVpd})` : 'no confident drying segment';
+            const base = c.baseline !== null ? ` · baseline ${c.baseline} (${c.baselineHours}h learned)` : ' · no baseline yet';
+            return `${cur}${base} · ${c.status}${c.ratio !== null ? ` ×${c.ratio}` : ''}`;
+          })()}
+        />
+        <Row
+          label="Temperature exposure (24 h, decayed)"
+          value={live?.environment?.temperatureExposure ? `heat ${live.environment.temperatureExposure.heatDegreeHours} · cold ${live.environment.temperatureExposure.coldDegreeHours} °C·h → temperature score −${live.environment.temperatureExposure.penalty}` : '–'}
+        />
         <Row label="Continuous history" value={`${p.history.minutes} min · ${p.history.samples} samples`} />
         <Row label="Last watering" value={p.care.lastWatering ? ago(p.care.lastWatering.timestamp) : '–'} />
         <Row label="Confidence" value={`${live.confidence} (${live.confidenceScore})`} strong />

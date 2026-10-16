@@ -53,7 +53,8 @@ async function main() {
     await b.boot();
     const l = new Listener(b);
     await l.run(4 * 60, () => day());
-    check('S1 comfortable 4h: at most 2 lines', l.spoken.length <= 2, l.keys());
+    const ownLines = l.spoken.filter((x) => !x.reason.startsWith('a thought'));
+    check('S1 comfortable 4h: at most 2 lines besides the thoughts of the day', ownLines.length <= 2, l.keys());
     check('S1b mostly silent (animation only)', l.visiblePolls / l.polls < 0.2, `${Math.round((100 * l.visiblePolls) / l.polls)}% of polls showed a line`);
   }
 
@@ -359,8 +360,8 @@ async function main() {
     const dry = await make(null);
     const storm = await make(95, -3);
     // (the light guide may explain a grey sky in words: that's the point, not a change to the tree)
-    const strip = (s: typeof dry) => JSON.stringify({ health: { ...s.health, metrics: s.health.metrics.map(({ guide, ...m }) => m) }, mood: s.behaviour.mood, energy: s.behaviour.energy, intent: s.behaviour.messageIntent, habitat: s.behaviour.habitat, avatar: s.expression.avatar, droop: s.expression.leafDroop, scene: s.expression.atmosphere.scene });
-    check('O1 outside weather never changes the tree beyond explaining light (health, mood, look, scene, habitat)', strip(dry) === strip(storm), `${dry.health.condition} vs ${storm.health.condition}`);
+    const strip = (s: typeof dry) => JSON.stringify({ health: { ...s.health, metrics: s.health.metrics.map(({ guide, ...m }) => m) }, mood: s.behaviour.mood, energy: s.behaviour.energy, intent: s.behaviour.messageIntent, habitat: { ...s.behaviour.habitat, dragonfly: undefined, sloth: undefined }, avatar: s.expression.avatar, droop: s.expression.leafDroop, scene: s.expression.atmosphere.scene });
+    check('O1 outside weather never changes the tree beyond explaining light (health, mood, look, scene, the squirrel; the air wanderers read it by design)', strip(dry) === strip(storm), `${dry.health.condition} vs ${storm.health.condition}`);
     check('O2 the weather layer carries it instead', dry.expression.atmosphere.weather === null && storm.expression.atmosphere.weather?.sky === 'thunderstorm' && storm.expression.atmosphere.weather.windy);
     const looks = OUTSIDE_SKIES.map((sky) => weatherLook({ at: 0, ageMs: 0, sky, code: 0, temperature: 10, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true, windy: false, rainEndedAt: null }));
     check('O3 every sky has a look and a label', looks.every((l) => l && l.label.length > 0 && l.intensity >= 0 && l.intensity <= 1), looks.map((l) => l?.label).join(' | '));
@@ -407,6 +408,404 @@ async function main() {
     const obs = (h: number, m: number, code: number, temp = 10) => ({ at: at(20, h, m), sky: skyFromCode(code), code, temperature: temp, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true });
     const spells = weatherSpells([obs(13, 0, 0), obs(14, 0, 61), obs(14, 15, 63), obs(14, 30, 61), obs(15, 0, 3), obs(23, 0, 0, -2), obs(23, 15, 0, -3)]);
     check('O6 diary: one line per spell (rain 14:00–14:30, frost)', spells.length === 2 && spells.some((s) => s.weather === 'rain') && spells.some((s) => s.weather === 'frost' && /-3/.test(s.detail ?? '')), spells.map((s) => `${s.title} ${s.detail}`).join(' | '));
+  }
+
+  console.log('\n— The dragonfly (the air of the last hours) —');
+  {
+    const { replayDragonfly, evaluateDragonfly, dragonflyDiary } = await import('../src/behaviour/dragonfly');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    const H = 60 * MIN;
+    const cad = 3 * MIN;
+    const smp = (t: number, temp: number | null = 24, light: number | null = 55, day = true) => ({ t, soil: 60, soilRaw: null, temp, hum: 55, light, radiation: null, lightRaw: null, isDay: day, lightExpected: day });
+    const run = (from: number, minutes: number, f: (i: number) => ReturnType<typeof smp>) => Array.from({ length: minutes }, (_, i) => f(i));
+    const t0 = at(20, 9);
+    const warm = (from: number, minutes: number, temp = 24) => run(from, minutes, (i) => smp(from + i * MIN, temp));
+    const rp = (samples: ReturnType<typeof smp>[], now: number, obs: any[] = []) => replayDragonfly(samples, obs, ACTIVE_SPECIES, cad, now);
+
+    const after30 = rp(warm(t0, 30), t0 + 30 * MIN);
+    const after60 = rp(warm(t0, 60), t0 + 60 * MIN);
+    check('DF1 warm, bright, calm air: active after about 45 min, not after 30', !after30.active && after60.active, `30 min ${after30.value}, 60 min ${after60.value}`);
+    const base = warm(t0, 120);
+    const dip = [...base, ...run(t0 + 120 * MIN, 10, (i) => smp(t0 + (120 + i) * MIN, 19))];
+    const dipped = rp(dip, t0 + 130 * MIN);
+    check('DF1b hysteresis: ten cool minutes don\'t drop it', dipped.active, `${dipped.value}`);
+    const rain = Array.from({ length: 3 }, (_, k) => ({ at: t0 + (120 + k * 15) * MIN, sky: 'rain' as const, code: 61, temperature: 15, humidity: 90, precipitation: 2, cloudCover: 100, wind: 10, gusts: 20, isDay: true }));
+    const rained = rp([...base, ...warm(t0 + 120 * MIN, 25)], t0 + 145 * MIN, rain);
+    check('DF1c 25 minutes of rain outside: grounded (latch off)', !rained.active, `${rained.value}`);
+    const windy = rp(warm(t0, 90), t0 + 90 * MIN, [{ at: t0, sky: 'clear', code: 0, temperature: 22, humidity: 50, precipitation: 0, cloudCover: 0, wind: 30, gusts: 50, isDay: true }, { at: t0 + 45 * MIN, sky: 'clear', code: 0, temperature: 22, humidity: 50, precipitation: 0, cloudCover: 0, wind: 30, gusts: 50, isDay: true }]);
+    check('DF1d strong gusts outside: no dragonfly weather', !windy.active, `${windy.value}`);
+
+    // Gates: the tree's state only gates it
+    const day = warm(t0, 12 * 60);
+    const ev = (condition: any, modifiers: any[] = [], isDay = true, now = t0 + 12 * 60 * MIN) =>
+      evaluateDragonfly({ samples: day, outsideToday: [], species: ACTIVE_SPECIES, cadenceMs: cad, condition, modifiers, isDay, insideTemp: 24, now });
+    const firstVisit = (condition: any) => {
+      for (let m = 60; m < 12 * 60; m++) {
+        const v = evaluateDragonfly({ samples: day.filter((x) => x.t <= t0 + m * MIN), outsideToday: [], species: ACTIVE_SPECIES, cadenceMs: cad, condition, modifiers: [], isDay: true, insideTemp: 24, now: t0 + m * MIN });
+        if (v.visit) return v;
+      }
+      return null;
+    };
+    check('DF2 gates: none at night, in a critical stress, or with no trustworthy data', ev('comfortable', [], false).presence === 'none' && ev('very_dry').presence === 'none' && ev('comfortable', ['sensor_uncertain']).presence === 'none');
+    const thirstyVisit = firstVisit('thirsty');
+    check('DF2b looser than the squirrel: a thirsty tree still gets a dragonfly', !!thirstyVisit && thirstyVisit.presence !== 'none', thirstyVisit?.why);
+    const full = ev('comfortable');
+    check('DF3 it comes around often on a warm day (far more than the squirrel)', full.visitsToday.count >= 15, `${full.visitsToday.count} visits in 12 h`);
+    check('DF3b deterministic', JSON.stringify(ev('comfortable')) === JSON.stringify(full));
+    // Gaps: a reading stands for one cadence; two hours without readings neither build nor drain it
+    const gapped = rp([...warm(t0, 30), ...warm(t0 + 150 * MIN, 30)], t0 + 180 * MIN);
+    const solid = rp(warm(t0, 60), t0 + 60 * MIN);
+    check('DF4 unobserved time holds it (a 2 h gap counts for nothing)', Math.abs(gapped.value - solid.value) < 0.05, `gapped ${gapped.value} vs continuous ${solid.value}`);
+
+    // Isolation: the same tree with and without dragonfly weather → identical biology, mood and squirrel
+    const bb = new Bench();
+    bb.clock = at(21, 9);
+    await bb.boot();
+    await bb.run(90, () => ({ soil: 60, light: 55 }));
+    const st = bb.state();
+    const rainy = Array.from({ length: 8 }, (_, k) => ({ at: bb.clock - k * 15 * MIN, sky: 'heavy_rain' as const, code: 65, temperature: 14, humidity: 95, precipitation: 6, cloudCover: 100, wind: 20, gusts: 30, isDay: true }));
+    const evalWith = (outsideToday: any[]) => evaluateBehaviour({ health: st.health, perception: { ...st.perception, outsideToday }, episodes: bb.db.episodesSince(0), events: [], species: ACTIVE_SPECIES, now: bb.clock });
+    const sunnyB = evalWith([]);
+    const rainyB = evalWith(rainy);
+    // (the sloth reads the air too, by design: left out like the dragonfly itself)
+    const strip = (x: typeof sunnyB) => JSON.stringify({ mood: x.mood, energy: x.energy, intent: x.messageIntent, squirrel: { ...x.habitat, dragonfly: undefined, sloth: undefined } });
+    check('DF5 the dragonfly changes nothing else (mood, energy, words, the squirrel)', strip(sunnyB) === strip(rainyB) && sunnyB.habitat.dragonfly!.active && !rainyB.habitat.dragonfly!.active, `sunny ${sunnyB.habitat.dragonfly!.value} / rainy ${rainyB.habitat.dragonfly!.value}`);
+
+    // Diary: one line per day with visits, from stored readings through the same replay
+    const twoDays = [...warm(at(18, 9), 10 * 60), ...warm(at(19, 9), 10 * 60)];
+    const diary = dragonflyDiary(twoDays, [], [], ACTIVE_SPECIES, cad, at(19, 20), 3);
+    check('DF6 diary: a line per warm day', diary.length === 2 && diary.every((d) => d.habitat === 'dragonfly' && /visits?/.test(d.detail ?? '')), diary.map((d) => `${d.title} ${d.detail}`).join(' | '));
+  }
+
+  console.log('\n— The sloth (warm, humid, still air; slow in everything) —');
+  {
+    const { replaySloth, evaluateSloth, slothDiary } = await import('../src/behaviour/sloth');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    const cad = 3 * MIN;
+    const smp = (t: number, temp: number | null = 26, hum: number | null = 70, day = true) => ({ t, soil: 60, soilRaw: null, temp, hum, light: day ? 50 : 2, radiation: null, lightRaw: null, isDay: day, lightExpected: day });
+    const t0 = at(22, 8);
+    const humid = (from: number, minutes: number, temp = 26, hum = 70, day = true) => Array.from({ length: minutes }, (_, i) => smp(from + i * MIN, temp, hum, day));
+    const rp = (samples: ReturnType<typeof smp>[], now: number, obs: any[] = []) => replaySloth(samples, obs, ACTIVE_SPECIES, cad, now);
+    const wx = (from: number, n: number, sky: string, gusts: number) =>
+      Array.from({ length: n }, (_, k) => ({ at: from + k * 15 * MIN, sky, code: 0, temperature: 18, humidity: 80, precipitation: sky.includes('rain') ? 3 : 0, cloudCover: 100, wind: gusts / 2, gusts, isDay: true }));
+
+    const h60 = rp(humid(t0, 60), t0 + 60 * MIN);
+    const h120 = rp(humid(t0, 120), t0 + 120 * MIN);
+    check('SL1 slow to come: not settled after an hour of warm, humid air, settled after two', !h60.active && h120.active, `60 min ${h60.value}, 120 min ${h120.value}`);
+    const base = humid(t0, 4 * 60);
+    const dry30 = rp([...base, ...humid(t0 + 240 * MIN, 30, 26, 40)], t0 + 270 * MIN);
+    const dry120 = rp([...base, ...humid(t0 + 240 * MIN, 120, 26, 40)], t0 + 360 * MIN);
+    check("SL1b slow to leave: half an hour of dry air doesn't move it, two hours do", dry30.active && !dry120.active, `30 min ${dry30.value}, 2 h ${dry120.value}`);
+    const rainy = rp([...base, ...humid(t0 + 240 * MIN, 120)], t0 + 360 * MIN, wx(t0 + 240 * MIN, 8, 'heavy_rain', 15));
+    const stormy = rp([...base, ...humid(t0 + 240 * MIN, 120)], t0 + 360 * MIN, wx(t0 + 240 * MIN, 8, 'thunderstorm', 25));
+    check("SL1c rain doesn't bother it; a storm sends it off", rainy.active && !stormy.active, `rain ${rainy.value}, storm ${stormy.value}`);
+
+    const day = humid(t0, 12 * 60);
+    const ev = (condition: any, modifiers: any[] = [], isDay = true, samples = day, now = t0 + 12 * 60 * MIN) =>
+      evaluateSloth({ samples, outsideToday: [], species: ACTIVE_SPECIES, cadenceMs: cad, condition, modifiers, isDay, insideTemp: 26, now });
+    check('SL2 gates: none when the tree is cold, in a critical stress or without trustworthy data', ev('cold').presence === 'none' && ev('very_dry').presence === 'none' && ev('comfortable', ['sensor_uncertain']).presence === 'none');
+    const full = ev('comfortable');
+    check('SL3 it comes often, and stays long', full.visitsToday.count >= 6 && full.visitsToday.minutes >= 150, `${full.visitsToday.count} visits, ${full.visitsToday.minutes} min in 12 h`);
+    check('SL3b deterministic', JSON.stringify(ev('comfortable')) === JSON.stringify(full));
+    const night = [...day, ...humid(t0 + 12 * 60 * MIN, 6 * 60, 25, 75, false)];
+    const n1 = ev('sleeping', [], false, night, t0 + 15 * 60 * MIN);
+    const n2 = ev('sleeping', [], false, night, t0 + 17 * 60 * MIN);
+    check('SL4 at night it sleeps the night through on one branch (no coming and going)', n1.presence === 'sleeping' && n2.presence === 'sleeping' && n1.visit!.id === n2.visit!.id && n1.visit!.branch === n2.visit!.branch, `${n1.visit?.id} / ${n2.visit?.id}`);
+    const thirsty = (() => {
+      for (let m = 120; m < 12 * 60; m++) {
+        const v = ev('thirsty', [], true, day.filter((x) => x.t <= t0 + m * MIN), t0 + m * MIN);
+        if (v.visit) return v;
+      }
+      return null;
+    })();
+    check('SL4b looser rules: a thirsty tree still gets its sloth', !!thirsty, thirsty?.why);
+
+    // Isolation: gusts of 32 km/h (too windy for a sloth, not for a dragonfly) change only the sloth
+    const bb = new Bench();
+    bb.clock = at(23, 9);
+    await bb.boot();
+    await bb.run(150, () => ({ soil: 60, light: 55, temp: 26, hum: 70 }));
+    const st = bb.state();
+    const calm = wx(bb.clock - 150 * MIN, 11, 'clear', 10);
+    const breezy = wx(bb.clock - 150 * MIN, 11, 'clear', 32);
+    const evalWith = (outsideToday: any[]) => evaluateBehaviour({ health: st.health, perception: { ...st.perception, outsideToday }, episodes: bb.db.episodesSince(0), events: [], species: ACTIVE_SPECIES, now: bb.clock });
+    const c = evalWith(calm);
+    const w = evalWith(breezy);
+    const strip = (x: typeof c) => JSON.stringify({ mood: x.mood, energy: x.energy, intent: x.messageIntent, others: { ...x.habitat, sloth: undefined } });
+    check('SL5 the sloth changes nothing else (mood, energy, words, the squirrel, the dragonfly)', strip(c) === strip(w) && c.habitat.sloth!.active && !w.habitat.sloth!.active, `calm ${c.habitat.sloth!.value} / breezy ${w.habitat.sloth!.value}`);
+
+    const diary = slothDiary([...humid(at(18, 8), 12 * 60), ...humid(at(19, 8), 12 * 60)], [], [], ACTIVE_SPECIES, cad, at(19, 21), 3);
+    check('SL6 diary: how long the sloth stayed, per day', diary.length === 2 && diary.every((d) => d.habitat === 'sloth' && /about .* across \d+ visits?/.test(d.detail ?? '')), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));
+
+    // Grips from comfort: all four when it has just arrived, relaxed grips only after long perfect air
+    const { slothGrip } = await import('../src/behaviour/sloth');
+    const s0 = at(22, 10);
+    const ids = Array.from({ length: 60 }, (_, i) => `sloth:test:${i}`);
+    const gripsAt = (comfort: number) => new Set(ids.flatMap((id) => [1, 2, 3].map((seg) => slothGrip(id, 'hanging', s0, comfort, s0 + (seg * 12 + 3) * MIN))));
+    const low = gripsAt(0.65);
+    const mid = gripsAt(0.8);
+    const high = gripsAt(0.95);
+    check(
+      'SL7 grips follow its comfort: just arrived → all four; marginal → four/arms; comfortable → arms/legs+arm; long perfect air → one arm/legs',
+      ids.every((id) => slothGrip(id, 'hanging', s0, 0.99, s0 + 5 * MIN) === 'four') &&
+        [...low].every((g) => g === 'four' || g === 'arms') && low.size === 2 &&
+        [...mid].every((g) => g === 'arms' || g === 'two_legs_one_arm') && mid.size === 2 &&
+        [...high].every((g) => g === 'one_arm' || g === 'legs') && high.size === 2,
+      `low ${[...low]} · mid ${[...mid]} · high ${[...high]}`
+    );
+    const stable = ids.every((id) => slothGrip(id, 'hanging', s0, 0.95, s0 + 13 * MIN) === slothGrip(id, 'hanging', s0, 0.95, s0 + 23 * MIN));
+    const changes = ids.some((id) => slothGrip(id, 'hanging', s0, 0.95, s0 + 13 * MIN) !== slothGrip(id, 'hanging', s0, 0.95, s0 + 25 * MIN));
+    check('SL7b a grip holds for its whole stretch and changes slowly between stretches', stable && changes);
+    check(
+      'SL7c climbing and asleep: always all four (the night sloth too)',
+      slothGrip('x', 'climbing', s0, 0.99, s0 + 40 * MIN) === 'four' && slothGrip('x', 'sleeping', s0, 0.99, s0 + 40 * MIN) === 'four' && n1.visit!.grip === 'four',
+      n1.visit?.grip
+    );
+    const visits = Array.from({ length: 10 * 60 }, (_, m) => ev('comfortable', [], true, day.filter((x) => x.t <= t0 + (120 + m) * MIN), t0 + (120 + m) * MIN).visit).filter(Boolean);
+    check('SL7d the live sloth carries its grip, which varies over a day', visits.length > 0 && new Set(visits.map((x) => x!.grip)).size >= 2, [...new Set(visits.map((x) => x!.grip))].join(', '));
+  }
+
+  console.log('\n— Encounters (visitors in the tree together) —');
+  {
+    const { meet, spotByPerch, encounterDiary } = await import('../src/behaviour/encounters');
+    const { encounterCues } = await import('../src/expression/ExpressionEngine');
+    const { evaluateVoice } = await import('../src/behaviour/voice');
+    const { renderMessage } = await import('../src/behaviour/messages');
+    const { ACTIVE_SPECIES: SPECIES } = await import('../src/species');
+    const n = Array.from({ length: 200 }, (_, i) => i);
+    const sq = (i: number, spot: any = 'left_branch', mode: any = 'visiting', fixed = false) => ({ id: `sq:${i}`, spot, mode, fixed });
+    const sl = (i: number, branch: any = 'left_branch', asleep = false) => ({ id: `sl:${i}`, branch, asleep });
+    const df = (i: number, perch: any = 'left_tip', perched = true) => ({ id: `df:${i}`, perch, perched });
+
+    const apart = n.map((i) => meet({ squirrel: sq(i), dragonfly: null, sloth: sl(i) }));
+    check(
+      'EN1 the squirrel never shares the sloth\'s branch (it moves on), and they meet',
+      apart.every((m) => m.squirrelSpot !== m.slothBranch && m.encounters.includes('squirrel_sloth')),
+      [...new Set(apart.map((m) => m.squirrelSpot))].join(', ')
+    );
+    const care = meet({ squirrel: sq(1, 'left_branch', 'visiting', true), dragonfly: null, sloth: sl(1) });
+    check('EN1b came for that spot (a care answer): the sloth hangs on the other branch instead', care.squirrelSpot === 'left_branch' && care.slothBranch === 'right_branch');
+
+    const perches = ['left_tip', 'left_top', 'right_tip', 'crown_tip'] as const;
+    const spots = ['left_branch', 'right_branch', 'crown', 'trunk', 'pot_rim'] as const;
+    const watch = spots.flatMap((spot) => perches.flatMap((perch) => n.slice(0, 20).map((i) => meet({ squirrel: sq(i, spot), dragonfly: df(i, perch), sloth: null }))));
+    check(
+      'EN2 the dragonfly never rests right by the squirrel, which watches it',
+      watch.every((m) => m.dragonflyPerch !== 'on_sloth' && spotByPerch(m.dragonflyPerch!) !== m.squirrelSpot && m.encounters.includes('squirrel_dragonfly'))
+    );
+
+    const ride = n.map((i) => meet({ squirrel: null, dragonfly: df(i), sloth: sl(i, 'right_branch') }));
+    const share = ride.filter((m) => m.dragonflyPerch === 'on_sloth').length / n.length;
+    const hover = n.map((i) => meet({ squirrel: null, dragonfly: df(i, 'left_tip', false), sloth: sl(i) }));
+    check(
+      'EN3 a perched dragonfly rests on the sloth about half the time (deterministic); hovering never',
+      share > 0.35 && share < 0.65 && ride.every((m) => (m.dragonflyPerch === 'on_sloth') === m.encounters.includes('dragonfly_sloth')) &&
+        JSON.stringify(ride) === JSON.stringify(n.map((i) => meet({ squirrel: null, dragonfly: df(i), sloth: sl(i, 'right_branch') }))) &&
+        hover.every((m) => m.dragonflyPerch !== 'on_sloth'),
+      `${Math.round(share * 100)}% on the sloth`
+    );
+
+    const alone = [
+      meet({ squirrel: sq(1), dragonfly: null, sloth: null }),
+      meet({ squirrel: null, dragonfly: df(1), sloth: null }),
+      meet({ squirrel: null, dragonfly: null, sloth: sl(1) }),
+      meet({ squirrel: sq(1, 'crown', 'sleeping'), dragonfly: null, sloth: sl(1, 'left_branch', true) }),
+    ];
+    check('EN4 no encounter without two visitors in the tree (and an asleep squirrel meets nobody)', alone.every((m) => m.encounters.length === 0));
+
+    // Expression cues
+    const play = { kind: 'gentle', hopEveryMs: 4000, hideChance: 0.3, returnMs: 10000, lingerMs: 4000, wag: { tempo: 1, amount: 1 } } as any;
+    const v = { kind: 'squirrel', id: 'v', mode: 'visiting', spot: 'crown', carrying: null, action: null, play } as any;
+    const s = { id: 's', pose: 'hanging', branch: 'left_branch', grip: 'arms', tempo: 0.5 } as any;
+    const d = { id: 'd', presence: 'perched', perch: 'right_tip', wingTempo: 1 } as any;
+    const c1 = encounterCues({ visitor: v, dragonfly: null, sloth: s }, ['squirrel_sloth']);
+    const c2 = encounterCues({ visitor: v, dragonfly: d, sloth: s }, ['squirrel_sloth', 'squirrel_dragonfly']);
+    const c3 = encounterCues({ visitor: null, dragonfly: { ...d, perch: 'on_sloth' }, sloth: s }, ['dragonfly_sloth']);
+    const c4 = encounterCues({ visitor: v, dragonfly: null, sloth: { ...s, pose: 'sleeping' } }, ['squirrel_sloth']);
+    check(
+      'EN5 cues: they look at each other; the squirrel watches the dragonfly first; its play keeps off their spots; a rider means slow blinks; asleep, no turn',
+      c1.visitor!.lookAt === 'sloth' && c1.sloth!.lookAt === 'squirrel' && c1.visitor!.avoid!.includes('left_branch') &&
+        c2.visitor!.lookAt === 'dragonfly' && c2.visitor!.avoid!.includes('right_branch') &&
+        c3.sloth!.rider === true && c3.dragonfly!.perch === 'on_sloth' &&
+        c4.sloth!.lookAt === null &&
+        encounterCues({ visitor: null, dragonfly: { ...d, perch: 'on_sloth' }, sloth: null }, []).dragonfly!.perch !== 'on_sloth'
+    );
+
+    // Words: a "visitors met" thought while it happens, worded per pair
+    const b = new Bench();
+    b.clock = at(23, 11);
+    await b.boot();
+    await b.run(120, () => ({ soil: 60, light: 55, temp: 24, hum: 55 }));
+    const st = b.state();
+    const beh = st.behaviour!;
+    const voiceWith = (encounters: any[]) =>
+      evaluateVoice({ health: { ...st.health, vitality: 90 }, perception: st.perception, species: SPECIES, intent: 'content', timeOfDay: 'day', season: beh.season, relationship: beh.relationship, habitat: { ...beh.habitat, encounters }, canopy: beh.canopy, now: b.clock });
+    const met = voiceWith(['squirrel_sloth']).musings.find((m) => m.id === 'visitors_met');
+    const none = voiceWith([]).musings.find((m) => m.id === 'visitors_met');
+    const text = met ? renderMessage({ key: 'content', variant: 0, musing: { id: met.id, facts: met.facts, variant: 0 } } as any).text : '';
+    check('EN6 a "shared the tree" thought only while they meet, naming the pair', !!met && !none && /squirrel and the sloth/.test(text), text);
+
+    // Diary: overlapping visit windows → one line per pair and day
+    const w = (h: number, m: number, len: number) => ({ from: at(20, h, m), to: at(20, h, m) + len * MIN });
+    const lines = encounterDiary({ squirrel: [w(9, 0, 10), w(15, 0, 8)], sloth: [w(9, 5, 40), w(15, 2, 30)], dragonfly: [w(12, 0, 5)] }, at(19, 0), at(21, 0));
+    const noLines = encounterDiary({ squirrel: [w(9, 0, 10)], sloth: [w(11, 0, 40)], dragonfly: [w(13, 0, 5)] }, at(19, 0), at(21, 0));
+    check(
+      'EN7 diary: a line when visits overlapped (n times), none without',
+      lines.length === 1 && lines[0].title.includes('squirrel and the sloth') && /2 times/.test(lines[0].detail) && noLines.length === 0,
+      lines.map((l) => `${l.title} · ${l.detail}`).join(' | ')
+    );
+  }
+
+  console.log('\n— The dragonfly flies around (its route through a visit) —');
+  {
+    const { dragonflyRoute, stopAt } = await import('../src/behaviour/dragonfly');
+    const { applyEncounters } = await import('../src/behaviour/encounters');
+    const t0 = at(20, 12);
+    const visit = (i: number, minutes = 6, style: 'perched' | 'hovering' = 'perched') => ({ id: `dragonfly:test:${i}`, startedAt: t0, endsAt: t0 + minutes * MIN, style });
+    const ids = Array.from({ length: 120 }, (_, i) => i);
+    const routes = ids.map((i) => dragonflyRoute(visit(i), { home: 'left_tip', liveliness: 0.5 }));
+    const ordered = routes.every((r) => r[0].at === t0 && r[0].perch === 'left_tip' && r.every((s, k) => k === 0 || (s.at > r[k - 1].at && s.at < t0 + 6 * MIN)));
+    const moving = routes.filter((r) => new Set(r.map((s) => `${s.perch}:${s.mode}`)).size > 1).length / routes.length;
+    check('DF7 it flies around: a route of stops through the visit, starting on its home tip; most visits go somewhere', ordered && moving > 0.8, `${Math.round(moving * 100)}% of 6-min visits move · e.g. ${routes[0].map((s) => `${s.perch}${s.mode === 'hovering' ? '~' : ''}`).join(' → ')}`);
+
+    const long = ids.map((i) => dragonflyRoute(visit(i, 120), { home: 'left_tip', liveliness: 0.5 }));
+    const perched = long.flatMap((r) => r.filter((s) => s.mode === 'perched'));
+    const homeShare = perched.filter((s) => s.perch === 'left_tip').length / perched.length;
+    const away = perched.filter((s) => s.perch !== 'left_tip');
+    const crown = away.filter((s) => s.perch === 'crown_tip').length / away.length;
+    check('DF7b perch fidelity: it keeps coming back to its home tip; elsewhere, the high crown tip a little more often', homeShare > 0.4 && crown > 0.38, `home ${Math.round(homeShare * 100)}% of landings · crown ${Math.round(crown * 100)}% of the others`);
+
+    const hov = ids.map((i) => dragonflyRoute(visit(i, 60, 'hovering'), { home: 'right_tip', liveliness: 0.5 })).flat();
+    const hoverShare = hov.filter((s) => s.mode === 'hovering').length / hov.length;
+    check('DF7c a hovering visit drifts in the air from tip to tip, landing only now and then', hoverShare > 0.6 && hoverShare < 0.95, `${Math.round(hoverShare * 100)}% hovering`);
+
+    const cool = ids.map((i) => dragonflyRoute(visit(i, 60), { home: 'left_tip', liveliness: 0 }).length).reduce((a, b) => a + b, 0);
+    const hot = ids.map((i) => dragonflyRoute(visit(i, 60), { home: 'left_tip', liveliness: 1 }).length).reduce((a, b) => a + b, 0);
+    check('DF7d livelier in warmer air (shorter stays, more flights)', hot > cool * 1.3, `${cool} stops cool / ${hot} hot`);
+
+    const avoided = ids.every((i) => dragonflyRoute(visit(i, 60), { home: 'crown_tip', avoid: ['left_tip', 'left_top'], liveliness: 0.5 }).every((s) => s.perch !== 'left_tip' && s.perch !== 'left_top'));
+    check('DF7e deterministic, and it never flies to the tips it must avoid', avoided && JSON.stringify(routes) === JSON.stringify(ids.map((i) => dragonflyRoute(visit(i), { home: 'left_tip', liveliness: 0.5 }))));
+
+    // Through the encounters: a squirrel on the left branch keeps the whole route off the left tips;
+    // resting on the sloth makes the sloth its home
+    const habitat = (dfId: string, withSloth: boolean): any => ({
+      presence: 'visiting',
+      visit: { kind: 'squirrel', id: 'sq', startedAt: t0, endsAt: t0 + 10 * MIN, spot: 'left_branch', carrying: null, cause: 'slot', action: null },
+      dragonfly: { insideTemp: 26, visit: { id: dfId, startedAt: t0, endsAt: t0 + 30 * MIN, perch: 'right_tip', style: 'perched', route: [] } },
+      sloth: withSloth ? { visit: { id: 'sl', startedAt: t0, endsAt: t0 + 40 * MIN, branch: 'right_branch', pose: 'hanging', grip: 'arms' } } : undefined,
+    });
+    const off = ids.slice(0, 40).map((i) => {
+      const h = habitat(`df:${i}`, false);
+      applyEncounters(h);
+      return h.dragonfly.visit.route as { perch: string }[];
+    });
+    const onSloth = ids
+      .slice(0, 40)
+      .map((i) => {
+        const h = habitat(`df:${i}`, true);
+        applyEncounters(h);
+        return h.dragonfly.visit;
+      })
+      .filter((v) => v.perch === 'on_sloth');
+    check(
+      "DF7f with the squirrel there its flights never reach the squirrel's tips; resting on the sloth, it keeps returning to the sloth",
+      off.every((r) => r.length > 1 && r.every((s) => s.perch !== 'left_tip' && s.perch !== 'left_top')) &&
+        onSloth.length > 0 && onSloth.every((v) => v.route[0].perch === 'on_sloth' && v.route.filter((s: any) => s.perch === 'on_sloth').length >= 2),
+      `${onSloth.length}/40 on the sloth`
+    );
+    check('DF7g where it is now: the stop it last arrived at', stopAt(routes[0], routes[0][1]?.at ?? t0)?.at === (routes[0][1]?.at ?? t0) && stopAt(routes[0], t0 - 1) === routes[0][0]);
+  }
+
+  console.log('\n— Sunrise and sunset through the loop —');
+  {
+    const { expressBehaviour } = await import('../src/expression/ExpressionEngine');
+    const { evaluatePlantHealth, initialHealthMemory } = await import('../src/health/HealthEngine');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    const b = new Bench();
+    b.clock = at(16, 8);
+    await b.boot();
+    await b.run(90, () => day());
+    const base = b.state();
+    // The same moment with today's sun times placed differently
+    const withSun = (now: number, sunrise: number, sunset: number, health = base.health) => {
+      const perception = { ...base.perception, sun: { ...base.perception.sun, sunrise, sunset, isDay: now > sunrise && now < sunset, phase: 'day' as const } };
+      const behaviour = evaluateBehaviour({ health, perception, episodes: [], events: [], species: ACTIVE_SPECIES, now });
+      return { perception, behaviour, expression: expressBehaviour({ behaviour, health, perception, now }) };
+    };
+    const nine = at(16, 9);
+    const june = withSun(nine, at(16, 5, 30), at(16, 19, 50)); // sunrise 05:30: 9:00 is past the morning
+    const december = withSun(nine, at(16, 6, 50), at(16, 16, 40)); // sunrise 06:50: still morning at 9:00
+    check('TW1 time of day follows the real sunrise / sunset (9:00 is day in June, morning in December)', june.behaviour.timeOfDay === 'day' && december.behaviour.timeOfDay === 'morning', `${june.behaviour.timeOfDay} / ${december.behaviour.timeOfDay}`);
+    const evening = withSun(at(16, 15, 0), at(16, 6, 50), at(16, 16, 40));
+    check('TW1b evening starts 2 h before the real sunset', evening.behaviour.timeOfDay === 'evening', evening.behaviour.timeOfDay);
+
+    const rise = withSun(nine, nine - 10 * MIN, at(16, 19, 50));
+    check('TW2 just after sunrise, calm: the sunrise line, a stretch toward the east, a little livelier', rise.behaviour.dayLine === 'sunrise_greeting' && rise.expression.avatar.gesture?.kind === 'stretch_up' && rise.expression.avatar.gaze === 'east' && rise.behaviour.energy >= june.behaviour.energy, `${rise.behaviour.dayLine}, ${rise.expression.avatar.gesture?.kind}, gaze ${rise.expression.avatar.gaze}, energy ${june.behaviour.energy} → ${rise.behaviour.energy}`);
+    const set = withSun(nine, at(16, 5, 30), nine + 15 * MIN);
+    check('TW3 before sunset, calm: the sunset line, a yawn toward the west, a softer sway', set.behaviour.dayLine === 'sunset_line' && set.expression.avatar.gesture?.kind === 'yawn' && set.expression.avatar.gaze === 'west' && set.expression.motion.swayAmount < june.expression.motion.swayAmount, `${set.behaviour.dayLine}, ${set.expression.avatar.gesture?.kind}, sway ${june.expression.motion.swayAmount} → ${set.expression.motion.swayAmount}`);
+    const thirstyHealth = { ...base.health, condition: 'thirsty' as const, severity: 'moderate' as const };
+    const thirstyRise = withSun(nine, nine - 10 * MIN, at(16, 19, 50), thirstyHealth);
+    check('TW4 a thirsty tree at sunrise still looks thirsty (no greeting, no stretch)', thirstyRise.behaviour.dayLine !== 'sunrise_greeting' && thirstyRise.expression.avatar.gesture?.kind !== 'stretch_up', `${thirstyRise.behaviour.messageIntent}, ${thirstyRise.expression.avatar.gesture?.kind}`);
+    // Health never reads the times: the same perception with the times moved gives the same health
+    const h1 = evaluatePlantHealth({ perception: june.perception, species: ACTIVE_SPECIES, memory: initialHealthMemory() }).state;
+    const h2 = evaluatePlantHealth({ perception: december.perception, species: ACTIVE_SPECIES, memory: initialHealthMemory() }).state;
+    check('TW5 health is identical whatever the sunrise / sunset times', JSON.stringify(h1) === JSON.stringify(h2));
+    const overcast = { ...rise.perception, outside: { at: nine, ageMs: 0, sky: 'overcast' as const, code: 3, temperature: 15, humidity: 70, precipitation: 0, cloudCover: 100, wind: 5, gusts: 8, isDay: true, windy: false, rainEndedAt: null } };
+    const grey = expressBehaviour({ behaviour: rise.behaviour, health: base.health, perception: overcast, now: nine });
+    check('TW6 under an overcast sky the twilight is muted; under a clear one it is not', grey.atmosphere.twilight.muted && !rise.expression.atmosphere.twilight.muted && grey.atmosphere.twilight.event === 'sunrise');
+  }
+
+  console.log('\n— Thoughts of the day —');
+  {
+    // A calm June day, sunrise to dusk: the tree shares a few grounded thoughts, spaced, never repeated
+    const b = new Bench();
+    b.clock = at(16, 5, 30);
+    await b.boot();
+    const l = new Listener(b);
+    let soil = 70;
+    await l.run(14 * 60, (i) => ({ soil: (soil = 70 - i * 0.02), light: i > 60 && i < 12 * 60 ? 55 : 20, temp: 22 + Math.sin(i / 240) * 3, hum: i < 180 ? 80 : 60 }));
+    const thoughts = l.spoken.filter((x) => x.reason.startsWith('a thought'));
+    const voice = b.state().behaviour.voice;
+    const ids = thoughts.map((x) => x.reason.split(': ').pop());
+    check('T1 a calm day: several thoughts, within the day budget', thoughts.length >= 2 && thoughts.length <= Math.max(voice.budget, 6), `${thoughts.length} thoughts (budget ${voice.budget}): ${ids.join(' / ')}`);
+    check('T1b each thought at most once a day', new Set(ids).size === ids.length);
+    const gaps = thoughts.slice(1).map((x, i) => x.t - thoughts[i].t);
+    check('T2 spread over the day, never close together', gaps.every((g) => g >= 60 * MIN), gaps.map((g) => `${Math.round(g / MIN)}m`).join(', '));
+    check('T3 every thought is grounded: its words and its detail', thoughts.every((x) => x.text.length > 0) && !thoughts.some((x) => /\{\w+\}/.test(x.text)), thoughts.map((x) => x.text).join(' | '));
+
+    // A stressed tree talks about its stress, not about its day
+    const t = new Bench();
+    t.clock = at(17, 8);
+    await t.boot();
+    const lt = new Listener(t);
+    await lt.run(60, () => day());
+    lt.reset();
+    await lt.run(6 * 60, () => ({ soil: 30 }));
+    check('T4 thirsty: no thoughts of the day', !lt.spoken.some((x) => x.reason.startsWith('a thought')) && t.state().behaviour.voice.budget === 0, lt.keys());
+
+    // Energy decides how much it has to say: summer thriving vs winter rest (pure)
+    const { evaluateVoice } = await import('../src/behaviour/voice');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    const base = b.state();
+    const voiceFor = (vitality: number, growth: 'flush' | 'active' | 'slowing' | 'resting') =>
+      evaluateVoice({
+        health: { ...base.health, vitality },
+        perception: base.perception,
+        species: ACTIVE_SPECIES,
+        intent: 'content',
+        timeOfDay: 'day',
+        season: { ...base.behaviour.season, growth },
+        relationship: base.behaviour.relationship,
+        habitat: base.behaviour.habitat,
+        canopy: base.behaviour.canopy,
+        now: b.clock,
+      }).budget;
+    const summer = voiceFor(95, 'active');
+    const autumn = voiceFor(85, 'slowing');
+    const winter = voiceFor(85, 'resting');
+    check('T5 the voice follows energy and season: thriving summer > calm autumn > winter rest', summer >= 5 && autumn >= 3 && autumn <= 4 && winter <= 2 && winter >= 1, `summer ${summer}, autumn ${autumn}, winter ${winter}`);
+    const night = evaluateVoice({ health: base.health, perception: base.perception, species: ACTIVE_SPECIES, intent: 'content', timeOfDay: 'night', season: base.behaviour.season, relationship: base.behaviour.relationship, habitat: base.behaviour.habitat, canopy: base.behaviour.canopy, now: b.clock });
+    check('T5b at night: no thoughts', night.budget === 0 && night.musings.length === 0);
   }
 
   console.log('\n— Canopy (the last weeks, drawn only) —');

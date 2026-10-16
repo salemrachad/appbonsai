@@ -86,6 +86,66 @@ export const APP_CONFIG = {
     // a pruning. At most one per care event; watering on wet soil gets no answer.
     careVisitMinutes: { drinking: 10, inspecting: 8, inspectingOffSeason: 3 },
     shakeOffAfterRainMs: 30 * 60 * 1000, // first visit within this long after rain stops: it shakes off
+    // The dragonfly (behaviour/dragonfly.ts): the same mechanism, faster and looser, driven by the air.
+    // About the insect, not the plant (so not in the species profile). Art; provisional.
+    dragonfly: {
+      tempMin: 20, // °C inside: warm enough to fly…
+      tempMax: 34, // …not too hot
+      lightFactor: 0.8, // daylight at least this × the useful light %
+      radiationMin: 150, // W/m² in weather mode
+      gustsMax: 35, // km/h outside: too windy above this
+      riseMinutes: 45, // good air builds it…
+      fallMinutes: 15, // …bad air drains it fast
+      enter: 0.6,
+      exit: 0.35,
+      slotMinutes: 15,
+      visitChance: { min: 0.35, max: 0.7 },
+      visitMinutes: { min: 2, max: 6 },
+      midday: { from: 11, to: 15, scale: 1.2, otherScale: 0.8 },
+      perchedShare: 0.6, // share of visits spent perched on a leaf tip (the rest hovering)
+      returnAfterDartMs: 4000, // after a stroke it darts off and lands back on the same tip (UI only)
+      // Flying around during a visit (behaviour/dragonfly.ts dragonflyRoute): it sits a while, then flies
+      // back to its home perch, makes a short hovering sortie and lands again, or moves to another tip
+      // (the high crown tip, where the light is, a little more often). Shorter stays in warmer air.
+      route: {
+        perchSec: { min: 25, max: 70 }, // a stay on a tip
+        hoverSec: { min: 6, max: 15 }, // a hover by a tip
+        fidelity: 0.55, // after being elsewhere, the chance it flies back to its home perch
+        sortieChance: 0.3, // from a perch: a short hover sortie, then it lands again
+        landChance: 0.25, // on a hovering visit: the chance it lands for a short stay
+        crownBias: 1.6, // weight of the crown tip against 1 for the other tips
+        flightMs: 1400, // one flight between stops
+      },
+    },
+    // The sloth (behaviour/sloth.ts): an air wanderer that loves warm, humid, still air (rain is fine,
+    // wind and storms are not). Slow in everything: slow to come, slow to go, long visits, often.
+    // Stays overnight curled up asleep. About the animal, not the plant. Art; provisional.
+    sloth: {
+      tempMin: 22, // °C inside
+      tempMax: 35,
+      humidityMin: 55, // % RH inside
+      gustsMax: 30, // km/h outside: a swaying tree is no place for a sloth
+      riseMinutes: 90, // slow to trust…
+      fallMinutes: 60, // …and slow to leave
+      enter: 0.6,
+      exit: 0.35,
+      slotMinutes: 60,
+      visitChance: { min: 0.45, max: 0.8 },
+      visitMinutes: { min: 20, max: 50 },
+      hangingShare: 0.65, // share of daytime visits spent hanging (the rest slowly climbing)
+      blinkCooldownMs: 6000, // a stroke gets a slow look and a slow blink, at most this often (UI only)
+      // How it holds on, from its comfort (its value): the first stretch of a visit always all four; then
+      // each stretch rolls a grip from the band its comfort is in. Asleep: all four, curled.
+      grip: {
+        segmentMinutes: 12, // it changes grip at most this often (slowly)
+        relaxedFrom: 0.75, // below: four limbs or both arms
+        loungingFrom: 0.9, // above: one arm or by the legs (in between: both arms or two legs + one arm)
+      },
+    },
+    // Encounters: two visitors in the tree at the same time (behaviour/encounters.ts). Art only.
+    encounters: {
+      dragonflyOnSlothChance: 0.5, // share of perched dragonfly visits spent resting on a sloth that is there
+    },
     // Petting while the squirrel visits: it plays around the tree (UI only, never stored). How playful comes
     // from the tree's state (ExpressionEngine visitorPlay); these are the tunings per kind.
     play: {
@@ -95,6 +155,17 @@ export const APP_CONFIG = {
       gentle: { hopEveryMs: 4_000, hideChance: 0.3 }, // comfortable
       shy: { hopEveryMs: 0, hideChance: 1 }, // hiding through a stress: only ducks and re-peeks
     },
+  },
+
+  // Soil dry-down estimate (perception/environment.ts): when a segment's slope is evidence enough
+  dryDown: {
+    maxHours: 8, // a segment looks back at most this far
+    minHours: 3, // shorter segments give no estimate
+    minSamples: 20,
+    settleAfterWateringMs: 45 * 60 * 1000, // a new segment starts once the watered soil has drained
+    highMinHours: 4, // high confidence needs this span…
+    seHigh: 0.06, // …and a slope standard error at most this (%/h)
+    seMedium: 0.15,
   },
 
   history: {

@@ -1,7 +1,7 @@
 import { CONDITION_LABELS } from '../health/labels';
 import type { HealthModifier, StressSummary } from '../health/healthTypes';
 import type { Season } from '../perception/season';
-import type { CareLine, Concern, DayLine, IntensityTier, MessageIntent, ObservationId, RecoveryStage, SeasonalCare } from './behaviourTypes';
+import type { CareLine, Concern, DayLine, IntensityTier, MessageIntent, MusingId, ObservationId, RecoveryStage, SeasonalCare } from './behaviourTypes';
 
 // The tree's words. Gentle and plant-centred, never blaming.
 // Only wording lives here: behaviour works with intents/tiers/ids, so any sentence can be rewritten freely.
@@ -97,6 +97,9 @@ export const DAY_LINES: Record<DayLine, Lines> = {
   morning_after_stress: ["I'm feeling a little better this morning.", 'That was a long night.', 'Morning. The night was not easy.'],
   evening_after_heat: ['That was a warm day.', 'What a hot day it was.', 'The heat is finally easing.'],
   evening_after_stress: ['That was a long day.', 'Glad this day is ending.', 'A tiring day.'],
+  // The sun's real moments (sunrise / sunset at the tree's location)
+  sunrise_greeting: ['The sun is up. Good morning. 🌅', 'Here comes the sun. 🌅', 'First sunlight. Waking up. 🌅'],
+  sunset_line: ['The sun is going down. 🌇', 'Sunset soon. Winding down. 🌇', 'The light is getting golden. 🌇'],
   season_spring: ['Spring! I can feel new leaves coming.', 'The days are longer. Time to grow.', 'Spring is here. Waking up properly now.'],
   season_summer: ['Summer. Long bright days ahead.', 'Summer is here. I will be thirstier now.', 'Long days, warm nights. Summer.'],
   season_autumn: ['Autumn. The days are getting shorter.', 'I can feel autumn coming in.', 'Shorter days now. I will slow down a little.'],
@@ -138,6 +141,50 @@ const SEASONAL_CARE_TIPS: Record<SeasonalCare, string> = {
   off_season_feed: 'Outside the growing season, feeding is best paused until spring.',
   growing_repot: 'Repotting in the growing season lets roots recover fastest.',
   resting_repot: 'Roots recover slowly in the cool months; keep it sheltered and water sparingly.',
+};
+
+// Thoughts of a calm day. Each one is a fact the sensors (or the history) can back; {placeholders} are facts.
+// Lines are what the tree says; tips are the plain detail under it.
+export const MUSING_LINES: Record<MusingId, Lines> = {
+  soil_steady: ['My soil is still comfortable. 🍃', 'Soil at {soil}%: just right. 🍃', 'My roots are happy with this soil. 🍃'],
+  days_since_water: ["It's been {days} days since my last drink. Still fine. 💧", '{days} days on one watering, and still comfortable. 💧', 'No water for {days} days, and I am fine. 💧'],
+  brightest_hour: ['That was my brightest hour today. ☀️', 'The best light of the day has passed. ☀️', 'I soaked up the brightest part of the day. ☀️'],
+  good_light_day: ['Plenty of light today. ☀️', 'A good light day. ☀️', 'Lots of useful light today. ☀️'],
+  days_shorter: ['The days are getting shorter. 🍂', 'A little less daylight every day now. 🍂', 'Shorter days. I can feel it. 🍂'],
+  days_longer: ['The days are getting longer. 🌱', 'A little more daylight every day. 🌱', 'Longer days. Growing time is coming. 🌱'],
+  humid_morning: ['Humid in here this morning. 💧', 'A damp, still morning. 💧', 'Moist air around my leaves this morning. 💧'],
+  warmest_hour: ['This is the warmest part of the day. 🌤', 'Nicely warm right now. 🌤', 'Warmest hour so far. 🌤'],
+  warmer_than_outside: ['Much warmer in here than outside. 🏡', 'Sheltered and warm in here. 🏡', 'Cool out there, comfortable in here. 🏡'],
+  squirrel_came: ['A squirrel came by today. 🐿️', 'I had a visitor today. 🐿️', 'The squirrel visited me today. 🐿️'],
+  sloth_came: ['A sloth spent a slow while in my branches. 🦥', 'I had a very slow visitor today. 🦥', 'A sloth hung around for a while. 🦥'],
+  dragonfly_came: ['A dragonfly hovered by today. ✨', 'I had a dragonfly on my leaves today. ✨', 'Warm, bright air: a dragonfly came. ✨'],
+  visitors_met: ['The {pair} are sharing my branches. 🌿', 'Company in my branches: the {pair}. 🌿', 'The {pair}, both in my branches at once. 🌿'],
+  new_tips: ['New leaf tips are coming in. 🌱', 'I am filling out again. 🌱', 'Fresh leaves, one by one. 🌱'],
+  drey_growing: ['Someone is building a nest in my crown. 🪺', 'More twigs in my crown today. 🪺', 'A little home is taking shape up top. 🪺'],
+};
+const fmtHours = (h: number) => (h >= 36 ? `${Math.round(h / 24)} days` : h >= 2 ? `${Math.round(h)} hours` : 'a couple of hours');
+const clock = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+export const MUSING_TIPS: Record<MusingId, (f: Record<string, number>) => string> = {
+  soil_steady: (f) => (f.hoursToThirsty > 0 ? `Soil at ${f.soil}%. At this pace I'd get thirsty in about ${fmtHours(f.hoursToThirsty)}.` : `Soil at ${f.soil}%, barely drying right now.`),
+  days_since_water: (f) => `Last watered ${f.days} days ago; the soil is still in range, so no need to water yet.`,
+  brightest_hour: (f) => `Light peaked at ${f.peak}% (relative LDR) today.`,
+  good_light_day: (f) => `About ${f.usefulHours}h of useful light so far today.`,
+  days_shorter: (f) => `About ${f.minPerDay} min less daylight each day (${f.daylight}h today). Growth slows as days shorten.`,
+  days_longer: (f) => `About ${f.minPerDay} min more daylight each day (${f.daylight}h today). Growth picks up as days lengthen.`,
+  humid_morning: (f) => `Humidity ${f.rh}% inside.${f.fog ? ' The glass may fog; airing the balcony for a while helps.' : ' Some air flow later in the day helps.'}`,
+  warmest_hour: (f) => `${f.temp}°C now, the warmest reading of the day so far.`,
+  warmer_than_outside: (f) => `${f.inside}°C in here, ${f.outside}°C outside.`,
+  squirrel_came: (f) => `${f.count} visit${f.count > 1 ? 's' : ''} today, the first around ${clock(f.firstAt)}. They come when the tree has been a good place to be.`,
+  sloth_came: (f) => `${f.count} visit${f.count > 1 ? 's' : ''} today, about ${f.minutes >= 90 ? `${Math.round((f.minutes / 60) * 10) / 10} h` : `${f.minutes} min`} in all. Sloths like warm, humid, still air.`,
+  dragonfly_came: (f) => `${f.count} dragonfly visit${f.count > 1 ? 's' : ''} today, the first around ${clock(f.firstAt)}. They come with warm, bright, calm air.`,
+  visitors_met: (f) =>
+    [
+      'The squirrel keeps to another branch and peeks at the sloth; the sloth turns its head, very slowly.',
+      "The squirrel's eyes follow the dragonfly; it never lands right next to the squirrel.",
+      'The dragonfly rests on the sloth, which blinks, very slowly.',
+    ][f.pair] ?? 'Two visitors in the tree at once.',
+  new_tips: (f) => `The canopy is refilling (${f.fullness}% full) after a harder stretch.`,
+  drey_growing: () => 'A squirrel has started a drey in the crown: weeks of a welcoming tree.',
 };
 
 // Seasonal care, added to the calm tips (ficus is evergreen; growth follows day length).
@@ -207,9 +254,22 @@ export interface RenderInput {
   reactionWhy: string | null;
   season?: Season;
   seasonalCare?: SeasonalCare | null; // how the time of year changes the meaning of a care reaction
+  musing?: { id: MusingId; facts: Record<string, number>; variant: number } | null; // a thought of the day, while shown
 }
 
+// Facts that stand for words (an index into these lists)
+const FACT_WORDS: Record<string, string[]> = {
+  pair: ['squirrel and the sloth', 'squirrel and a dragonfly', 'dragonfly and the sloth'], // ENCOUNTER_PAIRS order
+};
+
 export function renderMessage(r: RenderInput): { text: string; tip: string } {
+  if (r.musing) {
+    // A thought of the day: its own line and its own grounded detail
+    const ls = MUSING_LINES[r.musing.id];
+    const line = ls[((r.musing.variant % ls.length) + ls.length) % ls.length];
+    const text = line.replace(/\{(\w+)\}/g, (_, k) => FACT_WORDS[k]?.[r.musing!.facts[k]] ?? String(r.musing!.facts[k] ?? ''));
+    return { text, tip: MUSING_TIPS[r.musing.id](r.musing.facts) };
+  }
   const lines = MESSAGE_CATALOG[r.key] ?? MESSAGE_CATALOG.content;
   const pick = <T,>(xs: T[]) => xs[((r.variant % xs.length) + xs.length) % xs.length];
   let text = pick(lines);

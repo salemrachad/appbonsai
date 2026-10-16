@@ -65,10 +65,23 @@ export function healthScores(p: PerceptionState, species: SpeciesProfile): Score
       ? comp('moisture', null, 'no reading')
       : comp('moisture', scoreAgainstRange(r.soilMoisture, s), `${r.soilMoisture}% soil · optimal ${s.minOptimal}–${s.maxOptimal}%`);
 
-  const temperature =
-    r.temperature === null
-      ? comp('temperature', null, 'not reported')
-      : comp('temperature', scoreAgainstRange(r.temperature, t), `${r.temperature}°C · optimal ${t.minOptimal}–${t.maxOptimal}°C`);
+  // Temperature: the current reading, and the hours spent outside the optimal range recently (decayed
+  // degree-hours from perception.exposure). The worse of the two, so sustained heat lingers and fades.
+  let temperature: ScoreComponent;
+  if (r.temperature === null) temperature = comp('temperature', null, 'not reported');
+  else {
+    const current = scoreAgainstRange(r.temperature, t);
+    const e = p.exposure?.temperature ?? null;
+    const x = species.environment.temperatureExposure;
+    const penalty = e ? Math.min(x.maxPenalty, (e.heatDegreeHours + e.coldDegreeHours) * x.scorePerDegreeHour) : 0;
+    const exposureScore = Math.round(100 - penalty);
+    temperature = comp(
+      'temperature',
+      Math.min(current, exposureScore),
+      `${r.temperature}°C · optimal ${t.minOptimal}–${t.maxOptimal}°C` +
+        (penalty >= 1 ? ` · recent exposure ${Math.round((e!.heatDegreeHours + e!.coldDegreeHours) * 10) / 10} °C·h (−${Math.round(penalty)})` : '')
+    );
+  }
 
   const humidity =
     r.humidity === null

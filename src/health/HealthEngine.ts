@@ -1,8 +1,9 @@
 import { APP_CONFIG } from '../config/appConfig';
 import type { PerceivedReadings, PerceptionState } from '../perception/perceptionTypes';
 import type { LatchId, LatchRule, SpeciesProfile } from '../species';
-import { HealthCondition, LatchDebug, ObservationStatus, PlantHealthState, Severity, StressSummary } from './healthTypes';
+import { CouplingMemory, HealthCondition, LatchDebug, ObservationStatus, PlantHealthState, Severity, StressSummary } from './healthTypes';
 import { describeRule, INITIAL_LATCH, LatchState, stepLatch } from './hysteresis';
+import { INITIAL_COUPLING, interpretEnvironment, updateCouplingBaseline } from './environment';
 import { assessMetrics, lightLevel } from './metrics';
 import {
   COMBINED_CONDITIONS,
@@ -28,6 +29,8 @@ export interface HealthMemory {
   latches: Record<LatchId, LatchState>;
   uncertainty: LatchState; // data-uncertainty hysteresis (overlay → primary)
   recovery: { from: HealthCondition; severity: Severity; endedAt: number; requiredHours: number; observedMs: number } | null;
+  // Long-term learning (optional: older saved memories load without it, no version bump or replay)
+  environment?: { coupling: CouplingMemory };
 }
 
 export const HEALTH_MEMORY_VERSION = 4;
@@ -135,6 +138,9 @@ export function evaluatePlantHealth({ perception: p, species, memory: stored, te
   const observedMs = readingStep > 0 && readingStep <= p.history.cadenceMs ? readingStep : 0;
   const unobservedDeltaMs = memory.at !== null ? Math.max(0, now - memory.at - observedMs) : 0;
   const pm: PerceptionState = { ...p, readings: trustedReadings(p) };
+  // Derived environmental metrics: the coupling baseline learns from live, confident segments only
+  const coupling = updateCouplingBaseline(memory.environment?.coupling ?? INITIAL_COUPLING, p, live, species);
+  const environment = interpretEnvironment(p, coupling, species);
   const r = pm.readings;
 
   // ---- Hysteresis latches ----
@@ -342,7 +348,8 @@ export function evaluatePlantHealth({ perception: p, species, memory: stored, te
     confidence: p.quality.confidence,
     confidenceScore: p.quality.score,
     dataIssues: p.quality.issues,
-    metrics: assessMetrics(p, species, tempUnit),
+    metrics: assessMetrics(p, species, tempUnit, { soil: environment.coupling.note ? [environment.coupling.note] : [] }),
+    environment,
     stress,
     activeSince,
     observation,
@@ -363,6 +370,7 @@ export function evaluatePlantHealth({ perception: p, species, memory: stored, te
       latches,
       uncertainty,
       recovery,
+      environment: { coupling },
     },
   };
 }

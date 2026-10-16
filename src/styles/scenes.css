@@ -454,6 +454,29 @@
 .weather-partly_cloudy .weather-tint { background: none; }
 .weather-lightning { animation-duration: 9s; }
 
+/* ---- Sunrise / sunset at their real times (TwilightSky): over the scene, under the weather ---- */
+.twilight-sky { position: absolute; inset: 0; pointer-events: none; transition: opacity 2s ease; }
+.twilight-wash { position: absolute; inset: 0; opacity: calc(var(--glow) * 0.75); }
+.twilight-sunrise .twilight-wash { background: linear-gradient(180deg, rgba(120, 140, 200, 0.25) 0%, rgba(255, 200, 170, 0.35) 55%, rgba(255, 170, 120, 0.55) 84%, rgba(255, 210, 160, 0.3) 100%); }
+.twilight-sunset .twilight-wash { background: linear-gradient(180deg, rgba(90, 70, 140, 0.3) 0%, rgba(230, 120, 110, 0.35) 55%, rgba(255, 140, 70, 0.6) 84%, rgba(200, 110, 80, 0.3) 100%); }
+.twilight-horizon { position: absolute; left: -10%; right: -10%; top: 74%; height: 20%; border-radius: 50%; filter: blur(30px); opacity: var(--glow); }
+.twilight-sunrise .twilight-horizon { background: radial-gradient(ellipse at 18% 50%, rgba(255, 190, 120, 0.9), rgba(255, 160, 140, 0.35) 45%, transparent 75%); }
+.twilight-sunset .twilight-horizon { background: radial-gradient(ellipse at 90% 50%, rgba(255, 140, 60, 0.95), rgba(220, 90, 110, 0.4) 45%, transparent 75%); }
+/* The sky above the horizon: the disk is clipped at the horizon line, so it rises out of it and sinks into it */
+.twilight-above { position: absolute; left: 0; right: 0; top: 0; height: 84%; overflow: hidden; }
+.twilight-sun {
+  position: absolute; width: 11vmin; height: 11vmin; margin: -5.5vmin 0 0 -5.5vmin; border-radius: 50%;
+  transition: top 20s linear, opacity 20s linear;
+}
+.twilight-sunrise .twilight-sun { background: radial-gradient(circle, #FFF6DA 0%, #FFD58A 42%, rgba(255, 180, 100, 0) 70%); box-shadow: 0 0 9vmin 3vmin rgba(255, 200, 120, 0.5); }
+.twilight-sunset .twilight-sun { background: radial-gradient(circle, #FFE6B8 0%, #FF9D4D 42%, rgba(255, 110, 60, 0) 70%); box-shadow: 0 0 9vmin 3vmin rgba(255, 120, 60, 0.55); }
+/* The ground below the horizon hides the disk once it has set (or before it rises) */
+.twilight-ground { position: absolute; left: 0; right: 0; top: 84%; bottom: 0; background: linear-gradient(180deg, rgba(120, 90, 80, 0.28), rgba(80, 60, 60, 0.12)); opacity: calc(0.4 + var(--glow) * 0.6); }
+.night .twilight-ground { background: linear-gradient(180deg, rgba(20, 22, 40, 0.75), rgba(15, 16, 30, 0.6)); }
+/* Clouds, fog or rain outside: a soft, washed-out twilight, the disk only a faint brightness */
+.twilight-muted .twilight-wash, .twilight-muted .twilight-horizon { filter: saturate(0.35) blur(4px); opacity: calc(var(--glow) * 0.45); }
+.twilight-muted .twilight-sun { filter: blur(6px) saturate(0.4); opacity: 0.35 !important; }
+
 @media (prefers-reduced-motion: reduce) {
   .particle,
   .scene-sun,

@@ -86,7 +86,7 @@ export function useVisitorPlay(visitor: VisitorPresentation | null, strokeAt: nu
     clearAll();
     setPose(visitor ? basePose(visitor) : null);
     return clearAll;
-  }, [visitor?.id, visitor?.mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visitor?.id, visitor?.mode, visitor?.spot]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hide behind a pad; after returnMs peek, then (when playing) hop back out at another spot
   const dive = (pad: Pad, comeBackTo: Spot | null) => {
@@ -111,7 +111,9 @@ export function useVisitorPlay(visitor: VisitorPresentation | null, strokeAt: nu
     if (cur.at !== 'perch') return; // hiding: the return timer brings it back
     const pl = playOf(vis);
     if (now - p.lastStroke > pl.lingerMs) return; // play is over: it stays where it ended up
-    const others = PERCHES.filter((s) => s !== cur.spot);
+    // Never onto the sloth's branch or by the leaves the dragonfly rests on (encounters)
+    const free = PERCHES.filter((s) => s !== cur.spot && !(vis.avoid ?? []).includes(s));
+    const others = free.length ? free : PERCHES.filter((s) => s !== cur.spot);
     const next = others[Math.floor(Math.random() * others.length)];
     if (Math.random() < pl.hideChance) dive(HIDE_FOR[cur.spot], next);
     else setPose({ at: 'perch', spot: next, hop: cur.hop + 1 });
@@ -145,7 +147,7 @@ export function useVisitorPlay(visitor: VisitorPresentation | null, strokeAt: nu
 }
 
 // Facing right, feet at (0,0), about 36 units tall.
-const Squirrel: React.FC<{ carrying: boolean }> = ({ carrying }) => (
+const Squirrel: React.FC<{ carrying: boolean; watch?: number }> = ({ carrying, watch = 0 }) => (
   <g>
     {/* Bushy tail: wags from its base */}
     <g className="visitor-tail" style={{ transformBox: 'fill-box', transformOrigin: '85% 95%' }}>
@@ -157,7 +159,8 @@ const Squirrel: React.FC<{ carrying: boolean }> = ({ carrying }) => (
     <ellipse cx="2" cy="-9" rx="7" ry="9" fill="#9C5228" />
     <ellipse cx="-1.5" cy="-4.5" rx="5" ry="4.5" fill="#8A4622" />
     <ellipse cx="5" cy="-9" rx="3.4" ry="6" fill="#F1DDBA" />
-    {/* Head: bobs while it nibbles */}
+    {/* Head: bobs while it nibbles; tilts toward whoever it watches (encounters) */}
+    <g className="visitor-watch" style={{ transform: `rotate(${watch}deg)`, transformBox: 'fill-box', transformOrigin: '30% 90%' } as React.CSSProperties}>
     <g className="visitor-head" style={{ transformBox: 'fill-box', transformOrigin: '30% 90%' }}>
       <path d="M 3,-24 L 2.2,-31 L 4.2,-29.5 L 6.6,-25 Z" fill="#9C5228" />
       <path d="M 2.2,-31 L 1.4,-33.5 L 3.4,-30.6 Z" fill="#7A3E1C" />
@@ -169,6 +172,7 @@ const Squirrel: React.FC<{ carrying: boolean }> = ({ carrying }) => (
         <circle cx="7.9" cy="-21.2" r="1.25" fill="#1E140C" />
         <circle cx="8.3" cy="-21.6" r="0.4" fill="#FFFFFF" />
       </g>
+    </g>
     </g>
     {/* Front paws, holding a nut in autumn */}
     {carrying && (
@@ -188,9 +192,27 @@ interface VisitorProps {
   visitor: VisitorPresentation | null;
   pose: VisitorPose | null;
   layer: 'behind' | 'front';
+  watchAt?: { x: number; y: number } | null; // encounters: the visitor it watches (avatar coordinates)
 }
 
-export const Visitor: React.FC<VisitorProps> = ({ visitor, pose, layer }) => {
+// Where the squirrel is right now (avatar coordinates), for the others to look at
+export function visitorAt(pose: VisitorPose | null): { x: number; y: number } | null {
+  if (!pose || pose.at === 'drey') return null;
+  if (pose.at === 'hide') return { x: HIDE[pose.pad].x, y: HIDE[pose.pad].y - 20 };
+  return { x: PERCH[pose.spot].x, y: PERCH[pose.spot].y - 20 };
+}
+
+// Facing and head tilt toward a target: it turns to face it, and its head tilts up or down (25 deg at most)
+function watching(at: { x: number; y: number; dir: 1 | -1 }, target: { x: number; y: number } | null | undefined) {
+  if (!target) return { dir: at.dir, tilt: 0 };
+  const dx = target.x - at.x;
+  const dir: 1 | -1 = Math.abs(dx) < 8 ? at.dir : dx > 0 ? 1 : -1;
+  const dy = target.y - (at.y - 20);
+  const tilt = Math.max(-25, Math.min(25, (Math.atan2(dy, Math.max(20, Math.abs(dx))) * 180) / Math.PI));
+  return { dir, tilt: Math.round(tilt) };
+}
+
+export const Visitor: React.FC<VisitorProps> = ({ visitor, pose, layer, watchAt = null }) => {
   if (!visitor || !pose || pose.at === 'drey') return null;
   if (layer !== (pose.at === 'hide' ? 'behind' : 'front')) return null;
   // The tail wags in the tree's rhythm (tempo and amplitude from the tree's sway, decided upstream)
@@ -201,16 +223,20 @@ export const Visitor: React.FC<VisitorProps> = ({ visitor, pose, layer }) => {
   if (pose.at === 'hide') {
     const at = HIDE[pose.pad];
     const cls = { dive: 'visitor-dive', hidden: 'visitor-ducked', peek_out: 'visitor-peek-once', peek: 'visitor-peek' }[pose.phase];
+    const look = watching(at, visitor.lookAt ? watchAt : null);
     return (
-      <g transform={`translate(${at.x} ${at.y}) scale(${at.dir} 1)`} pointerEvents="none" aria-hidden style={wag}>
+      <g transform={`translate(${at.x} ${at.y}) scale(${look.dir} 1)`} pointerEvents="none" aria-hidden style={wag}>
         <g key={`${visitor.id}:${pose.pad}:${pose.phase}`} className={`${cls} visitor-wag`}>
-          <Squirrel carrying={carrying} />
+          <Squirrel carrying={carrying} watch={look.tilt} />
         </g>
       </g>
     );
   }
 
   const at = PERCH[pose.spot];
+  // Watching another visitor: it faces it, the head tilts toward it (not while drinking or inspecting)
+  const action0 = pose.hop === 0 && pose.spot === visitor.spot ? visitor.action ?? null : null;
+  const look = watching(at, visitor.lookAt && (!action0 || action0 === 'shake_off') ? watchAt : null);
   // What it came for, shown where it arrived (once it plays and hops on, it's just a squirrel again)
   const action = pose.hop === 0 && pose.spot === visitor.spot ? visitor.action ?? null : null;
   const actionClass = action === 'drinking' ? 'visitor-drinking' : action === 'inspecting' ? 'visitor-inspecting' : action === 'shake_off' ? 'visitor-shaking' : 'visitor-idle';
@@ -219,11 +245,11 @@ export const Visitor: React.FC<VisitorProps> = ({ visitor, pose, layer }) => {
   // The position glides between spots (CSS transition); the inner group replays the hop arc or the arrival
   return (
     <g pointerEvents="none" aria-hidden className="visitor-move" style={{ ...wag, transform: `translate(${at.x}px, ${at.y}px)` }}>
-      <g transform={`rotate(${at.rot ?? 0}) scale(${at.dir} 1)`}>
+      <g transform={`rotate(${at.rot ?? 0}) scale(${look.dir} 1)`}>
         <g key={`${visitor.id}:${pose.hop}`} className={pose.hop === 0 ? 'visitor-arrive' : 'visitor-hop'}>
           <g className={`${actionClass} visitor-wag`}>
             <g transform={tilt}>
-              <Squirrel carrying={carrying && !action} />
+              <Squirrel carrying={carrying && !action} watch={look.tilt} />
             </g>
             {action === 'drinking' && (
               // Little ripples where it laps at the wet soil
