@@ -21,12 +21,16 @@ export interface LatchStep {
   now: number;
   continuous: boolean; // false after a data gap: pending timers restart (be conservative)
   gate?: boolean; // false = the latch doesn't apply right now (e.g. light at night): reset to inactive
+  night?: boolean; // the sun is down: a rule's `night` values replace its day values
 }
 
 const crossedEnter = (r: LatchRule, v: number) => (r.direction === 'below' ? v < r.enter : v > r.enter);
 const crossedExit = (r: LatchRule, v: number) => (r.direction === 'below' ? v >= r.exit : v <= r.exit);
 
-export function stepLatch(prev: LatchState, rule: LatchRule, { value, now, continuous, gate = true }: LatchStep): LatchState {
+export function stepLatch(prev: LatchState, dayRule: LatchRule, { value, now, continuous, gate = true, night = false }: LatchStep): LatchState {
+  // At night a rule may have other thresholds. The latch state carries over: one active at dusk simply
+  // continues with the night exit (no flapping at the switch).
+  const rule = night && dayRule.night ? { ...dayRule, ...dayRule.night } : dayRule;
   if (!gate) {
     return prev.active ? { active: false, since: null, pendingSince: null, lastEndedAt: now, observedMs: 0 } : { ...prev, pendingSince: null };
   }
@@ -53,5 +57,6 @@ export function stepLatch(prev: LatchState, rule: LatchRule, { value, now, conti
 export function describeRule(r: LatchRule, unit = ''): string {
   const op = r.direction === 'below' ? ['<', '≥'] : ['>', '≤'];
   const dur = (m: number) => (m >= 60 ? `${Math.round((m / 60) * 10) / 10}h` : `${m} min`);
-  return `enter ${op[0]} ${r.enter}${unit} for ${dur(r.enterAfterMin)} · exit ${op[1]} ${r.exit}${unit} for ${dur(r.exitAfterMin)}`;
+  const one = (x: LatchRule) => `enter ${op[0]} ${x.enter}${unit} for ${dur(x.enterAfterMin)} · exit ${op[1]} ${x.exit}${unit} for ${dur(x.exitAfterMin)}`;
+  return r.night ? `${one(r)} · at night: ${one({ ...r, ...r.night })}` : one(r);
 }

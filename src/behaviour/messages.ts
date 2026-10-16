@@ -94,6 +94,7 @@ export const OBSERVATION_LINES: Record<ObservationId, Lines> = {
 
 export const DAY_LINES: Record<DayLine, Lines> = {
   morning_calm: ['A calm night.', 'Good morning. A quiet night.', 'Rested.'],
+  morning_dewy: ['A dewy night. My leaves are still beaded.', 'Morning. The air was thick and wet all night.', 'A damp night. Glad the sun is up.'],
   morning_after_stress: ["I'm feeling a little better this morning.", 'That was a long night.', 'Morning. The night was not easy.'],
   evening_after_heat: ['That was a warm day.', 'What a hot day it was.', 'The heat is finally easing.'],
   evening_after_stress: ['That was a long day.', 'Glad this day is ending.', 'A tiring day.'],

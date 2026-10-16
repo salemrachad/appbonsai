@@ -68,6 +68,7 @@ export type TimeOfDay = 'morning' | 'day' | 'evening' | 'night';
 // One-off contextual lines tied to the time of day, spoken at most once per day.
 export type DayLine =
   | 'morning_calm'
+  | 'morning_dewy' // a calm night in near-saturated air (high humidity at night)
   | 'morning_after_stress'
   | 'evening_after_heat'
   | 'evening_after_stress'

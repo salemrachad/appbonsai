@@ -94,7 +94,9 @@ export const FICUS: SpeciesProfile = {
     cold: { direction: 'below', enter: TEMPERATURE.minWarning, exit: TEMPERATURE.minWarning + 2, enterAfterMin: 45 * MIN, exitAfterMin: 20 * MIN },
     freezing_risk: { direction: 'below', enter: TEMPERATURE.minCritical, exit: TEMPERATURE.minCritical + 2, enterAfterMin: 10 * MIN, exitAfterMin: 30 * MIN },
     dry_air: { direction: 'below', enter: HUMIDITY.minWarning, exit: HUMIDITY.minWarning + 5, enterAfterMin: 1 * HOUR, exitAfterMin: 30 * MIN },
-    high_humidity: { direction: 'above', enter: HUMIDITY.maxWarning, exit: HUMIDITY.maxWarning - 5, enterAfterMin: 3 * HOUR, exitAfterMin: 30 * MIN },
+    // At night (sun down) a greenhouse is normally humid: the air cools and RH climbs. Only near-saturated
+    // air held for hours counts then (leaves stay wet: the real risk). INFERENCE, provisional.
+    high_humidity: { direction: 'above', enter: HUMIDITY.maxWarning, exit: HUMIDITY.maxWarning - 5, enterAfterMin: 3 * HOUR, exitAfterMin: 30 * MIN, night: { enter: 88, exit: 84 } },
     // On today's share of observed daylight in useful light (%), only while daylight is expected and
     // at least light.minObservedMinutes of daylight have been observed. PROTOTYPE.
     low_daily_light: { direction: 'below', enter: 20, exit: 30, enterAfterMin: 30 * MIN, exitAfterMin: 15 * MIN },

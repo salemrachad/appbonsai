@@ -112,6 +112,38 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   check('C light health neutral at night', o.h.scores.light === null, String(o.h.breakdown.components.find((c) => c.id === 'light')?.note));
 }
 
+// N. Humid nights: a greenhouse night is humid; only near-saturated air for hours counts (≥ 88 %)
+{
+  const night = (hum: number) => new Sim().run(at(21), 5 * 60, () => ({ soil: 60, light: 5, hum }));
+  const n1 = night(86);
+  check('HN1 an 86 % night: just sleeping (normal for a greenhouse night)', n1.h.condition === 'sleeping' && !n1.h.modifiers.includes('high_humidity'), show(n1));
+  const n2 = night(90);
+  check(
+    'HN2 a 90 % night for hours: sleeping, with high humidity (mist and beads on the leaves)',
+    n2.h.condition === 'sleeping' && n2.h.modifiers.includes('high_humidity') && n2.x.avatar.effects.includes('mist') && n2.x.avatar.effects.includes('condensation'),
+    `${show(n2)} · ${n2.x.avatar.effects.join(',')}`
+  );
+  const n3 = new Sim().run(at(9), 5 * 60, () => ({ soil: 60, hum: 86 }));
+  check('HN3 by day 86 % for hours is still high humidity', n3.h.condition === 'high_humidity' || n3.h.modifiers.includes('high_humidity'), show(n3));
+  // Dusk: active by day at 86 %, the sun sets, it stays 86 %: no flapping (the night exit is ≤ 84 %)
+  const s = new Sim();
+  const light = (t: number) => (new Date(t).getHours() >= 20 ? 5 : 50);
+  s.run(at(14), 4 * 60, (_, t) => ({ soil: 60, hum: 86, light: light(t) }));
+  let flips = 0;
+  let was = true;
+  for (let i = 0; i < 4 * 60; i++) {
+    const t = at(18) + i * MIN;
+    const o = s.step(t, { soil: 60, hum: 86, light: light(t) });
+    const on = o.h.condition === 'high_humidity' || o.h.modifiers.includes('high_humidity');
+    if (on !== was) flips++;
+    was = on;
+  }
+  const drop = s.run(at(22), 45, () => ({ soil: 60, hum: 83, light: 5 }));
+  check('HN4 dusk carry-over: active at 86 % stays active into the night, then 45 min at 83 % ends it', flips === 0 && was && !drop.h.modifiers.includes('high_humidity') && drop.h.condition !== 'high_humidity', `${flips} flips · after the drop ${show(drop)}`);
+  const rule = n2.h.hysteresis.find((l) => l.id === 'high_humidity')?.rule ?? '';
+  check('HN5 the debug rule names the night threshold', /at night: enter > 88%/.test(rule), rule);
+}
+
 // D. Low daytime light for a sustained period → too_dark
 {
   const s = new Sim();

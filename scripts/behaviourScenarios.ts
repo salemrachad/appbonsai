@@ -131,6 +131,21 @@ async function main() {
     check('S8 morning after a calm night: a calm morning line', !!morning, l.spoken.map((s) => s.text).join(' | '));
   }
 
+  // A humid night: ≥ 88 % for hours → a dewy morning line (once); 86 % is an ordinary night
+  for (const [hum, dewy] of [[92, true], [86, false]] as const) {
+    const b = new Bench();
+    b.clock = at(15, 19, 0);
+    await b.boot();
+    const l = new Listener(b);
+    await l.run(50, () => day(30));
+    await l.run(9 * 60, () => ({ soil: 60, light: 0, hum }));
+    l.reset();
+    await l.run(120, (i) => ({ soil: 60, light: Math.min(50, i), hum: 60 }));
+    const said = (lines: readonly string[]) => l.spoken.filter((s) => lines.some((d) => s.text.startsWith(d))).length;
+    if (dewy) check('S8d after a dewy night (92 %): a dewy morning line, once', said(DAY_LINES.morning_dewy) === 1 && said(DAY_LINES.morning_calm) === 0, l.spoken.map((s) => s.text).join(' | '));
+    else check('S8e after an 86 % night: the ordinary calm morning', said(DAY_LINES.morning_calm) === 1 && said(DAY_LINES.morning_dewy) === 0, l.spoken.map((s) => s.text).join(' | '));
+  }
+
   // 9. Morning after a stressful night
   {
     const b = new Bench();

@@ -394,10 +394,12 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (tod === 'morning' && previousState === 'sleeping' && minutes < 90 && CALM.includes(condition) && prevEpisode) {
     // A stressful night: stress late in the evening or during the night, or a night spent still recovering
     const nightStart = prevEpisode.startedAt;
-    const stressful =
-      prevEpisode.modifiers.some((m) => m === 'recovering' || seriousStress(m)) ||
-      sorted.some((e) => e !== open && (e.endedAt ?? now) > nightStart - 3 * HOUR && e.startedAt < now && isStressEpisode(e));
-    dayLine = stressful ? 'morning_after_stress' : 'morning_calm';
+    const serious =
+      prevEpisode.modifiers.some(seriousStress) || sorted.some((e) => e !== open && (e.endedAt ?? now) > nightStart - 3 * HOUR && e.startedAt < now && isStressEpisode(e));
+    // A dewy night (near-saturated air for hours): its only stress, and the short recovery as the air
+    // dries at dawn is part of it, not a hard night
+    const dewy = prevEpisode.modifiers.includes('high_humidity');
+    dayLine = serious || (prevEpisode.modifiers.includes('recovering') && !dewy) ? 'morning_after_stress' : dewy ? 'morning_dewy' : 'morning_calm';
   } else if (condition === 'sleeping' && minutes < 60) {
     const dayStart = new Date(now);
     dayStart.setHours(5, 0, 0, 0);

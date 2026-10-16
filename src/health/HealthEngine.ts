@@ -179,7 +179,7 @@ export function evaluatePlantHealth({ perception: p, species, memory: stored, te
     const inp = inputs[id];
     const before = memory.latches[id] ?? INITIAL_LATCH;
     // While nothing trustworthy is measured, every latch is held exactly as it was
-    const after = fresh ? stepLatch(before, species.latches[id], { value: inp.value, now, continuous, gate: inp.gate }) : { ...before, pendingSince: null };
+    const after = fresh ? stepLatch(before, species.latches[id], { value: inp.value, now, continuous, gate: inp.gate, night: !p.sun.isDay }) : { ...before, pendingSince: null };
     latches[id] = before.active && after.active ? { ...after, observedMs: (before.observedMs ?? 0) + observedMs } : after;
   }
   // Starting up in the dark at night: rest right away (sleep isn't a stress, no need to wait it out)

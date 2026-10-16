@@ -29,6 +29,8 @@ export interface LatchRule {
   exit: number;
   enterAfterMin: number;
   exitAfterMin: number;
+  // While the sun is down these replace the day values (e.g. humidity: a greenhouse night is humid)
+  night?: Partial<Pick<LatchRule, 'enter' | 'exit' | 'enterAfterMin' | 'exitAfterMin'>>;
 }
 
 export type LatchId =
