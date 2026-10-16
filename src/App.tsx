@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MapPin, RefreshCw, History as HistoryIcon, Settings as SettingsIcon, X, Activity, Wrench } from 'lucide-react';
 import { api } from './api/client';
 import { BACKEND } from './config/backend';
@@ -13,19 +13,24 @@ import { midSeasonState } from './perception/season';
 import { ACTIVE_SPECIES } from './species';
 import type { HourlyTelemetryPoint } from './telemetry/types';
 import type { PetSession } from './components/avatar/usePetting';
-import { DetailView } from './components/DetailView';
 import { SceneBackdrop } from './components/scene/SceneBackdrop';
 import { SeasonChip } from './components/scene/SeasonChip';
 import { BackendBadge } from './components/developer/BackendBadge';
 import { SensorDiagnostics } from './components/sensors/SensorDiagnostics';
 import { Toast, ToastMessage } from './components/Toast';
-import { Developer } from './pages/Developer';
 import { Home } from './pages/Home';
-import { History } from './pages/History';
-import { Settings } from './pages/Settings';
 import { hhmm } from './lib/time';
 
 type Panel = 'history' | 'settings' | 'developer' | null;
+
+// Panels and the details modal load when first opened: the first screen is only the tree
+const named = <K extends string, M extends Record<K, React.ComponentType<any>>>(load: () => Promise<M>, name: K) =>
+  lazy(() => load().then((m) => ({ default: m[name] })));
+const History = named(() => import('./pages/History'), 'History');
+const Settings = named(() => import('./pages/Settings'), 'Settings');
+const Developer = named(() => import('./pages/Developer'), 'Developer');
+const DetailView = named(() => import('./components/DetailView'), 'DetailView');
+const panelLoading = <p className="sans text-xs text-[var(--ink)]/50 py-6">Loading…</p>;
 
 const DEBUG_KEY = 'appbonsai_sensor_debug_v1';
 
@@ -306,6 +311,7 @@ export default function App() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+            <Suspense fallback={panelLoading}>
             {panel === 'history' ? (
               <History treeName={settings.treeName} changeKey={changeKey} onCareLogged={() => reload()} />
             ) : panel === 'developer' ? (
@@ -329,11 +335,13 @@ export default function App() {
                 onOpenDeveloper={() => setPanel('developer')}
               />
             )}
+            </Suspense>
           </aside>
         </div>
       )}
 
       {showDetail && display && (
+        <Suspense fallback={null}>
         <DetailView
           health={display}
           message={expression?.message.text ?? ''}
@@ -346,6 +354,7 @@ export default function App() {
           locationName={settings.locationName}
           onClose={() => setShowDetail(false)}
         />
+        </Suspense>
       )}
 
       <Toast toast={toast} raised={showDiagnostics} />
