@@ -106,7 +106,8 @@ everything else use `npm run dev`.
 
 ## Other commands
 
-- `npm test`: the scenario suites (engines, collector, behaviour). They use in-memory databases.
+- `npm test`: the scenario suites (engines, collector, behaviour) and the golden master (`scripts/golden.ts`, a scripted three days that must stay identical). They use in-memory databases.
+- `npm run check`: type-check + all tests.
 - `npm run lint`: type-check.
 - `npm run db:inspect`: read-only summary of `data/appbonsai.db` (`APPBONSAI_DB` picks another file).
 

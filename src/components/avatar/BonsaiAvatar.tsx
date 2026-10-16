@@ -489,7 +489,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
         </g>
 
         <Lanterns effects={look.effects} />
-        <ForegroundEffects effects={look.effects} palette={palette} seasonal={look.seasonalLeaves} canopy={look.canopy} />
+        <ForegroundEffects effects={look.effects} palette={palette} seasonal={look.seasonalLeaves} />
         <circle ref={petting.glowRef} cx="220" cy="120" r="34" fill="url(#petHandGlow)" opacity="0" pointerEvents="none" style={{ mixBlendMode: 'screen' }} />
       </svg>
 

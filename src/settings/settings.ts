@@ -24,6 +24,7 @@ export interface TreeSettings {
   useAppSoilCalibration?: boolean;
   soilRawDry?: number;
   soilRawWet?: number;
+  lastSoilRaw?: number; // last raw value seen by Test Link (browser copy only; the server strips it)
   telemetryIntervalMs?: number; // how often the local server reads the ESP32
 }
 

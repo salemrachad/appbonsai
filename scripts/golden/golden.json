@@ -1,0 +1,5419 @@
+{
+ "note": "Recorded by scripts/golden.ts. Regenerate only for an intended behaviour change: npm run test:golden -- --update",
+ "checkpoints": [
+  {
+   "at": "Mon 10:00",
+   "label": "h1",
+   "summary": {
+    "condition": "comfortable",
+    "modifiers": "",
+    "vitality": 77,
+    "mood": "content",
+    "scene": "calm",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "a0072f32b793",
+    "health": "303dd4273042",
+    "behaviour": "387814de8450",
+    "expression": "f86120c220fd",
+    "liveReadings": "bba0117f692c",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "8927116de7b6",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 11:00",
+   "label": "h2",
+   "summary": {
+    "condition": "comfortable",
+    "modifiers": "",
+    "vitality": 82,
+    "mood": "content",
+    "scene": "calm",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "5daaba5aaaf5",
+    "health": "2c92307a86e4",
+    "behaviour": "cf03dda1d2bf",
+    "expression": "06ba09d92fdf",
+    "liveReadings": "2acee891ccd3",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "ab31a862fc47",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 12:00",
+   "label": "h3",
+   "summary": {
+    "condition": "comfortable",
+    "modifiers": "",
+    "vitality": 86,
+    "mood": "content",
+    "scene": "calm",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "1d506da4276e",
+    "health": "fcb3787be778",
+    "behaviour": "5df250680ccf",
+    "expression": "51a7431f9e1e",
+    "liveReadings": "d848bfc003a0",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "873efa3ab932",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 13:00",
+   "label": "h4",
+   "summary": {
+    "condition": "comfortable",
+    "modifiers": "",
+    "vitality": 89,
+    "mood": "content",
+    "scene": "calm",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "d6a96193d457",
+    "health": "a63a3aa8ac46",
+    "behaviour": "b2bafa0f8730",
+    "expression": "6afb129ce793",
+    "liveReadings": "94eb31934e3a",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "9659e2d620c3",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 14:00",
+   "label": "h5",
+   "summary": {
+    "condition": "comfortable",
+    "modifiers": "",
+    "vitality": 91,
+    "mood": "content",
+    "scene": "calm",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "d94f1102701c",
+    "health": "e4e7e25a12ea",
+    "behaviour": "99c54dce1b93",
+    "expression": "e696007b9273",
+    "liveReadings": "ee2238f853b3",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "e68b421f9538",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 15:00",
+   "label": "h6",
+   "summary": {
+    "condition": "comfortable",
+    "modifiers": "",
+    "vitality": 93,
+    "mood": "content",
+    "scene": "calm",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "97bc57b10bf7",
+    "health": "7aaf27035b0c",
+    "behaviour": "cfb81b88742b",
+    "expression": "ec589d250e09",
+    "liveReadings": "f4952294aeed",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "7292c492fff5",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 16:00",
+   "label": "h7",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 95,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "1cae888b04fe",
+    "health": "155939d1b9b2",
+    "behaviour": "abc6f76fcfcc",
+    "expression": "fe3b2fcb0cc1",
+    "liveReadings": "32425b7184cc",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "4303aaf61aab",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 17:00",
+   "label": "h8",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 96,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "8dcb5e7c48d0",
+    "health": "667916d6dbc0",
+    "behaviour": "bac4836405e7",
+    "expression": "abb7e0f67157",
+    "liveReadings": "d190425407e3",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "b27c83b3c66e",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 18:00",
+   "label": "h9",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 97,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "4f5fc71c5411",
+    "health": "5be89f5c67e9",
+    "behaviour": "ef9fd0fac4f7",
+    "expression": "82cc76cb2574",
+    "liveReadings": "da1e67d03ff3",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "b9ac1a586dee",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 19:00",
+   "label": "h10",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "8db76010a556",
+    "health": "5499f04f985b",
+    "behaviour": "715212ed08b7",
+    "expression": "647703a3ba69",
+    "liveReadings": "48ee3d39f7f8",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "7f5fab42e974",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 20:00",
+   "label": "h11",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": "Sleeping. 🌙"
+   },
+   "hash": {
+    "perception": "f0ca28619553",
+    "health": "944b2c03e82a",
+    "behaviour": "0c979b415cee",
+    "expression": "120a8db0fa8b",
+    "liveReadings": "2955d3760e33",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "73185f131b78",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 21:00",
+   "label": "h12",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": ""
+   },
+   "hash": {
+    "perception": "6f2fc1678501",
+    "health": "489221d9bfd8",
+    "behaviour": "d0cb6dda4cfc",
+    "expression": "2a732bc83c38",
+    "liveReadings": "58fffce2dc77",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "66a04a332ddc",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 22:00",
+   "label": "h13",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 97,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": ""
+   },
+   "hash": {
+    "perception": "49af9c74994e",
+    "health": "e137acac2378",
+    "behaviour": "d0ab967d94fe",
+    "expression": "e34d80d64fca",
+    "liveReadings": "a1d069e65c7c",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "926846b91454",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Mon 23:00",
+   "label": "h14",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 96,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "5f36626dde9d",
+    "health": "6ea9ca105d0c",
+    "behaviour": "b926b0db59ff",
+    "expression": "3ee72556f302",
+    "liveReadings": "db6b45604887",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "68851906fdf3",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 00:00",
+   "label": "h15",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 94,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "c9b36adb0328",
+    "health": "11b0be91de5d",
+    "behaviour": "0e16d09df971",
+    "expression": "c75a6898c05f",
+    "liveReadings": "f379e15aa2c1",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "3c272e06c487",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 01:00",
+   "label": "h16",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 91,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "74187fbf7e5d",
+    "health": "8c2027bda7b1",
+    "behaviour": "70f262e63b1d",
+    "expression": "32e4ccf58388",
+    "liveReadings": "fdc918dae4ad",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "07c537182c66",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 02:00",
+   "label": "h17",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 88,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "d3dd530e8ff7",
+    "health": "eba2b1efc274",
+    "behaviour": "8b1fe40412bb",
+    "expression": "1cc79d5957b5",
+    "liveReadings": "e23f000e0679",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "7cffad9d70bf",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 03:00",
+   "label": "h18",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "sleeping",
+    "vitality": 85,
+    "mood": "patient",
+    "scene": "night",
+    "visitors": "",
+    "says": "I could use some water soon. 💧"
+   },
+   "hash": {
+    "perception": "a7a2ad352d51",
+    "health": "71eae9cf9c1b",
+    "behaviour": "bc4f06fe3427",
+    "expression": "c0a30943e6f1",
+    "liveReadings": "78b7369cde88",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "2822d64e8661",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 04:00",
+   "label": "h19",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "sleeping",
+    "vitality": 82,
+    "mood": "tired",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "3f5f4b79dcc4",
+    "health": "5fc84447780e",
+    "behaviour": "58b3b9e940f7",
+    "expression": "7c6764571514",
+    "liveReadings": "41abb359afa7",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "284e0b73612f",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 05:00",
+   "label": "h20",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "sleeping",
+    "vitality": 79,
+    "mood": "tired",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "6404635e1354",
+    "health": "ea36668a614d",
+    "behaviour": "36cde0c66ce2",
+    "expression": "48ae5e53f885",
+    "liveReadings": "74b2342db303",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "120d6c4165bc",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 06:00",
+   "label": "h21",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "",
+    "vitality": 75,
+    "mood": "uncomfortable",
+    "scene": "parched",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "7c4aae14be88",
+    "health": "ae7703edb240",
+    "behaviour": "0a89a3f32bb0",
+    "expression": "de9bd263a496",
+    "liveReadings": "86d5bcac789e",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "d5c43f98f370",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 07:00",
+   "label": "h22",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "",
+    "vitality": 72,
+    "mood": "tired",
+    "scene": "parched",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "793c0ceb9a6b",
+    "health": "bd89785eac63",
+    "behaviour": "2198543a200e",
+    "expression": "fe59af8c6fcd",
+    "liveReadings": "91379a4ea5c5",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "c146c76fa742",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 08:00",
+   "label": "h23",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "",
+    "vitality": 69,
+    "mood": "tired",
+    "scene": "parched",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "e96182e9941a",
+    "health": "01f24d4a5a58",
+    "behaviour": "ae4dd393ea1d",
+    "expression": "154072cc9eed",
+    "liveReadings": "23a8bd656796",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "b02f2d03c9bb",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 09:00",
+   "label": "h24",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "",
+    "vitality": 66,
+    "mood": "tired",
+    "scene": "parched",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "59aa3f8e40bf",
+    "health": "2d1924616ae5",
+    "behaviour": "3531ef94c6c4",
+    "expression": "24f8842f47f6",
+    "liveReadings": "825a200504aa",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "2a8777117ea3",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 10:00",
+   "label": "h25",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "",
+    "vitality": 64,
+    "mood": "tired",
+    "scene": "parched",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "2747564edbbe",
+    "health": "f3bd8150ebbe",
+    "behaviour": "ff515cd7f659",
+    "expression": "66770d673949",
+    "liveReadings": "9b40b553efc5",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "692bdf196d1a",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 11:00",
+   "label": "h26",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "",
+    "vitality": 62,
+    "mood": "tired",
+    "scene": "parched",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "eae04f9f1400",
+    "health": "e048020e0851",
+    "behaviour": "e65d1a2b97c6",
+    "expression": "20301e78e016",
+    "liveReadings": "1da8c3ec698c",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "7b60d12ed2fe",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 12:00",
+   "label": "h27",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "",
+    "vitality": 60,
+    "mood": "tired",
+    "scene": "parched",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "0bfe3c493bca",
+    "health": "a9989a623cdb",
+    "behaviour": "483c88d0681d",
+    "expression": "285c69c973eb",
+    "liveReadings": "66ef3a70a357",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "36e50233eb56",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 13:00",
+   "label": "h28",
+   "summary": {
+    "condition": "thirsty",
+    "modifiers": "",
+    "vitality": 59,
+    "mood": "tired",
+    "scene": "parched",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "8acab0b11799",
+    "health": "f4b76aeb8a85",
+    "behaviour": "f2693189f1c1",
+    "expression": "80a1ef4fff31",
+    "liveReadings": "f8e309f92156",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "981f6b853d9a",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 14:00",
+   "label": "h29",
+   "summary": {
+    "condition": "very_dry",
+    "modifiers": "",
+    "vitality": 58,
+    "mood": "distressed",
+    "scene": "drought",
+    "visitors": "",
+    "says": "I've been far too dry for too long. 💧"
+   },
+   "hash": {
+    "perception": "1b0903b3be86",
+    "health": "acb172d2713c",
+    "behaviour": "853bc91fb01d",
+    "expression": "0ef2a4ac4b69",
+    "liveReadings": "38da5160115d",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "c475b1adfbdd",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 15:00",
+   "label": "h30",
+   "summary": {
+    "condition": "very_dry",
+    "modifiers": "",
+    "vitality": 57,
+    "mood": "distressed",
+    "scene": "drought",
+    "visitors": "",
+    "says": "I'm struggling. Please water me deeply. 💧"
+   },
+   "hash": {
+    "perception": "c29991d963c4",
+    "health": "19a3d8c85db2",
+    "behaviour": "3391b7636d13",
+    "expression": "20d698fb31fa",
+    "liveReadings": "b090a6628f53",
+    "recentEvents": "fd4688789421",
+    "recentEpisodes": "028dbd93eb1d",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 16:00",
+   "label": "h31",
+   "summary": {
+    "condition": "recovering",
+    "modifiers": "",
+    "vitality": 64,
+    "mood": "watchful",
+    "scene": "renewal",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "08b3651e77ee",
+    "health": "644dda49287b",
+    "behaviour": "df805fe05b9d",
+    "expression": "a710085e5b0c",
+    "liveReadings": "f2d76b3e2505",
+    "recentEvents": "8cda2baedfbc",
+    "recentEpisodes": "46d4670fff51",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 17:00",
+   "label": "h32",
+   "summary": {
+    "condition": "recovering",
+    "modifiers": "",
+    "vitality": 71,
+    "mood": "relieved",
+    "scene": "renewal",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "3fe5d4c80e5e",
+    "health": "7b64adb47b7d",
+    "behaviour": "eac4312b88c3",
+    "expression": "32a0e43b078f",
+    "liveReadings": "e944117630a9",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "5bc1b37a5d48",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 18:00",
+   "label": "h33",
+   "summary": {
+    "condition": "recovering",
+    "modifiers": "",
+    "vitality": 76,
+    "mood": "relieved",
+    "scene": "renewal",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "27d9bbca8727",
+    "health": "e7ff6bf5a7e3",
+    "behaviour": "24b331f77c02",
+    "expression": "ad6c26ee9c0f",
+    "liveReadings": "fdf97db9edd6",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "ef4502ecbaa2",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 19:00",
+   "label": "h34",
+   "summary": {
+    "condition": "recovering",
+    "modifiers": "",
+    "vitality": 80,
+    "mood": "relieved",
+    "scene": "renewal",
+    "visitors": "",
+    "says": "Settling back into calm. 🌱"
+   },
+   "hash": {
+    "perception": "22ad5c2e579c",
+    "health": "5d5101209259",
+    "behaviour": "887cbc5bd2f5",
+    "expression": "448ae2464070",
+    "liveReadings": "64093c11bca0",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "b72083a8cc27",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 20:00",
+   "label": "h35",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "recovering",
+    "vitality": 84,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": "That was a long day. Resting for the night. 🌙"
+   },
+   "hash": {
+    "perception": "9396fe5cb652",
+    "health": "46e062c4c17a",
+    "behaviour": "b5388de1b8ba",
+    "expression": "8afac62cc4eb",
+    "liveReadings": "c2f5a27a8816",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "44395b941c32",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 21:00",
+   "label": "h36",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "recovering",
+    "vitality": 87,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": ""
+   },
+   "hash": {
+    "perception": "5df0fbd870ff",
+    "health": "08feca0107a4",
+    "behaviour": "84319be74cbd",
+    "expression": "cf47209fe124",
+    "liveReadings": "1ff06e5b7869",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "2a819f8e21ce",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 22:00",
+   "label": "h37",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 90,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": ""
+   },
+   "hash": {
+    "perception": "d35fe55a0441",
+    "health": "60058fb5ffc2",
+    "behaviour": "549d0e929112",
+    "expression": "fde26d29ad1b",
+    "liveReadings": "40a75618d893",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "d85c4002e589",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Tue 23:00",
+   "label": "h38",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 92,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "3045d49489bd",
+    "health": "a4f22a9859ba",
+    "behaviour": "d5c2eb666523",
+    "expression": "6942f0a74a42",
+    "liveReadings": "1e47bdec2534",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "f92c4f20baec",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 00:00",
+   "label": "h39",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 94,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "86ee32299bea",
+    "health": "29529f1e0fd2",
+    "behaviour": "a3720906ffec",
+    "expression": "9fbb644b3b61",
+    "liveReadings": "4fa7bfbfdc2c",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "8aecd5450491",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 01:00",
+   "label": "h40",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 95,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "63bda1f2c77a",
+    "health": "e6fd53e66e9b",
+    "behaviour": "13ec8ae4382c",
+    "expression": "06c8e68803c4",
+    "liveReadings": "213307969362",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "e728fe1186bb",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 02:00",
+   "label": "h41",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 96,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "31a013a43511",
+    "health": "70b9baa53882",
+    "behaviour": "2fc74f20a64e",
+    "expression": "c4db6bb69c9a",
+    "liveReadings": "480a003c513d",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "f04c9cae38fc",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 03:00",
+   "label": "h42",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 97,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "cfe33f2b371f",
+    "health": "b72f00ca8d0e",
+    "behaviour": "531715b98bf3",
+    "expression": "98a73816d99e",
+    "liveReadings": "8e70d1491bad",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "bc31232f7446",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 04:00",
+   "label": "h43",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 97,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "165285a96346",
+    "health": "0cf75d2cbdb6",
+    "behaviour": "510d8f7d326f",
+    "expression": "5eac67723430",
+    "liveReadings": "f23c562f8316",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "5d5191b4fecc",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 05:00",
+   "label": "h44",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 97,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "07b25d35ae13",
+    "health": "77b51d11674c",
+    "behaviour": "3b7fbc95892e",
+    "expression": "2cb41296bf3a",
+    "liveReadings": "55c3f072d3e8",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "f2d8d805f1d1",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 06:00",
+   "label": "h45",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "relieved",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "f8948f70498b",
+    "health": "49d7859cc3a7",
+    "behaviour": "3d8ec69198ee",
+    "expression": "7c636a10a00a",
+    "liveReadings": "6bed13afa423",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "7c13daf35fd7",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 07:00",
+   "label": "h46",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "relieved",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "86fa8880b511",
+    "health": "cd1bde583676",
+    "behaviour": "69af762bcfcb",
+    "expression": "ea2a2a50b56a",
+    "liveReadings": "8c6b9884600e",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "c29f32683d60",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 08:00",
+   "label": "h47",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "efc3697f2d43",
+    "health": "a25a692650e6",
+    "behaviour": "cb5e3ef45ad6",
+    "expression": "abe393e56108",
+    "liveReadings": "86a49a13049f",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "d8d24de5611b",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 09:00",
+   "label": "h48",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 99,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": "Warmest hour so far. 🌤"
+   },
+   "hash": {
+    "perception": "fc0fb1cfbdae",
+    "health": "4513c51186f3",
+    "behaviour": "d231adf3d6f3",
+    "expression": "0de2564afe7a",
+    "liveReadings": "4e10c38a9b04",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "5428ef86a64a",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 10:00",
+   "label": "h49",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 99,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "71317bb966cc",
+    "health": "0c12af9303d4",
+    "behaviour": "11addbd8c877",
+    "expression": "b91878682992",
+    "liveReadings": "0ce8c1f13266",
+    "recentEvents": "6c6fba91e353",
+    "recentEpisodes": "a5ccdda68989",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 11:00",
+   "label": "h50",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 99,
+    "mood": "grateful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "dc8dd5af35ff",
+    "health": "16001cacc592",
+    "behaviour": "259c667c175b",
+    "expression": "a5c50bdd49bc",
+    "liveReadings": "199bb9a13107",
+    "recentEvents": "9a2fc6f7606b",
+    "recentEpisodes": "990d35f5a513",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 12:00",
+   "label": "h51",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 99,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "50d2fab61a1c",
+    "health": "d41965f54ecb",
+    "behaviour": "97dd23e2350f",
+    "expression": "fb2668ebd690",
+    "liveReadings": "6625ae1014f3",
+    "recentEvents": "9a2fc6f7606b",
+    "recentEpisodes": "3c27d9da39d5",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 13:00",
+   "label": "h52",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 99,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "11af3d4d3ee6",
+    "health": "1697cc8f4002",
+    "behaviour": "df5383839646",
+    "expression": "4505054a41a8",
+    "liveReadings": "15ba51e7f394",
+    "recentEvents": "9a2fc6f7606b",
+    "recentEpisodes": "cfd45d335a2c",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 14:00",
+   "label": "h53",
+   "summary": {
+    "condition": "hot",
+    "modifiers": "",
+    "vitality": 91,
+    "mood": "uneasy",
+    "scene": "scorching",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "01c972dfc5cf",
+    "health": "b1fdb2f2e748",
+    "behaviour": "a8b5870ffc79",
+    "expression": "074ff799fc27",
+    "liveReadings": "08a400eb1888",
+    "recentEvents": "9a2fc6f7606b",
+    "recentEpisodes": "b6d8263cd7ec",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 15:00",
+   "label": "h54",
+   "summary": {
+    "condition": "hot",
+    "modifiers": "dry_air",
+    "vitality": 85,
+    "mood": "uneasy",
+    "scene": "scorching",
+    "visitors": "",
+    "says": "This heat is wearing on me. ☀️"
+   },
+   "hash": {
+    "perception": "61982c51e02f",
+    "health": "8e6d5bed36f9",
+    "behaviour": "a46e442b3a5c",
+    "expression": "30083276b646",
+    "liveReadings": "8ccf10189316",
+    "recentEvents": "9a2fc6f7606b",
+    "recentEpisodes": "2512318bf97a",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 16:00",
+   "label": "h55",
+   "summary": {
+    "condition": "dry_air",
+    "modifiers": "",
+    "vitality": 83,
+    "mood": "uneasy",
+    "scene": "windy",
+    "visitors": "",
+    "says": "The air feels dry around my leaves. 🍂"
+   },
+   "hash": {
+    "perception": "8674adc2555f",
+    "health": "4f22953c0ae1",
+    "behaviour": "c0a278733103",
+    "expression": "b6eda3d679bb",
+    "liveReadings": "c2da6a269a08",
+    "recentEvents": "9a2fc6f7606b",
+    "recentEpisodes": "42ce9e0ba014",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 17:00",
+   "label": "h56",
+   "summary": {
+    "condition": "recovering",
+    "modifiers": "",
+    "vitality": 85,
+    "mood": "relieved",
+    "scene": "renewal",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "98f91dc8dbf7",
+    "health": "5e02d2e9501a",
+    "behaviour": "c4b8bd4ed0ee",
+    "expression": "565a3394d018",
+    "liveReadings": "4475276506dd",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "a1c7cb21cf96",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 18:00",
+   "label": "h57",
+   "summary": {
+    "condition": "recovering",
+    "modifiers": "",
+    "vitality": 86,
+    "mood": "relieved",
+    "scene": "renewal",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "58872a81c2c7",
+    "health": "811b0c37b3d8",
+    "behaviour": "2642f04630d7",
+    "expression": "d4fe65e6b8a1",
+    "liveReadings": "e5b3ddd3ca4f",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "ef200ca3633d",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 19:00",
+   "label": "h58",
+   "summary": {
+    "condition": "comfortable",
+    "modifiers": "",
+    "vitality": 88,
+    "mood": "content",
+    "scene": "calm",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "9120486653a7",
+    "health": "1aef58f0cff0",
+    "behaviour": "ddf7e89767e8",
+    "expression": "c96a9b3b1712",
+    "liveReadings": "9c090a686f11",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "5e72c2d5782e",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 20:00",
+   "label": "h59",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 90,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": "That was a warm day. Resting for the night. 🌙"
+   },
+   "hash": {
+    "perception": "59430cdd97e0",
+    "health": "94f04c8034c0",
+    "behaviour": "28086dcc9dce",
+    "expression": "b96083743650",
+    "liveReadings": "34685f6f7eff",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "6d9951307235",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 21:00",
+   "label": "h60",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 92,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": ""
+   },
+   "hash": {
+    "perception": "f95309ecc7af",
+    "health": "62fe4ec649be",
+    "behaviour": "e5b9e5f738ae",
+    "expression": "13fb28c5c4d1",
+    "liveReadings": "661083b91bcf",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "002d186126d7",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 22:00",
+   "label": "h61",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 93,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": ""
+   },
+   "hash": {
+    "perception": "25871f597a03",
+    "health": "6c8df428dfa5",
+    "behaviour": "3c55b4880b23",
+    "expression": "07a2fd39ed17",
+    "liveReadings": "9c44132515f7",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "01d6f42819ae",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Wed 23:00",
+   "label": "h62",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 94,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "sloth:sleeping",
+    "says": ""
+   },
+   "hash": {
+    "perception": "b1edc26cc628",
+    "health": "1a46f3c02617",
+    "behaviour": "283e1cf80504",
+    "expression": "10a9135534b5",
+    "liveReadings": "254e60303c2b",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "197a34ca0033",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 00:00",
+   "label": "h63",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 95,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "701d69378613",
+    "health": "8a681fb76f57",
+    "behaviour": "0a4b4a2a81b8",
+    "expression": "5a04b927b796",
+    "liveReadings": "b74505d5ced3",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "be3575739c84",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 01:00",
+   "label": "h64",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 96,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "e8a3507d252a",
+    "health": "9ab798b7b31e",
+    "behaviour": "43de3d6449eb",
+    "expression": "07040200b2a4",
+    "liveReadings": "0d5ba5a5bbc7",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "fed31602bf1c",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 02:00",
+   "label": "h65",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 97,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "bf2dbd968445",
+    "health": "5bd9288e96c0",
+    "behaviour": "4bf04511c3d8",
+    "expression": "1889effd1846",
+    "liveReadings": "b5f462481881",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "ac15daf21611",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 03:00",
+   "label": "h66",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 97,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "37fd90758dec",
+    "health": "d5b4ac17ae03",
+    "behaviour": "6bee6947e2fa",
+    "expression": "22b8f547bc55",
+    "liveReadings": "2ffa58453762",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "1bc472e1cfb4",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 04:00",
+   "label": "h67",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 97,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "f178f62147cf",
+    "health": "7aaafd9163d3",
+    "behaviour": "08c481a147ab",
+    "expression": "061d9dd40c29",
+    "liveReadings": "0579b0f27b58",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "7325ad66820c",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 05:00",
+   "label": "h68",
+   "summary": {
+    "condition": "sleeping",
+    "modifiers": "",
+    "vitality": 97,
+    "mood": "sleepy",
+    "scene": "night",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "8ec14483dd14",
+    "health": "a308ef3d7914",
+    "behaviour": "fc2ff7efc885",
+    "expression": "66d27ce72c6c",
+    "liveReadings": "5032bb2f1f4e",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "d67e74dba822",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 06:00",
+   "label": "h69",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "relieved",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "2c748c93b1ee",
+    "health": "11b0f72cab8f",
+    "behaviour": "3c324995a8e7",
+    "expression": "4d1e6a6f5fbc",
+    "liveReadings": "8b4aba1de8de",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "28c2998b7639",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 07:00",
+   "label": "h70",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "6a3a1bbdd3b2",
+    "health": "7a49173e6e83",
+    "behaviour": "0e8efa5feff6",
+    "expression": "56b8dd275fd8",
+    "liveReadings": "c719249f2057",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "ea613e0ff8bc",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 08:00",
+   "label": "h71",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": ""
+   },
+   "hash": {
+    "perception": "edf3f2a276ee",
+    "health": "9b23cfc20c5e",
+    "behaviour": "da7c3135da8e",
+    "expression": "1848560e8579",
+    "liveReadings": "4ec20b53ee1d",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "b7df37d7b7f8",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 09:00",
+   "label": "h72",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": "Nicely warm right now. 🌤"
+   },
+   "hash": {
+    "perception": "d24303027486",
+    "health": "045c3ae9e63b",
+    "behaviour": "59d8f6f1e778",
+    "expression": "bfc5d707218d",
+    "liveReadings": "e0b9dd34ba03",
+    "recentEvents": "dfc980fdafc1",
+    "recentEpisodes": "b5ce5413e241",
+    "forecast": "2997e32a8f18"
+   }
+  },
+  {
+   "at": "Thu 09:00",
+   "label": "cold restart (replay)",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": "Nicely warm right now. 🌤"
+   },
+   "hash": {
+    "perception": "84c1ce94aba4",
+    "health": "42fed13b7d4d",
+    "behaviour": "ab034ad551eb",
+    "expression": "74f3e58a9e4d",
+    "liveReadings": "59667fcf679b",
+    "recentEvents": "dccdbb4834d1",
+    "recentEpisodes": "83775d00058e",
+    "forecast": "9a35b7c8535f"
+   }
+  },
+  {
+   "at": "Thu 09:00",
+   "label": "warm restart",
+   "summary": {
+    "condition": "thriving",
+    "modifiers": "",
+    "vitality": 98,
+    "mood": "joyful",
+    "scene": "golden",
+    "visitors": "",
+    "says": "Nicely warm right now. 🌤"
+   },
+   "hash": {
+    "perception": "577da5986afc",
+    "health": "42fed13b7d4d",
+    "behaviour": "ab034ad551eb",
+    "expression": "74f3e58a9e4d",
+    "liveReadings": "59667fcf679b",
+    "recentEvents": "dccdbb4834d1",
+    "recentEpisodes": "83775d00058e",
+    "forecast": "9a35b7c8535f"
+   }
+  }
+ ],
+ "routes": {
+  "current": {
+   "behaviour": {
+    "afterglow": false,
+    "canopy": {
+     "fullness": 0.99,
+     "reasons": [
+      "full canopy"
+     ],
+     "refilling": 0,
+     "trend": "steady"
+    },
+    "care": {
+     "calm": 0.68,
+     "effects": [
+      "pruned 23h ago: calmer, gentler movement"
+     ],
+     "relearningLight": false,
+     "settling": 0
+    },
+    "careLine": "new_shape",
+    "concern": null,
+    "dayLine": null,
+    "energy": 0.99,
+    "episode": {
+     "condition": "thriving",
+     "id": 15,
+     "minutes": 209,
+     "startedAt": 1781749860000
+    },
+    "evaluatedAt": 1781762400000,
+    "expressionIntensity": 0.3,
+    "habitat": {
+     "calmHours14d": 24.2,
+     "dragonfly": {
+      "active": true,
+      "insideTemp": 22,
+      "presence": "none",
+      "value": 0.88,
+      "visit": null,
+      "visitsToday": {
+       "count": 1,
+       "firstAt": 1781762048340
+      },
+      "why": "good air for it (none right now)"
+     },
+     "drey": {
+      "builtAt": null,
+      "stage": "none",
+      "value": 0
+     },
+     "encounters": [],
+     "lastChangeAt": null,
+     "memory": {
+      "boldness": 0,
+      "brokenAt": null,
+      "favouriteSpot": null,
+      "pastVisits": 0,
+      "stage": "none",
+      "trust": 0,
+      "usualHour": null
+     },
+     "presence": "none",
+     "sloth": {
+      "active": false,
+      "insideTemp": 22,
+      "memory": {
+       "daysWithIt": 3,
+       "homeBranch": "left_branch",
+       "loyalty": 0.64
+      },
+      "presence": "none",
+      "value": 0.01,
+      "visit": null,
+      "visitsToday": {
+       "count": 0,
+       "firstAt": null,
+       "minutes": 0
+      },
+      "why": "waiting for warm, humid, still air (0.01 < 0.6)"
+     },
+     "stressHours14d": 14.9,
+     "traces": null,
+     "value": 0.35,
+     "visit": null,
+     "visitsToday": {
+      "count": 0,
+      "firstAt": null
+     },
+     "welcoming": false,
+     "why": "not welcoming yet (0.35 < 0.6)"
+    },
+    "intensityTier": "mild",
+    "messageIntent": "joy",
+    "modifiers": [],
+    "mood": "joyful",
+    "moodState": {
+     "arousal": 0.73,
+     "base": "joyful",
+     "ceiling": 1,
+     "forced": false,
+     "influences": [
+      {
+       "a": 0.7,
+       "source": "health",
+       "v": 0.8,
+       "why": "joyful (calm)"
+      },
+      {
+       "a": 0.06,
+       "source": "environment",
+       "v": 0.07,
+       "why": "good light: livelier, pleasant warmth"
+      },
+      {
+       "a": 0.03,
+       "source": "weather",
+       "v": 0,
+       "why": "a clear day outside"
+      }
+     ],
+     "label": "joyful",
+     "memory": {
+      "arousal": 0.73,
+      "at": 1781762400000,
+      "label": "joyful",
+      "valence": 0.71
+     },
+     "target": {
+      "arousal": 0.79,
+      "valence": 0.87
+     },
+     "valence": 0.71
+    },
+    "previousState": "sleeping",
+    "primaryState": "thriving",
+    "reaction": null,
+    "reasons": [
+     "Health: thriving for 3.5h",
+     "Before that: sleeping",
+     "Dragonfly 0.88: good air for it (none right now)",
+     "Care: pruned 23h ago: calmer, gentler movement",
+     "Mood joyful, energy 0.99, responsiveness 0.8, intensity 0.3",
+     "Season: early summer (active, 14.26h daylight, lengthening), energy ×1",
+     "Voice: 6 thoughts today (vitality 98, active season); 3 true right now",
+     "Habitat 0.35: not welcoming yet (0.35 < 0.6) · trust 0 (none)"
+    ],
+    "recoveryStage": null,
+    "relationship": {
+     "attention": {
+      "familiarity": 0.22,
+      "lastPetAt": 1781596800000,
+      "petSessions7d": 1
+     },
+     "hoursSinceCare": 17,
+     "lastCareAt": 1781701200000,
+     "observation": null,
+     "overwateringEvents7d": 0,
+     "thirstAnsweredWithin6h": 1,
+     "thirstEpisodes30d": 2,
+     "typicalRecoveryHours": 3.4,
+     "typicalThirstHoursBeforeWatering": 1.4,
+     "usuallyNoticesThirst": false,
+     "wateringsToday": 0
+    },
+    "responsiveness": 0.8,
+    "season": {
+     "blend": null,
+     "cycle": {
+      "leafDrop": 0,
+      "newGrowth": 0.02,
+      "yellowing": 0
+     },
+     "daylightTrend": "lengthening",
+     "energy": 1,
+     "growth": "active",
+     "id": "summer",
+     "key": "2026-summer",
+     "stage": "early"
+    },
+    "timeOfDay": "day",
+    "twilight": {
+     "event": null,
+     "minutes": null
+    },
+    "voice": {
+     "budget": 6,
+     "gapMs": 7320000,
+     "musings": [
+      {
+       "facts": {
+        "hoursToThirsty": 87.2,
+        "soil": 69
+       },
+       "id": "soil_steady",
+       "weight": 3
+      },
+      {
+       "facts": {
+        "count": 1,
+        "firstAt": 1781762048340
+       },
+       "id": "dragonfly_came",
+       "weight": 2
+      },
+      {
+       "facts": {
+        "temp": 22
+       },
+       "id": "warmest_hour",
+       "weight": 1
+      }
+     ],
+     "why": "6 thoughts today (vitality 98, active season); 3 true right now"
+    }
+   },
+   "expression": {
+    "atmosphere": {
+     "intensity": 0.5,
+     "phase": "day",
+     "scene": "golden",
+     "season": "summer",
+     "seasonStage": "early",
+     "sun": {
+      "sunrise": 1781749546473,
+      "sunset": 1781801443746,
+      "timesFrom": "solar"
+     },
+     "theme": "day",
+     "twilight": {
+      "at": 1781762400000,
+      "event": null,
+      "minutes": null,
+      "muted": false
+     },
+     "weather": {
+      "intensity": 0,
+      "label": "Clear · 27°C",
+      "sky": "clear",
+      "windy": false
+     }
+    },
+    "avatar": {
+     "animation": "animate-tree-thrive",
+     "blush": "happy",
+     "canopy": {
+      "fullness": 0.99,
+      "refilling": 0
+     },
+     "effects": [
+      "sprout",
+      "butterfly",
+      "pollen"
+     ],
+     "eyes": "joy",
+     "filter": null,
+     "foliage": "vivid",
+     "foliageBlend": null,
+     "gaze": "around",
+     "gesture": {
+      "everyMs": 9000,
+      "kind": "wiggle"
+     },
+     "halo": "bg-[#F2C14E]/25 blur-3xl animate-pulse-halo",
+     "mouth": "grin",
+     "posture": "perky",
+     "seasonalLeaves": {
+      "leafDrop": 0,
+      "newGrowth": 0.02,
+      "yellowing": 0
+     },
+     "soil": "moist",
+     "sweat": false
+    },
+    "dragonfly": null,
+    "drey": "none",
+    "encounters": [],
+    "gauge": {
+     "label": "Thriving",
+     "tone": "thriving"
+    },
+    "intensity": 0.3,
+    "layers": {
+     "diffraction": null,
+     "epidermal": [
+      "joyful mood",
+      "smiling closed eyes",
+      "lifted, perky leaves",
+      "lively sway",
+      "vivid foliage",
+      "early summer: growing",
+      "wiggle every ~9s",
+      "effects: sprout, butterfly, pollen"
+     ],
+     "wording": "Nicely warm right now. 🌤"
+    },
+    "leafDroop": -0.15,
+    "message": {
+     "cooldownRemainingMs": null,
+     "intent": "joy",
+     "key": "joy",
+     "onceStatus": "no observation",
+     "reason": "same thought, still showing",
+     "spokenAt": 1781762340000,
+     "text": "Nicely warm right now. 🌤",
+     "tip": "22°C now, the warmest reading of the day so far.",
+     "variant": 1,
+     "visible": true
+    },
+    "motion": {
+     "blinkEveryMs": 2650,
+     "flutter": 0.87,
+     "swayAmount": 0.99,
+     "swaySpeed": 1.19
+    },
+    "reactionStrength": 0.8,
+    "sloth": null,
+    "squirrelTraces": null,
+    "tapLabel": "🌿 Joyful",
+    "touch": {
+     "blink": "soft_close",
+     "damping": 11,
+     "familiarity": 0.22,
+     "give": 0.87,
+     "habituation": {
+      "floor": 0.45,
+      "recoverMs": 60000,
+      "settlePerSec": 0.04
+     },
+     "kind": "lean_in",
+     "lean": 0.78,
+     "stiffness": 57
+    },
+    "visitor": null
+   },
+   "forecast": {
+    "hourly": [],
+    "timeline": []
+   },
+   "health": {
+    "activeSince": {
+     "thriving": 1781715240000
+    },
+    "breakdown": {
+     "combinedExtra": 0,
+     "combinedMultiplier": 1,
+     "components": [
+      {
+       "id": "moisture",
+       "label": "Moisture",
+       "note": "69% soil · optimal 45–80%",
+       "score": 100,
+       "weight": 0.4
+      },
+      {
+       "id": "temperature",
+       "label": "Temperature",
+       "note": "22°C · optimal 18–28°C · recent exposure 2 °C·h (−4)",
+       "score": 96,
+       "weight": 0.2
+      },
+      {
+       "id": "humidity",
+       "label": "Humidity",
+       "note": "65% RH · optimal 50–75%",
+       "score": 100,
+       "weight": 0.1
+      },
+      {
+       "id": "light",
+       "label": "Light",
+       "note": "today: 1.4h of useful light out of 2.2h observed (66%; 50% or more counts as a good light day). Confidence high.",
+       "score": 100,
+       "weight": 0.15
+      },
+      {
+       "id": "stability",
+       "label": "Stability",
+       "note": "swing over 3h: 3.6°C, 7% RH",
+       "score": 100,
+       "weight": 0.15
+      }
+     ],
+     "durationPenalties": [],
+     "final": 98.2717122,
+     "frozen": false,
+     "previous": 98.26783626,
+     "recoveryModifier": 0,
+     "smoothing": {
+      "alpha": 0.0042,
+      "minutes": 1,
+      "tauHours": 4
+     },
+     "target": 99.2,
+     "weightedBase": 99.2
+    },
+    "condition": "thriving",
+    "confidence": "high",
+    "confidenceScore": 1,
+    "dataIssues": [],
+    "environment": {
+     "coupling": {
+      "baseline": 1.2023,
+      "baselineHours": 67.9,
+      "current": 0.653,
+      "note": null,
+      "ratio": null,
+      "status": "learning"
+     },
+     "temperatureExposure": {
+      "coldDegreeHours": 1.22,
+      "heatDegreeHours": 0.78,
+      "penalty": 4
+     }
+    },
+    "evaluatedAt": 1781762400000,
+    "hysteresis": [
+     {
+      "active": false,
+      "gated": null,
+      "id": "thirsty",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter < 35% for 30 min · exit ≥ 40% for 5 min",
+      "since": null,
+      "value": 69
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "very_dry",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter < 20% for 2h · exit ≥ 25% for 5 min",
+      "since": null,
+      "value": 69
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "too_wet",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter > 90% for 12h · exit ≤ 85% for 30 min",
+      "since": null,
+      "value": 69
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "hot",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter > 32°C for 30 min · exit ≤ 30°C for 20 min",
+      "since": null,
+      "value": 22
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "cold",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter < 13°C for 45 min · exit ≥ 15°C for 20 min",
+      "since": null,
+      "value": 22
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "freezing_risk",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter < 5°C for 10 min · exit ≥ 7°C for 30 min",
+      "since": null,
+      "value": 22
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "dry_air",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter < 40% for 1h · exit ≥ 45% for 30 min",
+      "since": null,
+      "value": 65
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "high_humidity",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter > 85% for 3h · exit ≤ 80% for 30 min · at night: enter > 88% for 3h · exit ≤ 84% for 30 min",
+      "since": null,
+      "value": 65
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "low_daily_light",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter < 20% of daylight useful for 30 min · exit ≥ 30% of daylight useful for 15 min",
+      "since": null,
+      "value": 66
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "very_bright",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter > 85% light for 30 min · exit ≤ 80% light for 10 min",
+      "since": null,
+      "value": 46
+     },
+     {
+      "active": false,
+      "gated": "sun is up",
+      "id": "night_rest",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "enter < 25.5% light for 5 min · exit ≥ 30% light for 5 min",
+      "since": null,
+      "value": 46
+     },
+     {
+      "active": true,
+      "gated": null,
+      "id": "thriving",
+      "observedMinutes": 120,
+      "pendingSince": null,
+      "rule": "enter > 90 vitality for 2h · exit ≤ 86 vitality for 10 min",
+      "since": 1781715240000,
+      "value": 98.3
+     },
+     {
+      "active": false,
+      "gated": null,
+      "id": "data_uncertain",
+      "observedMinutes": null,
+      "pendingSince": null,
+      "rule": "primary after 30 min without trustworthy data · back after 2 min of good data",
+      "since": null,
+      "value": 0
+     }
+    ],
+    "isOverride": false,
+    "metrics": [
+     {
+      "display": "69%",
+      "estimated": false,
+      "guide": {
+       "bands": [
+        {
+         "current": false,
+         "label": "Very Dry",
+         "range": "< 20%",
+         "tone": "alert"
+        },
+        {
+         "current": false,
+         "label": "Thirsty",
+         "range": "20–35%",
+         "tone": "caution"
+        },
+        {
+         "current": false,
+         "label": "Okay",
+         "range": "35–45%",
+         "tone": "info"
+        },
+        {
+         "current": true,
+         "label": "Good",
+         "range": "45–80%",
+         "tone": "good"
+        },
+        {
+         "current": false,
+         "label": "Moist",
+         "range": "80–90%",
+         "tone": "info"
+        },
+        {
+         "current": false,
+         "label": "Wet",
+         "range": "90–98%",
+         "tone": "caution"
+        },
+        {
+         "current": false,
+         "label": "Waterlogged",
+         "range": "> 98%",
+         "tone": "alert"
+        }
+       ],
+       "best": "45–80%",
+       "notes": [
+        "Thirsty after 30 min below 35%; eases back above 40%.",
+        "Very dry after 2h below 20%; eases back above 25%.",
+        "Too wet after 12h above 90%; eases back below 85%.",
+        "Prototype calibration: % from this pot’s FC-28 probe, not absolute water content."
+       ],
+       "title": "Soil moisture"
+      },
+      "id": "soil",
+      "idealRange": "45–80%",
+      "name": "Soil Moisture",
+      "status": "Good",
+      "tone": "good",
+      "unit": "%",
+      "value": 69
+     },
+     {
+      "display": "46%",
+      "estimated": false,
+      "guide": {
+       "bands": [
+        {
+         "current": false,
+         "label": "Very Dark",
+         "range": "0–10%",
+         "tone": "alert"
+        },
+        {
+         "current": false,
+         "label": "Low",
+         "range": "11–25%",
+         "tone": "caution"
+        },
+        {
+         "current": true,
+         "label": "Good",
+         "range": "26–60%",
+         "tone": "good"
+        },
+        {
+         "current": false,
+         "label": "Bright",
+         "range": "61–85%",
+         "tone": "good"
+        },
+        {
+         "current": false,
+         "label": "Very Bright",
+         "range": "86–100%",
+         "tone": "info"
+        }
+       ],
+       "best": "26–85%",
+       "notes": [
+        "Today: 1.4h of useful light out of 2.2h observed (66%; 50% or more counts as a good light day).",
+        "Today: Observed 2.2 of 2.2 expected daylight hours so far (11.6h today in total).",
+        "Relative photoresistor %, not lux (prototype bands, to be calibrated).",
+        "Only judged while the sun is well up: darkness at night, dawn and dusk is normal.",
+        "Judged over the whole day: “too dark” only when, after 2h of observed daylight, less than 20% of it was useful light (≥ 26%). A passing cloud doesn't count."
+       ],
+       "title": "Light"
+      },
+      "id": "light",
+      "idealRange": "26–60%",
+      "name": "Light",
+      "status": "Good",
+      "tone": "good",
+      "unit": "%",
+      "value": 46
+     },
+     {
+      "display": "22°C",
+      "estimated": false,
+      "guide": {
+       "bands": [
+        {
+         "current": false,
+         "label": "Freezing risk",
+         "range": "< 5°C",
+         "tone": "alert"
+        },
+        {
+         "current": false,
+         "label": "Cold",
+         "range": "5–13°C",
+         "tone": "caution"
+        },
+        {
+         "current": false,
+         "label": "Cool",
+         "range": "13–18°C",
+         "tone": "info"
+        },
+        {
+         "current": true,
+         "label": "Good",
+         "range": "18–28°C",
+         "tone": "good"
+        },
+        {
+         "current": false,
+         "label": "Warm",
+         "range": "28–32°C",
+         "tone": "info"
+        },
+        {
+         "current": false,
+         "label": "Hot",
+         "range": "32–38°C",
+         "tone": "caution"
+        },
+        {
+         "current": false,
+         "label": "Too hot",
+         "range": "> 38°C",
+         "tone": "alert"
+        }
+       ],
+       "best": "18–28°C",
+       "notes": [
+        "Hot after 30 min above 32°C; eases back below 30°C.",
+        "Cold after 45 min below 13°C; eases back above 15°C.",
+        "Freezing risk after 10 min below 5°C; eases back above 7°C.",
+        "A short spike barely matters; hours of heat or cold do."
+       ],
+       "title": "Air temperature"
+      },
+      "id": "temperature",
+      "idealRange": "18–28°C",
+      "name": "Temperature",
+      "status": "Good",
+      "tone": "good",
+      "unit": "°C",
+      "value": 22
+     },
+     {
+      "display": "65%",
+      "estimated": false,
+      "guide": {
+       "bands": [
+        {
+         "current": false,
+         "label": "Very dry air",
+         "range": "< 25%",
+         "tone": "alert"
+        },
+        {
+         "current": false,
+         "label": "Dry air",
+         "range": "25–40%",
+         "tone": "caution"
+        },
+        {
+         "current": false,
+         "label": "Slightly dry",
+         "range": "40–50%",
+         "tone": "info"
+        },
+        {
+         "current": true,
+         "label": "Good",
+         "range": "50–75%",
+         "tone": "good"
+        },
+        {
+         "current": false,
+         "label": "Humid",
+         "range": "75–85%",
+         "tone": "info"
+        },
+        {
+         "current": false,
+         "label": "Very humid",
+         "range": "85–98%",
+         "tone": "caution"
+        },
+        {
+         "current": false,
+         "label": "Saturated",
+         "range": "> 98%",
+         "tone": "alert"
+        }
+       ],
+       "best": "50–75%",
+       "notes": [
+        "Dry air after 1h below 40%; eases back above 45%.",
+        "Humid after 3h above 85%; eases back below 80%.",
+        "Ficus likes moderate humidity; very dry air dries the leaves."
+       ],
+       "title": "Air humidity"
+      },
+      "id": "humidity",
+      "idealRange": "50–75%",
+      "name": "Humidity",
+      "status": "Good",
+      "tone": "good",
+      "unit": "%",
+      "value": 65
+     },
+     {
+      "display": "0.93 kPa",
+      "estimated": false,
+      "guide": {
+       "bands": [
+        {
+         "current": false,
+         "label": "Very low",
+         "range": "< 0.1 kPa",
+         "tone": "alert"
+        },
+        {
+         "current": false,
+         "label": "Low",
+         "range": "0.1–0.4 kPa",
+         "tone": "caution"
+        },
+        {
+         "current": false,
+         "label": "Slightly low",
+         "range": "0.4–0.8 kPa",
+         "tone": "info"
+        },
+        {
+         "current": true,
+         "label": "Good",
+         "range": "0.8–1.3 kPa",
+         "tone": "good"
+        },
+        {
+         "current": false,
+         "label": "Slightly high",
+         "range": "1.3–1.9 kPa",
+         "tone": "info"
+        },
+        {
+         "current": false,
+         "label": "High",
+         "range": "1.9–2.6 kPa",
+         "tone": "caution"
+        },
+        {
+         "current": false,
+         "label": "Very high",
+         "range": "> 2.6 kPa",
+         "tone": "alert"
+        }
+       ],
+       "best": "0.75–1.3 kPa",
+       "notes": [
+        "How strongly the air pulls water out of the leaves, from temperature + humidity. Higher = faster drying."
+       ],
+       "title": "Vapour pressure deficit"
+      },
+      "id": "vpd",
+      "idealRange": "0.75–1.3 kPa",
+      "name": "Vapour Pressure Deficit",
+      "status": "Good",
+      "tone": "good",
+      "unit": "kPa",
+      "value": 0.93
+     }
+    ],
+    "modifiers": [],
+    "observation": {
+     "lastLiveAt": 1781762400000,
+     "status": "live",
+     "unobservedDeltaMs": 0,
+     "unobservedMinutes": 0
+    },
+    "qualitative": "Thriving",
+    "scores": {
+     "humidity": 100,
+     "light": 100,
+     "moisture": 100,
+     "stability": 100,
+     "temperature": 96
+    },
+    "severity": "none",
+    "stress": {
+     "dryHours": 0,
+     "hoursSinceWatering": 17,
+     "lowLightHours": 0,
+     "recoveringForHours": null,
+     "recoveringFrom": null,
+     "recoveryRemainingHours": null,
+     "wetHours": 0
+    },
+    "vitality": 98
+   },
+   "liveReadings": [
+    {
+     "humidity": 68,
+     "light": 33,
+     "lightRaw": 992,
+     "moisture": 70,
+     "soilRaw": 2488,
+     "t": 1781758860000,
+     "temperature": 20.7
+    },
+    {
+     "humidity": 68,
+     "light": 33,
+     "lightRaw": 986,
+     "moisture": 70,
+     "soilRaw": 2482,
+     "t": 1781758920000,
+     "temperature": 20.7
+    },
+    {
+     "humidity": 68,
+     "light": 33,
+     "lightRaw": 984,
+     "moisture": 70,
+     "soilRaw": 2480,
+     "t": 1781758980000,
+     "temperature": 20.7
+    },
+    {
+     "humidity": 67,
+     "light": 33,
+     "lightRaw": 987,
+     "moisture": 70,
+     "soilRaw": 2483,
+     "t": 1781759040000,
+     "temperature": 20.8
+    },
+    {
+     "humidity": 67,
+     "light": 34,
+     "lightRaw": 1023,
+     "moisture": 70,
+     "soilRaw": 2489,
+     "t": 1781759100000,
+     "temperature": 20.8
+    },
+    {
+     "humidity": 67,
+     "light": 34,
+     "lightRaw": 1026,
+     "moisture": 70,
+     "soilRaw": 2492,
+     "t": 1781759160000,
+     "temperature": 20.8
+    },
+    {
+     "humidity": 67,
+     "light": 34,
+     "lightRaw": 1024,
+     "moisture": 70,
+     "soilRaw": 2490,
+     "t": 1781759220000,
+     "temperature": 20.8
+    },
+    {
+     "humidity": 67,
+     "light": 34,
+     "lightRaw": 1018,
+     "moisture": 70,
+     "soilRaw": 2486,
+     "t": 1781759280000,
+     "temperature": 20.9
+    },
+    {
+     "humidity": 67,
+     "light": 35,
+     "lightRaw": 1044,
+     "moisture": 70,
+     "soilRaw": 2482,
+     "t": 1781759340000,
+     "temperature": 20.9
+    },
+    {
+     "humidity": 67,
+     "light": 35,
+     "lightRaw": 1046,
+     "moisture": 70,
+     "soilRaw": 2484,
+     "t": 1781759400000,
+     "temperature": 20.9
+    },
+    {
+     "humidity": 67,
+     "light": 35,
+     "lightRaw": 1051,
+     "moisture": 70,
+     "soilRaw": 2489,
+     "t": 1781759460000,
+     "temperature": 20.9
+    },
+    {
+     "humidity": 67,
+     "light": 35,
+     "lightRaw": 1055,
+     "moisture": 70,
+     "soilRaw": 2493,
+     "t": 1781759520000,
+     "temperature": 20.9
+    },
+    {
+     "humidity": 67,
+     "light": 35,
+     "lightRaw": 1055,
+     "moisture": 70,
+     "soilRaw": 2493,
+     "t": 1781759580000,
+     "temperature": 21
+    },
+    {
+     "humidity": 67,
+     "light": 36,
+     "lightRaw": 1080,
+     "moisture": 70,
+     "soilRaw": 2488,
+     "t": 1781759640000,
+     "temperature": 21
+    },
+    {
+     "humidity": 67,
+     "light": 36,
+     "lightRaw": 1075,
+     "moisture": 70,
+     "soilRaw": 2483,
+     "t": 1781759700000,
+     "temperature": 21
+    },
+    {
+     "humidity": 67,
+     "light": 36,
+     "lightRaw": 1074,
+     "moisture": 70,
+     "soilRaw": 2482,
+     "t": 1781759760000,
+     "temperature": 21
+    },
+    {
+     "humidity": 67,
+     "light": 36,
+     "lightRaw": 1079,
+     "moisture": 70,
+     "soilRaw": 2487,
+     "t": 1781759820000,
+     "temperature": 21
+    },
+    {
+     "humidity": 67,
+     "light": 37,
+     "lightRaw": 1114,
+     "moisture": 70,
+     "soilRaw": 2492,
+     "t": 1781759880000,
+     "temperature": 21.1
+    },
+    {
+     "humidity": 67,
+     "light": 37,
+     "lightRaw": 1116,
+     "moisture": 70,
+     "soilRaw": 2494,
+     "t": 1781759940000,
+     "temperature": 21.1
+    },
+    {
+     "humidity": 67,
+     "light": 37,
+     "lightRaw": 1112,
+     "moisture": 70,
+     "soilRaw": 2490,
+     "t": 1781760000000,
+     "temperature": 21.1
+    },
+    {
+     "humidity": 67,
+     "light": 37,
+     "lightRaw": 1107,
+     "moisture": 70,
+     "soilRaw": 2485,
+     "t": 1781760060000,
+     "temperature": 21.1
+    },
+    {
+     "humidity": 67,
+     "light": 38,
+     "lightRaw": 1134,
+     "moisture": 70,
+     "soilRaw": 2482,
+     "t": 1781760120000,
+     "temperature": 21.2
+    },
+    {
+     "humidity": 67,
+     "light": 38,
+     "lightRaw": 1137,
+     "moisture": 69,
+     "soilRaw": 2487,
+     "t": 1781760180000,
+     "temperature": 21.2
+    },
+    {
+     "humidity": 67,
+     "light": 38,
+     "lightRaw": 1142,
+     "moisture": 69,
+     "soilRaw": 2492,
+     "t": 1781760240000,
+     "temperature": 21.2
+    },
+    {
+     "humidity": 67,
+     "light": 38,
+     "lightRaw": 1146,
+     "moisture": 69,
+     "soilRaw": 2496,
+     "t": 1781760300000,
+     "temperature": 21.2
+    },
+    {
+     "humidity": 67,
+     "light": 39,
+     "lightRaw": 1174,
+     "moisture": 69,
+     "soilRaw": 2494,
+     "t": 1781760360000,
+     "temperature": 21.2
+    },
+    {
+     "humidity": 66,
+     "light": 39,
+     "lightRaw": 1169,
+     "moisture": 69,
+     "soilRaw": 2489,
+     "t": 1781760420000,
+     "temperature": 21.3
+    },
+    {
+     "humidity": 66,
+     "light": 39,
+     "lightRaw": 1164,
+     "moisture": 69,
+     "soilRaw": 2484,
+     "t": 1781760480000,
+     "temperature": 21.3
+    },
+    {
+     "humidity": 66,
+     "light": 39,
+     "lightRaw": 1165,
+     "moisture": 69,
+     "soilRaw": 2485,
+     "t": 1781760540000,
+     "temperature": 21.3
+    },
+    {
+     "humidity": 66,
+     "light": 40,
+     "lightRaw": 1200,
+     "moisture": 69,
+     "soilRaw": 2490,
+     "t": 1781760600000,
+     "temperature": 21.3
+    },
+    {
+     "humidity": 66,
+     "light": 40,
+     "lightRaw": 1205,
+     "moisture": 69,
+     "soilRaw": 2495,
+     "t": 1781760660000,
+     "temperature": 21.3
+    },
+    {
+     "humidity": 66,
+     "light": 40,
+     "lightRaw": 1206,
+     "moisture": 69,
+     "soilRaw": 2496,
+     "t": 1781760720000,
+     "temperature": 21.4
+    },
+    {
+     "humidity": 66,
+     "light": 40,
+     "lightRaw": 1201,
+     "moisture": 69,
+     "soilRaw": 2491,
+     "t": 1781760780000,
+     "temperature": 21.4
+    },
+    {
+     "humidity": 66,
+     "light": 40,
+     "lightRaw": 1196,
+     "moisture": 69,
+     "soilRaw": 2486,
+     "t": 1781760840000,
+     "temperature": 21.4
+    },
+    {
+     "humidity": 66,
+     "light": 41,
+     "lightRaw": 1224,
+     "moisture": 69,
+     "soilRaw": 2484,
+     "t": 1781760900000,
+     "temperature": 21.4
+    },
+    {
+     "humidity": 66,
+     "light": 41,
+     "lightRaw": 1228,
+     "moisture": 69,
+     "soilRaw": 2488,
+     "t": 1781760960000,
+     "temperature": 21.5
+    },
+    {
+     "humidity": 66,
+     "light": 41,
+     "lightRaw": 1233,
+     "moisture": 69,
+     "soilRaw": 2493,
+     "t": 1781761020000,
+     "temperature": 21.5
+    },
+    {
+     "humidity": 66,
+     "light": 41,
+     "lightRaw": 1236,
+     "moisture": 69,
+     "soilRaw": 2497,
+     "t": 1781761080000,
+     "temperature": 21.5
+    },
+    {
+     "humidity": 66,
+     "light": 42,
+     "lightRaw": 1263,
+     "moisture": 69,
+     "soilRaw": 2494,
+     "t": 1781761140000,
+     "temperature": 21.5
+    },
+    {
+     "humidity": 66,
+     "light": 42,
+     "lightRaw": 1258,
+     "moisture": 69,
+     "soilRaw": 2489,
+     "t": 1781761200000,
+     "temperature": 21.5
+    },
+    {
+     "humidity": 66,
+     "light": 42,
+     "lightRaw": 1254,
+     "moisture": 69,
+     "soilRaw": 2485,
+     "t": 1781761260000,
+     "temperature": 21.6
+    },
+    {
+     "humidity": 66,
+     "light": 42,
+     "lightRaw": 1256,
+     "moisture": 69,
+     "soilRaw": 2487,
+     "t": 1781761320000,
+     "temperature": 21.6
+    },
+    {
+     "humidity": 66,
+     "light": 43,
+     "lightRaw": 1291,
+     "moisture": 69,
+     "soilRaw": 2492,
+     "t": 1781761380000,
+     "temperature": 21.6
+    },
+    {
+     "humidity": 66,
+     "light": 43,
+     "lightRaw": 1296,
+     "moisture": 69,
+     "soilRaw": 2497,
+     "t": 1781761440000,
+     "temperature": 21.6
+    },
+    {
+     "humidity": 66,
+     "light": 43,
+     "lightRaw": 1295,
+     "moisture": 69,
+     "soilRaw": 2496,
+     "t": 1781761500000,
+     "temperature": 21.7
+    },
+    {
+     "humidity": 66,
+     "light": 43,
+     "lightRaw": 1290,
+     "moisture": 69,
+     "soilRaw": 2491,
+     "t": 1781761560000,
+     "temperature": 21.7
+    },
+    {
+     "humidity": 66,
+     "light": 43,
+     "lightRaw": 1285,
+     "moisture": 69,
+     "soilRaw": 2486,
+     "t": 1781761620000,
+     "temperature": 21.7
+    },
+    {
+     "humidity": 66,
+     "light": 44,
+     "lightRaw": 1315,
+     "moisture": 69,
+     "soilRaw": 2486,
+     "t": 1781761680000,
+     "temperature": 21.7
+    },
+    {
+     "humidity": 66,
+     "light": 44,
+     "lightRaw": 1319,
+     "moisture": 69,
+     "soilRaw": 2490,
+     "t": 1781761740000,
+     "temperature": 21.7
+    },
+    {
+     "humidity": 65,
+     "light": 44,
+     "lightRaw": 1324,
+     "moisture": 69,
+     "soilRaw": 2495,
+     "t": 1781761800000,
+     "temperature": 21.8
+    },
+    {
+     "humidity": 65,
+     "light": 44,
+     "lightRaw": 1326,
+     "moisture": 69,
+     "soilRaw": 2497,
+     "t": 1781761860000,
+     "temperature": 21.8
+    },
+    {
+     "humidity": 65,
+     "light": 44,
+     "lightRaw": 1322,
+     "moisture": 69,
+     "soilRaw": 2493,
+     "t": 1781761920000,
+     "temperature": 21.8
+    },
+    {
+     "humidity": 65,
+     "light": 45,
+     "lightRaw": 1347,
+     "moisture": 69,
+     "soilRaw": 2490,
+     "t": 1781761980000,
+     "temperature": 21.8
+    },
+    {
+     "humidity": 65,
+     "light": 45,
+     "lightRaw": 1344,
+     "moisture": 69,
+     "soilRaw": 2487,
+     "t": 1781762040000,
+     "temperature": 21.8
+    },
+    {
+     "humidity": 65,
+     "light": 45,
+     "lightRaw": 1347,
+     "moisture": 69,
+     "soilRaw": 2490,
+     "t": 1781762100000,
+     "temperature": 21.9
+    },
+    {
+     "humidity": 65,
+     "light": 45,
+     "lightRaw": 1353,
+     "moisture": 69,
+     "soilRaw": 2496,
+     "t": 1781762160000,
+     "temperature": 21.9
+    },
+    {
+     "humidity": 65,
+     "light": 46,
+     "lightRaw": 1386,
+     "moisture": 69,
+     "soilRaw": 2499,
+     "t": 1781762220000,
+     "temperature": 21.9
+    },
+    {
+     "humidity": 65,
+     "light": 46,
+     "lightRaw": 1384,
+     "moisture": 69,
+     "soilRaw": 2497,
+     "t": 1781762280000,
+     "temperature": 21.9
+    },
+    {
+     "humidity": 65,
+     "light": 46,
+     "lightRaw": 1379,
+     "moisture": 69,
+     "soilRaw": 2492,
+     "t": 1781762340000,
+     "temperature": 22
+    },
+    {
+     "humidity": 65,
+     "light": 46,
+     "lightRaw": 1374,
+     "moisture": 69,
+     "soilRaw": 2487,
+     "t": 1781762400000,
+     "temperature": 22
+    }
+   ],
+   "perception": {
+    "air": {
+     "glassMayFog": false,
+     "insideDewPoint": 15.1,
+     "moistureRatio": 0.6,
+     "outsideDewPoint": 23.3
+    },
+    "at": 1781762400000,
+    "care": {
+     "context": {
+      "active": [
+       {
+        "ageHours": 17,
+        "at": 1781701200000,
+        "eventId": 3,
+        "metadata": {
+         "conditionBefore": "dry_air",
+         "moistureAfter": null,
+         "moistureBefore": 66,
+         "source": "manual"
+        },
+        "note": "by hand",
+        "strength": 0.65,
+        "type": "watering",
+        "windowHours": 48
+       },
+       {
+        "ageHours": 23,
+        "at": 1781679600000,
+        "eventId": 2,
+        "metadata": {
+         "conditionAtTime": "thriving"
+        },
+        "note": "golden prune",
+        "strength": 0.95,
+        "type": "pruning",
+        "windowHours": 504
+       },
+       {
+        "ageHours": 42,
+        "at": 1781611260000,
+        "eventId": 1,
+        "metadata": {
+         "accumulatedRise": 62,
+         "conditionBefore": "very_dry",
+         "confirmationReadings": 1,
+         "detectedAt": 1781611320000,
+         "detectionMethod": "single_jump",
+         "moistureAfter": 76,
+         "moistureBefore": 14,
+         "rawAfter": 2389,
+         "rawBefore": 3382,
+         "risingReadings": 1,
+         "source": "sensor"
+        },
+        "note": null,
+        "strength": 0.13,
+        "type": "watering",
+        "windowHours": 48
+       }
+      ],
+      "calm": 0.68,
+      "recentFertilizing": null,
+      "recentMove": null,
+      "recentPruning": {
+       "ageHours": 23,
+       "at": 1781679600000,
+       "eventId": 2,
+       "metadata": {
+        "conditionAtTime": "thriving"
+       },
+       "note": "golden prune",
+       "strength": 0.95,
+       "type": "pruning",
+       "windowHours": 504
+      },
+      "recentRepotting": null,
+      "recentWatering": {
+       "ageHours": 17,
+       "at": 1781701200000,
+       "eventId": 3,
+       "metadata": {
+        "conditionBefore": "dry_air",
+        "moistureAfter": null,
+        "moistureBefore": 66,
+        "source": "manual"
+       },
+       "note": "by hand",
+       "strength": 0.65,
+       "type": "watering",
+       "windowHours": 48
+      },
+      "relearningLight": false,
+      "settling": 0
+     },
+     "lastCare": {
+      "id": 3,
+      "metadata": {
+       "conditionBefore": "dry_air",
+       "moistureAfter": null,
+       "moistureBefore": 66,
+       "source": "manual"
+      },
+      "note": "by hand",
+      "timestamp": 1781701200000,
+      "type": "watering"
+     },
+     "lastWatering": {
+      "id": 3,
+      "metadata": {
+       "conditionBefore": "dry_air",
+       "moistureAfter": null,
+       "moistureBefore": 66,
+       "source": "manual"
+      },
+      "note": "by hand",
+      "timestamp": 1781701200000,
+      "type": "watering"
+     },
+     "recent": [
+      {
+       "id": 3,
+       "metadata": {
+        "conditionBefore": "dry_air",
+        "moistureAfter": null,
+        "moistureBefore": 66,
+        "source": "manual"
+       },
+       "note": "by hand",
+       "timestamp": 1781701200000,
+       "type": "watering"
+      },
+      {
+       "id": 2,
+       "metadata": {
+        "conditionAtTime": "thriving"
+       },
+       "note": "golden prune",
+       "timestamp": 1781679600000,
+       "type": "pruning"
+      },
+      {
+       "id": 1,
+       "metadata": {
+        "accumulatedRise": 62,
+        "conditionBefore": "very_dry",
+        "confirmationReadings": 1,
+        "detectedAt": 1781611320000,
+        "detectionMethod": "single_jump",
+        "moistureAfter": 76,
+        "moistureBefore": 14,
+        "rawAfter": 2389,
+        "rawBefore": 3382,
+        "risingReadings": 1,
+        "source": "sensor"
+       },
+       "note": null,
+       "timestamp": 1781611260000,
+       "type": "watering"
+      }
+     ]
+    },
+    "device": {
+     "ageMs": 0,
+     "lastError": null,
+     "lastReadingAt": 1781762400000,
+     "online": true,
+     "wifiRssi": -55
+    },
+    "drying": {
+     "hours": 8,
+     "meanVpd": 0.6,
+     "perHourPerKpa": 0.653
+    },
+    "exposure": {
+     "temperature": {
+      "coldDegreeHours": 1.22,
+      "heatDegreeHours": 0.78,
+      "observedHours": 24
+     }
+    },
+    "history": {
+     "cadenceMs": 150000,
+     "gapMs": 900000,
+     "minutes": 1440,
+     "samples": 1441
+    },
+    "lastReading": {
+     "apiSoilMoisture": 69.2,
+     "htsConnected": true,
+     "humidity": 65,
+     "isDay": true,
+     "lightPercent": 46,
+     "lightRaw": 1374,
+     "radiation": null,
+     "sensorIssues": [],
+     "soilMoisture": 69,
+     "soilRaw": 2487,
+     "soilTemperature": null,
+     "source": "esp32_sensor",
+     "temperature": 22,
+     "timestamp": 1781762400000,
+     "updatedAt": "09:00:00",
+     "vpd": 0.93,
+     "wifiRssi": -55
+    },
+    "light": {
+     "average": 31,
+     "confidence": "high",
+     "coverage": 1,
+     "date": "2026-06-18",
+     "expectedDaylightSoFarMin": 130,
+     "expectedDaylightTotalMin": 695,
+     "explainedMin": 0,
+     "greyMin": 0,
+     "lowMin": 44,
+     "missingDaylightMin": 0,
+     "observedDaylightMin": 130,
+     "peak": 46,
+     "reasoning": [
+      "1.4h of useful light out of 2.2h observed (66%; 50% or more counts as a good light day).",
+      "Observed 2.2 of 2.2 expected daylight hours so far (11.6h today in total)."
+     ],
+     "score": 100,
+     "since": 1781730000000,
+     "usefulMin": 86,
+     "usefulShare": 66
+    },
+    "outside": {
+     "ageMs": 900000,
+     "at": 1781761500000,
+     "cloudCover": 50,
+     "code": 0,
+     "gusts": 20,
+     "humidity": 80,
+     "isDay": true,
+     "precipitation": 0,
+     "rainEndedAt": null,
+     "sky": "clear",
+     "temperature": 27,
+     "wind": 10,
+     "windy": false
+    },
+    "outsideToday": [
+     {
+      "at": 1781726400000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781727300000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781728200000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781729100000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781730000000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781730900000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781731800000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781732700000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781733600000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781734500000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781735400000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781736300000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781737200000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781738100000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781739000000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781739900000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781740800000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781741700000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781742600000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781743500000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781744400000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781745300000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781746200000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781747100000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781748000000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781748900000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781749800000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781750700000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781751600000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781752500000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781753400000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781754300000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781755200000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781756100000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781757000000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781757900000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781758800000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781759700000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781760600000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     },
+     {
+      "at": 1781761500000,
+      "cloudCover": 50,
+      "code": 0,
+      "gusts": 20,
+      "humidity": 80,
+      "isDay": true,
+      "precipitation": 0,
+      "sky": "clear",
+      "sunrise": null,
+      "sunset": null,
+      "temperature": 27,
+      "wind": 10
+     }
+    ],
+    "quality": {
+     "confidence": "high",
+     "insufficientHistory": false,
+     "issues": [],
+     "missing": [],
+     "score": 1,
+     "stale": false,
+     "suspect": {
+      "air": false,
+      "light": false,
+      "soil": false
+     }
+    },
+    "readings": {
+     "humidity": 65,
+     "lightPercent": 46,
+     "lightRaw": 1374,
+     "radiation": null,
+     "soilMoisture": 69,
+     "soilRaw": 2487,
+     "temperature": 22,
+     "vpd": 0.93
+    },
+    "recent": [],
+    "season": {
+     "blend": null,
+     "daylightChangeMinPerWeek": 0,
+     "daylightHours": 14.26,
+     "daylightTrend": "lengthening",
+     "daysIn": 17,
+     "daysLeft": 75,
+     "hemisphere": "north",
+     "id": "summer",
+     "key": "2026-summer",
+     "method": "location",
+     "next": "autumn",
+     "previous": "spring",
+     "progress": 0.19,
+     "seasonalDay": 169,
+     "stage": "early"
+    },
+    "source": "esp32_sensor",
+    "sun": {
+     "elevation": 41.6,
+     "isDay": true,
+     "lightExpected": true,
+     "method": "solar",
+     "phase": "day",
+     "sunrise": 1781749546473,
+     "sunset": 1781801443746,
+     "timesFrom": "solar"
+    },
+    "telemetry": {
+     "apiSoilMoisture": 69.2,
+     "htsConnected": true,
+     "humidity": 65,
+     "isDay": true,
+     "lightPercent": 46,
+     "lightRaw": 1374,
+     "radiation": null,
+     "sensorIssues": [],
+     "soilMoisture": 69,
+     "soilRaw": 2487,
+     "soilTemperature": null,
+     "source": "esp32_sensor",
+     "temperature": 22,
+     "timestamp": 1781762400000,
+     "updatedAt": "09:00:00",
+     "vpd": 0.93,
+     "wifiRssi": -55
+    },
+    "trends": {
+     "humidityPerHour": -3,
+     "soilDryDown": {
+      "confidence": "high",
+      "hours": 8,
+      "perHour": -0.39,
+      "samples": 481,
+      "se": 0.006,
+      "since": 1781733600000,
+      "startedBy": "window"
+     },
+     "soilPerHour": -0.39,
+     "temperaturePerHour": 1.3
+    }
+   },
+   "recentEpisodes": [
+    {
+     "condition": "thriving",
+     "endedAt": null,
+     "engineVersion": "living-2.0",
+     "id": 15,
+     "lastSeenAt": 1781762400000,
+     "modifiers": [],
+     "peakSeverity": "none",
+     "startedAt": 1781749860000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "sleeping",
+     "endedAt": 1781749860000,
+     "engineVersion": "living-2.0",
+     "id": 14,
+     "lastSeenAt": 1781749860000,
+     "modifiers": [],
+     "peakSeverity": "none",
+     "startedAt": 1781715060000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "comfortable",
+     "endedAt": 1781715060000,
+     "engineVersion": "living-2.0",
+     "id": 13,
+     "lastSeenAt": 1781715060000,
+     "modifiers": [],
+     "peakSeverity": "none",
+     "startedAt": 1781708460000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "recovering",
+     "endedAt": 1781708460000,
+     "engineVersion": "living-2.0",
+     "id": 12,
+     "lastSeenAt": 1781708460000,
+     "modifiers": [],
+     "peakSeverity": "mild",
+     "startedAt": 1781701260000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "dry_air",
+     "endedAt": 1781701260000,
+     "engineVersion": "living-2.0",
+     "id": 11,
+     "lastSeenAt": 1781701260000,
+     "modifiers": [],
+     "peakSeverity": "mild",
+     "startedAt": 1781700660000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "hot",
+     "endedAt": 1781700660000,
+     "engineVersion": "living-2.0",
+     "id": 10,
+     "lastSeenAt": 1781700660000,
+     "modifiers": [
+      "dry_air"
+     ],
+     "peakSeverity": "moderate",
+     "startedAt": 1781692260000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "thriving",
+     "endedAt": 1781692260000,
+     "engineVersion": "living-2.0",
+     "id": 9,
+     "lastSeenAt": 1781692260000,
+     "modifiers": [],
+     "peakSeverity": "none",
+     "startedAt": 1781663460000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "sleeping",
+     "endedAt": 1781663460000,
+     "engineVersion": "living-2.0",
+     "id": 8,
+     "lastSeenAt": 1781663460000,
+     "modifiers": [
+      "recovering"
+     ],
+     "peakSeverity": "none",
+     "startedAt": 1781628660000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "recovering",
+     "endedAt": 1781628660000,
+     "engineVersion": "living-2.0",
+     "id": 7,
+     "lastSeenAt": 1781628660000,
+     "modifiers": [],
+     "peakSeverity": "mild",
+     "startedAt": 1781611560000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "very_dry",
+     "endedAt": 1781611560000,
+     "engineVersion": "living-2.0",
+     "id": 6,
+     "lastSeenAt": 1781611560000,
+     "modifiers": [],
+     "peakSeverity": "critical",
+     "startedAt": 1781606160000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "thirsty",
+     "endedAt": 1781606160000,
+     "engineVersion": "living-2.0",
+     "id": 5,
+     "lastSeenAt": 1781606160000,
+     "modifiers": [
+      "sleeping"
+     ],
+     "peakSeverity": "moderate",
+     "startedAt": 1781567040000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "sleeping",
+     "endedAt": 1781567040000,
+     "engineVersion": "living-2.0",
+     "id": 4,
+     "lastSeenAt": 1781567040000,
+     "modifiers": [],
+     "peakSeverity": "none",
+     "startedAt": 1781542260000,
+     "unobservedMs": 1560000
+    },
+    {
+     "condition": "thriving",
+     "endedAt": 1781542260000,
+     "engineVersion": "living-2.0",
+     "id": 3,
+     "lastSeenAt": 1781542260000,
+     "modifiers": [],
+     "peakSeverity": "none",
+     "startedAt": 1781526240000,
+     "unobservedMs": 0
+    },
+    {
+     "condition": "comfortable",
+     "endedAt": 1781526240000,
+     "engineVersion": "living-2.0",
+     "id": 2,
+     "lastSeenAt": 1781526240000,
+     "modifiers": [],
+     "peakSeverity": "none",
+     "startedAt": 1781503260000,
+     "unobservedMs": 0
+    }
+   ],
+   "recentEvents": [
+    {
+     "id": 3,
+     "metadata": {
+      "conditionBefore": "dry_air",
+      "moistureAfter": null,
+      "moistureBefore": 66,
+      "source": "manual"
+     },
+     "note": "by hand",
+     "timestamp": 1781701200000,
+     "type": "watering"
+    },
+    {
+     "id": 2,
+     "metadata": {
+      "conditionAtTime": "thriving"
+     },
+     "note": "golden prune",
+     "timestamp": 1781679600000,
+     "type": "pruning"
+    },
+    {
+     "id": 1,
+     "metadata": {
+      "accumulatedRise": 62,
+      "conditionBefore": "very_dry",
+      "confirmationReadings": 1,
+      "detectedAt": 1781611320000,
+      "detectionMethod": "single_jump",
+      "moistureAfter": 76,
+      "moistureBefore": 14,
+      "rawAfter": 2389,
+      "rawBefore": 3382,
+      "risingReadings": 1,
+      "source": "sensor"
+     },
+     "note": null,
+     "timestamp": 1781611260000,
+     "type": "watering"
+    }
+   ],
+   "status": {
+    "collector": {
+     "consecutiveFailures": 0,
+     "dataSource": "esp32_sensor",
+     "endpoint": "http://bonsai.test/api/telemetry",
+     "lastError": null,
+     "lastPollAt": 1781762400000,
+     "lastSuccessAt": 1781762400000,
+     "pollMs": 60000,
+     "wateringDetection": {
+      "lastDecision": "watering recorded: soil 14% → 76% (single jump, confirmed by 1 reading)",
+      "suppressedUntil": null
+     }
+    },
+    "configured": true,
+    "counts": {
+     "episodes": 14,
+     "events": 3,
+     "interactions": 1,
+     "telemetry": 4295
+    },
+    "engineVersion": "living-2.0",
+    "ok": true,
+    "oldestTelemetryAt": 1781503260000
+   }
+  },
+  "daily": [
+   {
+    "avgHumidity": null,
+    "avgLight": null,
+    "avgSoil": null,
+    "avgTemp": null,
+    "date": "2026-06-12",
+    "dayLabel": "Fri",
+    "minSoil": null,
+    "samples": 0,
+    "stressHours": 0,
+    "waterings": 0
+   },
+   {
+    "avgHumidity": null,
+    "avgLight": null,
+    "avgSoil": null,
+    "avgTemp": null,
+    "date": "2026-06-13",
+    "dayLabel": "Sat",
+    "minSoil": null,
+    "samples": 0,
+    "stressHours": 0,
+    "waterings": 0
+   },
+   {
+    "avgHumidity": null,
+    "avgLight": null,
+    "avgSoil": null,
+    "avgTemp": null,
+    "date": "2026-06-14",
+    "dayLabel": "Sun",
+    "minSoil": null,
+    "samples": 0,
+    "stressHours": 0,
+    "waterings": 0
+   },
+   {
+    "avgHumidity": 60.4,
+    "avgLight": 34.8,
+    "avgSoil": 50.3,
+    "avgTemp": 24.3,
+    "date": "2026-06-15",
+    "dayLabel": "Mon",
+    "minSoil": 38,
+    "samples": 874,
+    "stressHours": 0,
+    "waterings": 0
+   },
+   {
+    "avgHumidity": 65,
+    "avgLight": 24.1,
+    "avgSoil": 44.1,
+    "avgTemp": 22,
+    "date": "2026-06-16",
+    "dayLabel": "Tue",
+    "minSoil": 14,
+    "samples": 1440,
+    "stressHours": 12.4,
+    "waterings": 1
+   },
+   {
+    "avgHumidity": 62.7,
+    "avgLight": 24.1,
+    "avgSoil": 71,
+    "avgTemp": 22.9,
+    "date": "2026-06-17",
+    "dayLabel": "Wed",
+    "minSoil": 66,
+    "samples": 1440,
+    "stressHours": 2.5,
+    "waterings": 1
+   },
+   {
+    "avgHumidity": 72.3,
+    "avgLight": 8,
+    "avgSoil": 71.1,
+    "avgTemp": 18.4,
+    "date": "2026-06-18",
+    "dayLabel": "Thu",
+    "minSoil": 69,
+    "samples": 541,
+    "stressHours": 0,
+    "waterings": 0
+   }
+  ],
+  "diary": [
+   {
+    "at": 1781762048340,
+    "detail": "1 visit · first at 08:54",
+    "habitat": "dragonfly",
+    "kind": "habitat",
+    "title": "A dragonfly visited"
+   },
+   {
+    "at": 1781749860000,
+    "condition": "thriving",
+    "kind": "episode_start",
+    "title": "Thriving"
+   },
+   {
+    "at": 1781715060000,
+    "condition": "sleeping",
+    "kind": "episode_start",
+    "title": "Fell asleep"
+   },
+   {
+    "at": 1781708460000,
+    "condition": "comfortable",
+    "kind": "episode_start",
+    "title": "Comfortable again"
+   },
+   {
+    "at": 1781701260000,
+    "condition": "recovering",
+    "kind": "episode_start",
+    "title": "Recovering from dry air"
+   },
+   {
+    "at": 1781701200000,
+    "detail": "logged by you · by hand",
+    "eventType": "watering",
+    "kind": "event",
+    "title": "Watered"
+   },
+   {
+    "at": 1781700660000,
+    "condition": "dry_air",
+    "kind": "episode_start",
+    "title": "Air turned dry"
+   },
+   {
+    "at": 1781692260000,
+    "condition": "hot",
+    "detail": "with dry air",
+    "kind": "episode_start",
+    "title": "Started feeling the heat"
+   },
+   {
+    "at": 1781687504340,
+    "detail": "about 5.7 h across 8 visits",
+    "habitat": "sloth",
+    "kind": "habitat",
+    "title": "A sloth spent time in the tree"
+   },
+   {
+    "at": 1781687504340,
+    "detail": "4 times · first at 12:11",
+    "habitat": "encounter",
+    "kind": "habitat",
+    "title": "A dragonfly and the sloth shared the tree"
+   },
+   {
+    "at": 1781679600000,
+    "detail": "golden prune",
+    "eventType": "pruning",
+    "kind": "event",
+    "title": "Pruned"
+   },
+   {
+    "at": 1781675660160,
+    "detail": "17 visits · first at 08:54",
+    "habitat": "dragonfly",
+    "kind": "habitat",
+    "title": "A dragonfly visited"
+   },
+   {
+    "at": 1781663460000,
+    "condition": "thriving",
+    "kind": "episode_start",
+    "title": "Thriving"
+   },
+   {
+    "at": 1781628660000,
+    "condition": "sleeping",
+    "detail": "with recovering",
+    "kind": "episode_start",
+    "title": "Fell asleep"
+   },
+   {
+    "at": 1781611560000,
+    "condition": "recovering",
+    "kind": "episode_start",
+    "title": "Recovering from very dry"
+   },
+   {
+    "at": 1781611260000,
+    "detail": "soil 14% → 76% · detected by the soil sensor",
+    "eventType": "watering",
+    "kind": "event",
+    "title": "Watered"
+   },
+   {
+    "at": 1781606160000,
+    "condition": "very_dry",
+    "kind": "episode_start",
+    "title": "Soil became very dry"
+   },
+   {
+    "at": 1781598317760,
+    "detail": "9 times · first at 11:25",
+    "habitat": "encounter",
+    "kind": "habitat",
+    "title": "A dragonfly and the sloth shared the tree"
+   },
+   {
+    "at": 1781597893500,
+    "detail": "about 5.1 h across 8 visits",
+    "habitat": "sloth",
+    "kind": "habitat",
+    "title": "A sloth spent time in the tree"
+   },
+   {
+    "at": 1781593440900,
+    "detail": "20 visits · first at 10:04",
+    "habitat": "dragonfly",
+    "kind": "habitat",
+    "title": "A dragonfly visited"
+   },
+   {
+    "at": 1781575200000,
+    "detail": "05:00–08:45",
+    "kind": "weather",
+    "title": "Rain outside",
+    "weather": "rain"
+   },
+   {
+    "at": 1781567040000,
+    "condition": "thirsty",
+    "detail": "with sleeping",
+    "kind": "episode_start",
+    "title": "Started getting thirsty"
+   },
+   {
+    "at": 1781542260000,
+    "condition": "sleeping",
+    "detail": "26 min not observed",
+    "kind": "episode_start",
+    "title": "Fell asleep"
+   },
+   {
+    "at": 1781526240000,
+    "condition": "thriving",
+    "kind": "episode_start",
+    "title": "Thriving"
+   },
+   {
+    "at": 1781514580800,
+    "detail": "7 times · first at 12:09",
+    "habitat": "encounter",
+    "kind": "habitat",
+    "title": "A dragonfly and the sloth shared the tree"
+   },
+   {
+    "at": 1781514349020,
+    "detail": "about 3.7 h across 6 visits",
+    "habitat": "sloth",
+    "kind": "habitat",
+    "title": "A sloth spent time in the tree"
+   },
+   {
+    "at": 1781508123000,
+    "detail": "18 visits · first at 10:22",
+    "habitat": "dragonfly",
+    "kind": "habitat",
+    "title": "A dragonfly visited"
+   },
+   {
+    "at": 1781503260000,
+    "condition": "comfortable",
+    "kind": "episode_start",
+    "title": "Comfortable"
+   }
+  ],
+  "episodes": [
+   {
+    "condition": "thriving",
+    "endedAt": null,
+    "engineVersion": "living-2.0",
+    "id": 15,
+    "lastSeenAt": 1781762400000,
+    "modifiers": [],
+    "peakSeverity": "none",
+    "startedAt": 1781749860000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "sleeping",
+    "endedAt": 1781749860000,
+    "engineVersion": "living-2.0",
+    "id": 14,
+    "lastSeenAt": 1781749860000,
+    "modifiers": [],
+    "peakSeverity": "none",
+    "startedAt": 1781715060000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "comfortable",
+    "endedAt": 1781715060000,
+    "engineVersion": "living-2.0",
+    "id": 13,
+    "lastSeenAt": 1781715060000,
+    "modifiers": [],
+    "peakSeverity": "none",
+    "startedAt": 1781708460000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "recovering",
+    "endedAt": 1781708460000,
+    "engineVersion": "living-2.0",
+    "id": 12,
+    "lastSeenAt": 1781708460000,
+    "modifiers": [],
+    "peakSeverity": "mild",
+    "startedAt": 1781701260000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "dry_air",
+    "endedAt": 1781701260000,
+    "engineVersion": "living-2.0",
+    "id": 11,
+    "lastSeenAt": 1781701260000,
+    "modifiers": [],
+    "peakSeverity": "mild",
+    "startedAt": 1781700660000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "hot",
+    "endedAt": 1781700660000,
+    "engineVersion": "living-2.0",
+    "id": 10,
+    "lastSeenAt": 1781700660000,
+    "modifiers": [
+     "dry_air"
+    ],
+    "peakSeverity": "moderate",
+    "startedAt": 1781692260000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "thriving",
+    "endedAt": 1781692260000,
+    "engineVersion": "living-2.0",
+    "id": 9,
+    "lastSeenAt": 1781692260000,
+    "modifiers": [],
+    "peakSeverity": "none",
+    "startedAt": 1781663460000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "sleeping",
+    "endedAt": 1781663460000,
+    "engineVersion": "living-2.0",
+    "id": 8,
+    "lastSeenAt": 1781663460000,
+    "modifiers": [
+     "recovering"
+    ],
+    "peakSeverity": "none",
+    "startedAt": 1781628660000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "recovering",
+    "endedAt": 1781628660000,
+    "engineVersion": "living-2.0",
+    "id": 7,
+    "lastSeenAt": 1781628660000,
+    "modifiers": [],
+    "peakSeverity": "mild",
+    "startedAt": 1781611560000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "very_dry",
+    "endedAt": 1781611560000,
+    "engineVersion": "living-2.0",
+    "id": 6,
+    "lastSeenAt": 1781611560000,
+    "modifiers": [],
+    "peakSeverity": "critical",
+    "startedAt": 1781606160000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "thirsty",
+    "endedAt": 1781606160000,
+    "engineVersion": "living-2.0",
+    "id": 5,
+    "lastSeenAt": 1781606160000,
+    "modifiers": [
+     "sleeping"
+    ],
+    "peakSeverity": "moderate",
+    "startedAt": 1781567040000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "sleeping",
+    "endedAt": 1781567040000,
+    "engineVersion": "living-2.0",
+    "id": 4,
+    "lastSeenAt": 1781567040000,
+    "modifiers": [],
+    "peakSeverity": "none",
+    "startedAt": 1781542260000,
+    "unobservedMs": 1560000
+   },
+   {
+    "condition": "thriving",
+    "endedAt": 1781542260000,
+    "engineVersion": "living-2.0",
+    "id": 3,
+    "lastSeenAt": 1781542260000,
+    "modifiers": [],
+    "peakSeverity": "none",
+    "startedAt": 1781526240000,
+    "unobservedMs": 0
+   },
+   {
+    "condition": "comfortable",
+    "endedAt": 1781526240000,
+    "engineVersion": "living-2.0",
+    "id": 2,
+    "lastSeenAt": 1781526240000,
+    "modifiers": [],
+    "peakSeverity": "none",
+    "startedAt": 1781503260000,
+    "unobservedMs": 0
+   }
+  ],
+  "events": [
+   {
+    "id": 3,
+    "metadata": {
+     "conditionBefore": "dry_air",
+     "moistureAfter": null,
+     "moistureBefore": 66,
+     "source": "manual"
+    },
+    "note": "by hand",
+    "timestamp": 1781701200000,
+    "type": "watering"
+   },
+   {
+    "id": 2,
+    "metadata": {
+     "conditionAtTime": "thriving"
+    },
+    "note": "golden prune",
+    "timestamp": 1781679600000,
+    "type": "pruning"
+   },
+   {
+    "id": 1,
+    "metadata": {
+     "accumulatedRise": 62,
+     "conditionBefore": "very_dry",
+     "confirmationReadings": 1,
+     "detectedAt": 1781611320000,
+     "detectionMethod": "single_jump",
+     "moistureAfter": 76,
+     "moistureBefore": 14,
+     "rawAfter": 2389,
+     "rawBefore": 3382,
+     "risingReadings": 1,
+     "source": "sensor"
+    },
+    "note": null,
+    "timestamp": 1781611260000,
+    "type": "watering"
+   }
+  ],
+  "hourly": [
+   {
+    "avgHumidity": 63.8,
+    "avgLight": 52.1,
+    "avgSoil": 61.3,
+    "avgTemp": 22.6,
+    "hourStart": 1781503200000,
+    "minSoil": 60,
+    "samples": 59
+   },
+   {
+    "avgHumidity": 61.2,
+    "avgLight": 61.6,
+    "avgSoil": 59.6,
+    "avgTemp": 23.9,
+    "hourStart": 1781506800000,
+    "minSoil": 59,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 59,
+    "avgLight": 67.7,
+    "avgSoil": 58.1,
+    "avgTemp": 25,
+    "hourStart": 1781510400000,
+    "minSoil": 57,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 57.2,
+    "avgLight": 70,
+    "avgSoil": 56.5,
+    "avgTemp": 25.9,
+    "hourStart": 1781514000000,
+    "minSoil": 56,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 55.8,
+    "avgLight": 67.9,
+    "avgSoil": 54.8,
+    "avgTemp": 26.6,
+    "hourStart": 1781517600000,
+    "minSoil": 54,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 55,
+    "avgLight": 62,
+    "avgSoil": 53.3,
+    "avgTemp": 26.9,
+    "hourStart": 1781521200000,
+    "minSoil": 52,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 55,
+    "avgLight": 52.5,
+    "avgSoil": 51.6,
+    "avgTemp": 27,
+    "hourStart": 1781524800000,
+    "minSoil": 51,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 55.8,
+    "avgLight": 40,
+    "avgSoil": 50.1,
+    "avgTemp": 26.6,
+    "hourStart": 1781528400000,
+    "minSoil": 49,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 57.1,
+    "avgLight": 25.2,
+    "avgSoil": 48.5,
+    "avgTemp": 26,
+    "hourStart": 1781532000000,
+    "minSoil": 48,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 58.9,
+    "avgLight": 8.9,
+    "avgSoil": 46.8,
+    "avgTemp": 25.1,
+    "hourStart": 1781535600000,
+    "minSoil": 46,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 61.1,
+    "avgLight": 0,
+    "avgSoil": 45.3,
+    "avgTemp": 23.9,
+    "hourStart": 1781539200000,
+    "minSoil": 44,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 63.7,
+    "avgLight": 0,
+    "avgSoil": 43.6,
+    "avgTemp": 22.7,
+    "hourStart": 1781542800000,
+    "minSoil": 43,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 66.2,
+    "avgLight": 0,
+    "avgSoil": 42.1,
+    "avgTemp": 21.4,
+    "hourStart": 1781546400000,
+    "minSoil": 41,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 69.3,
+    "avgLight": 0,
+    "avgSoil": 40.1,
+    "avgTemp": 19.9,
+    "hourStart": 1781550000000,
+    "minSoil": 40,
+    "samples": 35
+   },
+   {
+    "avgHumidity": 71,
+    "avgLight": 0,
+    "avgSoil": 38.8,
+    "avgTemp": 19,
+    "hourStart": 1781553600000,
+    "minSoil": 38,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 72.8,
+    "avgLight": 0,
+    "avgSoil": 37.3,
+    "avgTemp": 18.1,
+    "hourStart": 1781557200000,
+    "minSoil": 36,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 74.2,
+    "avgLight": 0,
+    "avgSoil": 35.6,
+    "avgTemp": 17.4,
+    "hourStart": 1781560800000,
+    "minSoil": 35,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 75,
+    "avgLight": 0,
+    "avgSoil": 34.1,
+    "avgTemp": 17.1,
+    "hourStart": 1781564400000,
+    "minSoil": 33,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 75,
+    "avgLight": 0,
+    "avgSoil": 32.5,
+    "avgTemp": 17,
+    "hourStart": 1781568000000,
+    "minSoil": 32,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 74.2,
+    "avgLight": 0,
+    "avgSoil": 30.8,
+    "avgTemp": 17.4,
+    "hourStart": 1781571600000,
+    "minSoil": 30,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 72.9,
+    "avgLight": 0,
+    "avgSoil": 29.3,
+    "avgTemp": 18,
+    "hourStart": 1781575200000,
+    "minSoil": 28,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 71.1,
+    "avgLight": 8,
+    "avgSoil": 27.6,
+    "avgTemp": 18.9,
+    "hourStart": 1781578800000,
+    "minSoil": 27,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 68.9,
+    "avgLight": 24.4,
+    "avgSoil": 26.1,
+    "avgTemp": 20.1,
+    "hourStart": 1781582400000,
+    "minSoil": 25,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 66.4,
+    "avgLight": 39.3,
+    "avgSoil": 24.5,
+    "avgTemp": 21.3,
+    "hourStart": 1781586000000,
+    "minSoil": 24,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 63.8,
+    "avgLight": 52,
+    "avgSoil": 22.8,
+    "avgTemp": 22.6,
+    "hourStart": 1781589600000,
+    "minSoil": 22,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 61.2,
+    "avgLight": 61.6,
+    "avgSoil": 21.3,
+    "avgTemp": 23.9,
+    "hourStart": 1781593200000,
+    "minSoil": 20,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 59,
+    "avgLight": 67.7,
+    "avgSoil": 19.6,
+    "avgTemp": 25,
+    "hourStart": 1781596800000,
+    "minSoil": 19,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 57.2,
+    "avgLight": 70,
+    "avgSoil": 18.1,
+    "avgTemp": 25.9,
+    "hourStart": 1781600400000,
+    "minSoil": 17,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 55.8,
+    "avgLight": 67.9,
+    "avgSoil": 16.5,
+    "avgTemp": 26.6,
+    "hourStart": 1781604000000,
+    "minSoil": 16,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 55,
+    "avgLight": 62,
+    "avgSoil": 14.8,
+    "avgTemp": 26.9,
+    "hourStart": 1781607600000,
+    "minSoil": 14,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 55,
+    "avgLight": 52.5,
+    "avgSoil": 75,
+    "avgTemp": 27,
+    "hourStart": 1781611200000,
+    "minSoil": 14,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 55.8,
+    "avgLight": 40,
+    "avgSoil": 75.4,
+    "avgTemp": 26.6,
+    "hourStart": 1781614800000,
+    "minSoil": 75,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 57.1,
+    "avgLight": 25.2,
+    "avgSoil": 75,
+    "avgTemp": 26,
+    "hourStart": 1781618400000,
+    "minSoil": 75,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 58.9,
+    "avgLight": 8.9,
+    "avgSoil": 74.9,
+    "avgTemp": 25.1,
+    "hourStart": 1781622000000,
+    "minSoil": 74,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 61.1,
+    "avgLight": 0,
+    "avgSoil": 74,
+    "avgTemp": 23.9,
+    "hourStart": 1781625600000,
+    "minSoil": 74,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 63.7,
+    "avgLight": 0,
+    "avgSoil": 74,
+    "avgTemp": 22.7,
+    "hourStart": 1781629200000,
+    "minSoil": 74,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 66.2,
+    "avgLight": 0,
+    "avgSoil": 73.4,
+    "avgTemp": 21.4,
+    "hourStart": 1781632800000,
+    "minSoil": 73,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 68.8,
+    "avgLight": 0,
+    "avgSoil": 73,
+    "avgTemp": 20.1,
+    "hourStart": 1781636400000,
+    "minSoil": 73,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 71,
+    "avgLight": 0,
+    "avgSoil": 72.9,
+    "avgTemp": 19,
+    "hourStart": 1781640000000,
+    "minSoil": 72,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 72.8,
+    "avgLight": 0,
+    "avgSoil": 72,
+    "avgTemp": 18.1,
+    "hourStart": 1781643600000,
+    "minSoil": 72,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 74.2,
+    "avgLight": 0,
+    "avgSoil": 72,
+    "avgTemp": 17.4,
+    "hourStart": 1781647200000,
+    "minSoil": 72,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 75,
+    "avgLight": 0,
+    "avgSoil": 71.4,
+    "avgTemp": 17.1,
+    "hourStart": 1781650800000,
+    "minSoil": 71,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 75,
+    "avgLight": 0,
+    "avgSoil": 71,
+    "avgTemp": 17,
+    "hourStart": 1781654400000,
+    "minSoil": 71,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 74.2,
+    "avgLight": 0,
+    "avgSoil": 70.9,
+    "avgTemp": 17.4,
+    "hourStart": 1781658000000,
+    "minSoil": 70,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 72.9,
+    "avgLight": 0,
+    "avgSoil": 70,
+    "avgTemp": 18,
+    "hourStart": 1781661600000,
+    "minSoil": 70,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 71.1,
+    "avgLight": 8,
+    "avgSoil": 70,
+    "avgTemp": 18.9,
+    "hourStart": 1781665200000,
+    "minSoil": 70,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 68.9,
+    "avgLight": 24.4,
+    "avgSoil": 69.4,
+    "avgTemp": 20.1,
+    "hourStart": 1781668800000,
+    "minSoil": 69,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 66.4,
+    "avgLight": 39.3,
+    "avgSoil": 69,
+    "avgTemp": 21.3,
+    "hourStart": 1781672400000,
+    "minSoil": 69,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 63.8,
+    "avgLight": 52,
+    "avgSoil": 68.9,
+    "avgTemp": 22.6,
+    "hourStart": 1781676000000,
+    "minSoil": 68,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 61.2,
+    "avgLight": 61.6,
+    "avgSoil": 68,
+    "avgTemp": 23.9,
+    "hourStart": 1781679600000,
+    "minSoil": 68,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 59,
+    "avgLight": 67.7,
+    "avgSoil": 68,
+    "avgTemp": 25,
+    "hourStart": 1781683200000,
+    "minSoil": 68,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 57.2,
+    "avgLight": 70,
+    "avgSoil": 67.4,
+    "avgTemp": 25.9,
+    "hourStart": 1781686800000,
+    "minSoil": 67,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 33.4,
+    "avgLight": 67.9,
+    "avgSoil": 67,
+    "avgTemp": 34.9,
+    "hourStart": 1781690400000,
+    "minSoil": 67,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 33,
+    "avgLight": 62,
+    "avgSoil": 66.9,
+    "avgTemp": 35,
+    "hourStart": 1781694000000,
+    "minSoil": 66,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 43.6,
+    "avgLight": 52.5,
+    "avgSoil": 66,
+    "avgTemp": 31.1,
+    "hourStart": 1781697600000,
+    "minSoil": 66,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 55.8,
+    "avgLight": 40,
+    "avgSoil": 75.8,
+    "avgTemp": 26.6,
+    "hourStart": 1781701200000,
+    "minSoil": 66,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 57.1,
+    "avgLight": 25.2,
+    "avgSoil": 75.4,
+    "avgTemp": 26,
+    "hourStart": 1781704800000,
+    "minSoil": 75,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 58.9,
+    "avgLight": 8.9,
+    "avgSoil": 75,
+    "avgTemp": 25.1,
+    "hourStart": 1781708400000,
+    "minSoil": 75,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 61.1,
+    "avgLight": 0,
+    "avgSoil": 74.9,
+    "avgTemp": 23.9,
+    "hourStart": 1781712000000,
+    "minSoil": 74,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 63.7,
+    "avgLight": 0,
+    "avgSoil": 74,
+    "avgTemp": 22.7,
+    "hourStart": 1781715600000,
+    "minSoil": 74,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 66.2,
+    "avgLight": 0,
+    "avgSoil": 74,
+    "avgTemp": 21.4,
+    "hourStart": 1781719200000,
+    "minSoil": 74,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 68.8,
+    "avgLight": 0,
+    "avgSoil": 73.4,
+    "avgTemp": 20.1,
+    "hourStart": 1781722800000,
+    "minSoil": 73,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 71,
+    "avgLight": 0,
+    "avgSoil": 73,
+    "avgTemp": 19,
+    "hourStart": 1781726400000,
+    "minSoil": 73,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 72.8,
+    "avgLight": 0,
+    "avgSoil": 72.9,
+    "avgTemp": 18.1,
+    "hourStart": 1781730000000,
+    "minSoil": 72,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 74.2,
+    "avgLight": 0,
+    "avgSoil": 72,
+    "avgTemp": 17.4,
+    "hourStart": 1781733600000,
+    "minSoil": 72,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 75,
+    "avgLight": 0,
+    "avgSoil": 72,
+    "avgTemp": 17.1,
+    "hourStart": 1781737200000,
+    "minSoil": 72,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 75,
+    "avgLight": 0,
+    "avgSoil": 71.4,
+    "avgTemp": 17,
+    "hourStart": 1781740800000,
+    "minSoil": 71,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 74.2,
+    "avgLight": 0,
+    "avgSoil": 71,
+    "avgTemp": 17.4,
+    "hourStart": 1781744400000,
+    "minSoil": 71,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 72.9,
+    "avgLight": 0,
+    "avgSoil": 70.9,
+    "avgTemp": 18,
+    "hourStart": 1781748000000,
+    "minSoil": 70,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 71.1,
+    "avgLight": 8,
+    "avgSoil": 70,
+    "avgTemp": 18.9,
+    "hourStart": 1781751600000,
+    "minSoil": 70,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 68.9,
+    "avgLight": 24.4,
+    "avgSoil": 70,
+    "avgTemp": 20.1,
+    "hourStart": 1781755200000,
+    "minSoil": 70,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 66.4,
+    "avgLight": 39.3,
+    "avgSoil": 69.4,
+    "avgTemp": 21.3,
+    "hourStart": 1781758800000,
+    "minSoil": 69,
+    "samples": 60
+   },
+   {
+    "avgHumidity": 65,
+    "avgLight": 46,
+    "avgSoil": 69,
+    "avgTemp": 22,
+    "hourStart": 1781762400000,
+    "minSoil": 69,
+    "samples": 1
+   }
+  ],
+  "interactions": [
+   {
+    "count": 12,
+    "endedAt": 1781596800000,
+    "id": 1,
+    "kind": "pet",
+    "metadata": {
+     "activeMs": 90000
+    },
+    "startedAt": 1781596620000
+   }
+  ]
+ },
+ "logs": [
+  "[collector] replayed 0 readings from the last 48h",
+  "[collector] poll failed: ESP32 payload has no soil_moisture",
+  "[collector] sensor back after 1 failed polls",
+  "[collector] poll failed: ETIMEDOUT",
+  "[collector] sensor back after 25 failed polls",
+  "[collector] resumed saved health memory from 16/06/2026, 06:00:00",
+  "[collector] watering recorded: soil 14% → 76% (single jump, confirmed by 1 reading)",
+  "[collector] replayed 2881 readings from the last 48h",
+  "[collector] resumed saved health memory from 18/06/2026, 09:00:00"
+ ]
+}
