@@ -47,15 +47,16 @@ export interface ESP32TestResult {
   isIframeBlocked?: boolean;
 }
 
-// Browser fetch to a LAN device (Private Network Access).
+// Browser fetch to a LAN device (Private Network Access). `targetAddressSpace` is Chrome-only and not in the DOM types.
 function fetchLocal(url: string, timeoutMs: number) {
-  return fetch(url, {
+  const init: RequestInit & { targetAddressSpace: 'local' } = {
     method: 'GET',
     mode: 'cors',
     targetAddressSpace: 'local',
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(timeoutMs),
-  } as any);
+  };
+  return fetch(url, init);
 }
 
 export class ESP32TelemetryProvider implements ITelemetryProvider {

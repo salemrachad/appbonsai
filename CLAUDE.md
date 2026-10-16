@@ -44,7 +44,7 @@ For quick throwaway checks, a script run with `npx tsx` can call the pure engine
 
 ## Template leftovers
 
-- `@google/genai`, `dotenv` and `GEMINI_API_KEY` come from the AI Studio template and are unused. `express` **is** used now, by the local server.
+- `GEMINI_API_KEY` (commented out in `.env.example`) and `metadata.json` come from the AI Studio template and are unused; its `@google/genai` and `dotenv` dependencies were removed. `express` **is** used, by the local server. Build tools (vite, its plugins, tsx) are devDependencies; the Pi needs a plain `npm install` (with dev) since `npm run server` runs through tsx.
 - `vite.config.ts` reads `DISABLE_HMR`, which AI Studio sets to turn off HMR and file watching. Keep that logic.
 - The `@/*` path alias points to the repo root, not `src/`. Existing code uses relative imports.
 

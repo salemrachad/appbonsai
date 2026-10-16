@@ -42,17 +42,28 @@ export function useLivingState({ onNewWatering, onManualRefreshDone }: Options =
     }
   }, [accept]);
 
+  // Polls only while the page is visible (a background tab or locked phone asks nothing) and
+  // catches up the moment it's shown again
   useEffect(() => {
     let cancelled = false;
+    let running = false;
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
+      clearTimeout(timer);
+      running = true;
       await load();
-      if (!cancelled) timer = setTimeout(tick, APP_CONFIG.polling.frontendMs);
+      running = false;
+      if (!cancelled && !document.hidden) timer = setTimeout(tick, APP_CONFIG.polling.frontendMs);
+    };
+    const onVisibility = () => {
+      if (!document.hidden && !running) tick();
     };
     tick();
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [load]);
 

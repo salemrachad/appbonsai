@@ -249,14 +249,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="space-y-2">
           <label className="sans text-xs font-semibold text-[#2D332A]/70">Pot Drainage & Soil Type</label>
           <div className="grid grid-cols-3 gap-2">
-            {[
+            {([
               { id: 'fast', name: 'Fast Draining', desc: '100% Akadama / Pumice' },
               { id: 'standard', name: 'Standard Mix', desc: 'Akadama + Peat' },
               { id: 'slow', name: 'Slow Retentive', desc: 'Organic potting soil' },
-            ].map((d) => (
+            ] as const).map((d) => (
               <button
                 key={d.id}
-                onClick={() => setDrainageRate(d.id as any)}
+                onClick={() => setDrainageRate(d.id)}
                 className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
                   drainageRate === d.id
                     ? 'border-[#4A6741] bg-[#4A6741]/10 text-[#3D5535]'

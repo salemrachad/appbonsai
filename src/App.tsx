@@ -136,21 +136,6 @@ export default function App() {
   const perception = snapshot?.perception ?? null;
   const reading = perception?.lastReading ?? null;
 
-  // TEMP DEBUG: trace the soil value from ESP32 to Home tile. Remove once verified.
-  useEffect(() => {
-    if (!reading) return;
-    console.log({
-      apiSoilMoisture: reading.apiSoilMoisture ?? null,
-      normalizedSoilMoisture: reading.soilMoisture,
-      displayedSoilMoisture: display?.metrics.find((m) => m.id === 'soil')?.value ?? null,
-      soilRaw: reading.soilRaw ?? null,
-      source: reading.source,
-      condition: display?.condition,
-      modifiers: display?.modifiers,
-      devPreset: devPresetId,
-    });
-  }, [reading?.timestamp, display?.condition, devPresetId]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Charts for the detail view: forecast (weather) or stored hourly averages (sensor)
   const [charts, setCharts] = useState<{ hourly: HourlyTelemetryPoint[]; days: DailySummary[] }>({ hourly: [], days: [] });
   useEffect(() => {
