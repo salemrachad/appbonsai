@@ -197,6 +197,32 @@ export interface SlothState {
 // dragonfly, the dragonfly rests on the sloth
 export type HabitatEncounter = 'squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth';
 
+// Mood as its own slow layer (behaviour/mood.ts, art): anchored by health, nudged by the environment,
+// petting and care, the visitors and the outside weather, drifting with inertia
+export interface MoodMemory {
+  valence: number;
+  arousal: number;
+  label: Mood;
+  at: number;
+}
+export interface MoodInfluence {
+  source: 'health' | 'environment' | 'petting' | 'care' | 'visitors' | 'weather';
+  v: number; // valence contribution
+  a: number; // arousal contribution
+  why: string;
+}
+export interface MoodState {
+  label: Mood;
+  valence: number; // -1 unpleasant … 1 pleasant (where it is now, after drifting)
+  arousal: number; // 0 still … 1 lively
+  target: { valence: number; arousal: number }; // where it is drifting to
+  base: Mood; // the health anchor
+  ceiling: number; // the highest valence health allows right now
+  forced: boolean; // an event mood (confused, sleepy, a care reaction)
+  influences: MoodInfluence[];
+  memory: MoodMemory; // persisted by the collector
+}
+
 // The squirrel as an individual: how far it trusts the place, and the habits it formed (derived, art)
 export type SquirrelStage = 'none' | 'traces' | 'peeking' | 'visiting' | 'settled';
 export type SquirrelTraces = 'nibbled_leaf' | 'tail_at_pot';
@@ -277,7 +303,8 @@ export interface PlantBehaviourState {
   modifiers: HealthModifier[];
   previousState: HealthCondition | null;
   episode: { id: number | null; condition: HealthCondition; startedAt: number; minutes: number };
-  mood: Mood;
+  mood: Mood; // the label (from moodState)
+  moodState: MoodState; // the mood as its own layer: valence/arousal, anchor, nudges (behaviour/mood.ts)
   energy: number; // 0-1 → movement: sway speed/amount, blinking, leaf flutter
   responsiveness: number; // 0-1 → how strongly reactions to care and touch show (never biology)
   expressionIntensity: number; // 0-1 → droop, wilt, how much the state shows

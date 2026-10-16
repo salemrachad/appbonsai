@@ -250,13 +250,20 @@ async function main() {
     }
     const a = plain.state();
     const z = petted.state();
+    // Petting may warm the mood (its own layer, bounded by health) and what the mood draws: the face, the tap
+    // label, the body description. Everything else is identical.
     const bio = (s: typeof a) =>
       JSON.stringify({
         health: s.health,
-        behaviour: { ...s.behaviour, relationship: { ...s.behaviour.relationship, attention: null } },
-        expression: { ...s.expression, touch: null }, // the touch answer may warm with familiarity (checked below)
+        behaviour: { ...s.behaviour, relationship: { ...s.behaviour.relationship, attention: null }, mood: null, moodState: null, reasons: null },
+        expression: { ...s.expression, touch: null, avatar: null, tapLabel: null, layers: null }, // the touch answer may warm with familiarity (checked below)
       });
-    check('P1 petting changes nothing biological (health, behaviour, expression identical)', bio(a) === bio(z), `${a.health.condition} v${a.health.vitality} vs ${z.health.condition} v${z.health.vitality}`);
+    check('P1 petting changes nothing biological (health, behaviour, expression identical; only the mood may warm)', bio(a) === bio(z), `${a.health.condition} v${a.health.vitality} vs ${z.health.condition} v${z.health.vitality}`);
+    check(
+      'P1m petting only warms the mood, inside the band health allows',
+      z.behaviour.moodState.valence >= a.behaviour.moodState.valence && z.behaviour.moodState.target.valence <= z.behaviour.moodState.ceiling && z.behaviour.moodState.influences.some((x) => x.source === 'petting'),
+      `valence ${a.behaviour.moodState.valence} → ${z.behaviour.moodState.valence} (ceiling ${z.behaviour.moodState.ceiling}) · ${a.behaviour.mood} / ${z.behaviour.mood}`
+    );
     check('P1b the touch keeps its character; only familiarity warms it', a.expression.touch.kind === z.expression.touch.kind, `${a.expression.touch.kind} vs ${z.expression.touch.kind}, familiarity ${z.expression.touch.familiarity}`);
     check(
       'P2 attention is remembered, separately from care',
@@ -483,8 +490,9 @@ async function main() {
     const sunnyB = evalWith([]);
     const rainyB = evalWith(rainy);
     // (the sloth reads the air too, by design: left out like the dragonfly itself)
-    const strip = (x: typeof sunnyB) => JSON.stringify({ mood: x.mood, energy: x.energy, intent: x.messageIntent, squirrel: { ...x.habitat, dragonfly: undefined, sloth: undefined } });
-    check('DF5 the dragonfly changes nothing else (mood, energy, words, the squirrel)', strip(sunnyB) === strip(rainyB) && sunnyB.habitat.dragonfly!.active && !rainyB.habitat.dragonfly!.active, `sunny ${sunnyB.habitat.dragonfly!.value} / rainy ${rainyB.habitat.dragonfly!.value}`);
+    const strip = (x: typeof sunnyB) => JSON.stringify({ energy: x.energy, intent: x.messageIntent, squirrel: { ...x.habitat, dragonfly: undefined, sloth: undefined } });
+    const lift = sunnyB.moodState.valence - rainyB.moodState.valence;
+    check('DF5 the dragonfly changes nothing else (energy, words, the squirrel); its company lifts the mood only a little', strip(sunnyB) === strip(rainyB) && sunnyB.habitat.dragonfly!.active && !rainyB.habitat.dragonfly!.active && lift >= 0 && lift <= 0.1 + 1e-9, `sunny ${sunnyB.habitat.dragonfly!.value} / rainy ${rainyB.habitat.dragonfly!.value} · mood +${lift.toFixed(2)}`);
 
     // Diary: one line per day with visits, from stored readings through the same replay
     const twoDays = [...warm(at(18, 9), 10 * 60), ...warm(at(19, 9), 10 * 60)];
@@ -546,8 +554,9 @@ async function main() {
     const evalWith = (outsideToday: any[]) => evaluateBehaviour({ health: st.health, perception: { ...st.perception, outsideToday }, episodes: bb.db.episodesSince(0), events: [], species: ACTIVE_SPECIES, now: bb.clock });
     const c = evalWith(calm);
     const w = evalWith(breezy);
-    const strip = (x: typeof c) => JSON.stringify({ mood: x.mood, energy: x.energy, intent: x.messageIntent, others: { ...x.habitat, sloth: undefined } });
-    check('SL5 the sloth changes nothing else (mood, energy, words, the squirrel, the dragonfly)', strip(c) === strip(w) && c.habitat.sloth!.active && !w.habitat.sloth!.active, `calm ${c.habitat.sloth!.value} / breezy ${w.habitat.sloth!.value}`);
+    const strip = (x: typeof c) => JSON.stringify({ energy: x.energy, intent: x.messageIntent, others: { ...x.habitat, sloth: undefined } });
+    const slothLift = c.moodState.valence - w.moodState.valence;
+    check('SL5 the sloth changes nothing else (energy, words, the squirrel, the dragonfly); its company lifts the mood only a little', strip(c) === strip(w) && c.habitat.sloth!.active && !w.habitat.sloth!.active && Math.abs(slothLift) <= 0.15, `calm ${c.habitat.sloth!.value} / breezy ${w.habitat.sloth!.value} · mood ${slothLift >= 0 ? '+' : ''}${slothLift.toFixed(2)}`);
 
     const diary = slothDiary([...humid(at(18, 8), 12 * 60), ...humid(at(19, 8), 12 * 60)], [], [], ACTIVE_SPECIES, cad, at(19, 21), 3);
     check('SL6 diary: how long the sloth stayed, per day', diary.length === 2 && diary.every((d) => d.habitat === 'sloth' && /about .* across \d+ visits?/.test(d.detail ?? '')), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));
@@ -1158,6 +1167,82 @@ async function main() {
       check('V24b a bold squirrel hops sooner and hides less; a peeking one only ducks', asB(0.9).hopEveryMs < asB(0.2).hopEveryMs && asB(0.9).hideChance < asB(0.2).hideChance && visitorPlay('comfortable', 'peek', {} as any, motion).kind === 'shy');
     }
 
+  }
+
+  console.log('\n— Mood: its own layer, anchored by health —');
+  {
+    const { evaluateMood, MOOD_POINT } = await import('../src/behaviour/mood');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    const calmB = new Bench();
+    await calmB.boot();
+    await calmB.run(60, () => day());
+    const calm = calmB.state();
+    const dryB = new Bench();
+    await dryB.boot();
+    await dryB.run(120, (i) => (i < 30 ? day() : { soil: 28 }));
+    const dry = dryB.state();
+    type St = typeof calm;
+    const now = calm.behaviour.evaluatedAt;
+    const pet = (at: number) => ({ id: 1, kind: 'pet' as const, startedAt: at - 60_000, endedAt: at, count: 12, metadata: {} });
+    const sky = (sky: string) => ({ at: now, sky, code: 0, temperature: 15, humidity: 80, precipitation: 0, cloudCover: 100, wind: 5, gusts: 10, isDay: true, windy: false, ageMs: 0, rainEndedAt: null });
+    const visiting = (h: St['behaviour']['habitat']) => ({ ...h, presence: 'visiting' as const, visit: { kind: 'squirrel' as const, id: 'x', startedAt: now - 60_000, endsAt: now + 300_000, spot: 'crown' as const, carrying: null, cause: 'slot' as const, action: null } });
+    const mood = (st: St, o: { interactions?: any[]; habitat?: any; outside?: any; memory?: any; base?: any; at?: number } = {}) =>
+      evaluateMood({
+        base: o.base ?? st.behaviour.moodState.base,
+        forced: false,
+        condition: st.health.condition,
+        modifiers: st.health.modifiers,
+        concern: !!st.behaviour.concern,
+        perception: o.outside !== undefined ? { ...st.perception, outside: o.outside } : st.perception,
+        species: ACTIVE_SPECIES,
+        interactions: o.interactions ?? [],
+        events: [],
+        habitat: o.habitat ?? st.behaviour.habitat,
+        twilight: { event: null, minutes: null },
+        seasonEnergy: 1,
+        memory: o.memory ?? null,
+        now: o.at ?? st.behaviour.evaluatedAt,
+      });
+    const dryNow = dry.behaviour.evaluatedAt;
+    const spoiled = mood(dry, { interactions: [pet(dryNow), pet(dryNow - 5 * MIN)], habitat: visiting(dry.behaviour.habitat), outside: sky('rain') });
+    check(
+      'MO1 anchored: a thirsty tree petted, visited and in cosy rain is comforted, never happy',
+      dry.health.condition === 'thirsty' && spoiled.target.valence <= spoiled.ceiling && !['joyful', 'content', 'grateful', 'relieved'].includes(spoiled.label),
+      `${dry.health.condition}: ${spoiled.label} v${spoiled.valence} (ceiling ${spoiled.ceiling})`
+    );
+    const plain = mood(calm);
+    const petted = mood(calm, { interactions: [pet(now)] });
+    const later = mood(calm, { interactions: [pet(now - 4 * 60 * MIN)] });
+    check('MO2 petting warms a calm tree, and it fades within hours', petted.valence > plain.valence && later.valence === plain.valence, `${plain.valence} → ${petted.valence} → 4 h later ${later.valence}`);
+    // Inertia: from content to a stressed anchor falls fast; from distressed to content rises slowly
+    const [cv, ca] = MOOD_POINT.content;
+    const [dv, da] = MOOD_POINT.distressed;
+    const fall = mood(dry, { memory: { valence: cv, arousal: ca, label: 'content', at: dryNow - 5 * MIN } });
+    const rise = mood(calm, { memory: { valence: dv, arousal: da, label: 'distressed', at: now - 5 * MIN } });
+    const fellBy = (cv - fall.valence) / (cv - fall.target.valence);
+    const roseBy = (rise.valence - dv) / (rise.target.valence - dv);
+    check('MO3 inertia: in 5 minutes a stress pulls the mood down fast; recovery lifts it slowly', fellBy > roseBy && fellBy < 1 && roseBy > 0, `fell ${Math.round(fellBy * 100)}% of the way, rose ${Math.round(roseBy * 100)}%`);
+    // Hysteresis: the same point between content and tired keeps whichever label it already had
+    const mid = { valence: (MOOD_POINT.content[0] + MOOD_POINT.tired[0]) / 2 - 0.01, arousal: (MOOD_POINT.content[1] + MOOD_POINT.tired[1]) / 2 };
+    const asContent = mood(calm, { memory: { ...mid, label: 'content', at: now } });
+    const asTired = mood(calm, { memory: { ...mid, label: 'tired', at: now } });
+    check('MO4 the label has hysteresis: between two moods it keeps the one it had', asContent.label === 'content' && asTired.label === 'tired', `${asContent.label} / ${asTired.label}`);
+    const company = mood(calm, { habitat: visiting(calm.behaviour.habitat) });
+    check('MO5 a visitor\'s company lifts the mood a little', company.valence > plain.valence && company.valence - plain.valence <= 0.1 + 1e-9, `${plain.valence} → ${company.valence}`);
+    const storm = mood(calm, { outside: sky('thunderstorm') });
+    const rain = mood(calm, { outside: sky('rain') });
+    check('MO6 a storm outside unsettles a calm tree, rain makes it cosy (lower arousal)', storm.valence < plain.valence && storm.arousal > plain.arousal && rain.arousal < plain.arousal && rain.valence >= plain.valence, `storm v${storm.valence} a${storm.arousal} · rain v${rain.valence} a${rain.arousal} · none v${plain.valence} a${plain.arousal}`);
+    // Restart: the mood memory is persisted, so a restart doesn't reset it
+    const x = new Bench();
+    const y = new Bench();
+    await x.boot();
+    await y.boot();
+    await x.run(40, () => day());
+    await y.run(20, () => day());
+    y.collector.stop();
+    await y.boot();
+    await y.run(20, () => day());
+    check('MO7 a restart keeps the mood where it was', JSON.stringify(x.state().behaviour.moodState) === JSON.stringify(y.state().behaviour.moodState), `${x.state().behaviour.mood} v${x.state().behaviour.moodState.valence} / ${y.state().behaviour.mood} v${y.state().behaviour.moodState.valence}`);
   }
 
   console.log('\n— Visitors with a memory: the sloth\'s loyalty, the dragonfly\'s territory, restarts —');

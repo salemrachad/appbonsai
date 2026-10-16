@@ -215,6 +215,25 @@ export const APP_CONFIG = {
     seMedium: 0.15,
   },
 
+  // Mood (behaviour/mood.ts): its own slow layer, anchored by health. Art, provisional.
+  // Health sets the band it may move in; the inside environment, petting and care, the visitors and the
+  // outside weather nudge it inside that band; it drifts with inertia (never jumps, never masks a stress).
+  mood: {
+    ceiling: { none: 1, mild: 0.3, moderate: 0.05, critical: -0.35 }, // highest valence per severity
+    concernCeiling: 0.35, // a reading out of range (not a condition yet)
+    calmFloor: -0.15, // a calm tree can't be made miserable by weather or the like
+    sleepingArousalMax: 0.2,
+    tauMin: { valenceDown: 10, valenceUp: 40, arousal: 20, event: 2 }, // drift time constants
+    maxStepMin: 15, // longer gaps don't count as drifting time
+    labelHysteresis: 0.06, // another label must be this much closer to take over
+    // Nudges (valence, arousal); each group is capped
+    environment: { cap: { v: 0.12, a: 0.15 }, swingTemp: 4, swingHum: 15, unsettled: [-0.06, 0.08], light: [0.04, 0.06], dim: [0, -0.05], warmth: [0.03, 0], sunrise: [0, 0.05], sunset: [0, -0.05], season: 0.3 },
+    petting: { windowMin: 180, tauMin: 45, strokesFull: 10, v: 0.15, a: 0.03, moderateShare: 0.4 },
+    care: { hours: 6, tauHours: 3, v: 0.05 },
+    visitors: { cap: 0.1, squirrel: [0.06, 0.04], dragonfly: [0.04, 0.05], sloth: [0.05, -0.04] },
+    weather: { rain: [0.03, -0.05], thunderstorm: [-0.05, 0.08], snow: [0.02, -0.04], clear: [0, 0.03], fog: [0, -0.03], windy: [0, 0.04] },
+  },
+
   history: {
     replayHours: 48, // fallback when no saved health memory exists: telemetry replayed on start
     maxGapMs: 15 * 60 * 1000, // short gap: readings this far apart still count as continuous observation

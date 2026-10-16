@@ -142,6 +142,39 @@ Rules:
 - **Relationship storytelling is not a biological effect.** "You usually notice when I'm dry" is a true statement
   about the record; it must never change health, vitality or thresholds.
 
+### Mood: its own layer [Implemented, V1]
+
+Mood used to be a first-match lookup on health with no memory. It is now its own slow layer
+(`behaviour/mood.ts`, numbers in `APP_CONFIG.mood`, evidence class *art*):
+- **Two dimensions** that drift with inertia: valence (−1 unpleasant … 1 pleasant) and arousal (0 still …
+  1 lively). Each mood label has a point in that space.
+- **Health anchors it.** The categorical mood from the condition, its tier, recovery and care reactions is
+  the anchor point.
+  - The severity sets a valence ceiling: calm 1, mild 0.3, moderate 0.05, critical −0.35. A concern caps it
+    at 0.35.
+  - A calm tree has a floor (−0.15), so weather can't make it miserable.
+  - A stressed tree can be comforted, never look happy. This is the guardrail against the "Tamagotchi
+    disconnected from the tree" anti-goal.
+- **Nudges inside that band**, each small and capped:
+  - the **inside environment:** swinging air unsettles; good light by day enlivens; pleasant warmth;
+    sunrise and sunset; the season;
+  - **petting:** a warmth that fades (τ 45 min) and saturates (more petting settles), full in calm or mild
+    states, smaller in moderate ones, none in critical;
+  - **care:** a warmth for a few hours after any care event;
+  - the **visitors' company:** the squirrel, the dragonfly or the sloth (the sloth calms);
+  - the **outside weather**, only for a calm tree: rain is cosy, a storm unsettles, fog quietens, a clear
+    day or wind enlivens.
+- **Inertia:** the collector persists where the mood was (`meta.mood_memory`).
+  - It falls fast (τ 10 min) and rises slowly (τ 40 min).
+  - Event moods switch in about 2 min: no trustworthy data (`confused`), asleep (`sleepy`), a care reaction.
+- **The label** is the nearest mood the health state allows (a calm set or a stress set under the
+  ceiling), with hysteresis so it doesn't flap.
+- **One direction:** mood shapes the face, the tap label and the body description. Health, vitality,
+  energy, speech timing and the visitors never read it. The Behaviour Debug panel shows valence, arousal,
+  the anchor, the ceiling and every nudge.
+- Tested: MO1–MO7 (anchored, petting fades, inertia, hysteresis, company, weather, restart); P1, DF5 and
+  SL5 check that only the mood moves.
+
 ### Touch and attention (petting) [Implemented, V1]
 
 Stroking the on-screen foliage is **attention: not care, and not biology** (evidence class *art*). Real mechanical
@@ -191,7 +224,8 @@ real, felt answer, it is remembered, and it changes nothing about the tree's sta
   It's not a `plant_events` type, so care counts, care context and the diary stay clean.
 - **Relationship memory records it, without dependency.**
   - `relationship.attention = { petSessions7d, lastPetAt }`, shown in the Behaviour Debug panel.
-  - It is excluded from `lastCareAt` and never read by mood, energy, responsiveness or health.
+  - It is excluded from `lastCareAt` and never read by energy, responsiveness or health. It reaches the mood
+    only as a small, fading, saturating warmth inside the band health allows (see "Mood: its own layer").
   - No streaks, no "you were away", no reward for frequency, and in V1 nothing is voiced.
 - **Familiarity (over weeks).** The more *days* someone pets the tree, the more at ease it becomes with the
   hand. `relationship.attention.familiarity` (0–1, `relationship.ts`) is built from the distinct days with
@@ -317,7 +351,8 @@ tree's world, but **not its condition**: the ESP32 inside says how the tree is. 
   (`telemetry/outsideWeather.ts`, `outside_weather` table). A failed fetch invents nothing. After an hour
   without a new observation, nothing is shown.
 - **Not the tree's condition, with one exception: it explains dim light.** Perception carries it as
-  `outside`. Health, mood, energy and the habitat never read it.
+  `outside`. Health, energy and the habitat never read it. A calm tree's mood takes a small nudge from it
+  (rain cosy, a storm unsettling; see "Mood: its own layer").
   - Light is judged relative to the sky as well as the sun. Each daylight LDR reading is compared with
     thresholds scaled by `species.light.skyFactor` for the sky outside at that moment (`dailyLight.ts`,
     `skyAt()`). Overcast is 0.55, fog and rain 0.5, a storm 0.35 (evidence class *inference*, PROTOTYPE).
@@ -418,7 +453,7 @@ trust a place, quick to leave it.
 
     Deterministic per visit (every refresh and every screen sees the same flight). Reduced motion: no flights, it is just where it is. Tested: DF7.
   - **Words and diary:** a "dragonfly came by" thought of the day; "A dragonfly visited (n visits)" per day, replayed from the stored readings.
-  - Nothing is stored; health, mood, energy and the squirrel never read it. Tested: `npm run test:behaviour` DF1–DF7.
+  - Nothing is stored; health, energy and the squirrel never read it (its company lifts the mood a little). Tested: `npm run test:behaviour` DF1–DF7.
 - **The sloth: the third wanderer** (`behaviour/sloth.ts`, numbers in `APP_CONFIG.habitat.sloth`). The dragonfly and the sloth are both *air wanderers*: one shared engine (`behaviour/wanderer.ts`, on the habitat helpers) where each species only brings its spec. The sloth's character:
   - **Warm, humid, still air** (≥ 22 °C and ≥ 55 % RH inside, no storm or strong gusts outside). **Rain doesn't bother it**: a greenhouse in the rain is perfect sloth weather.
   - **Slow in everything:** ~90 min to settle in, ~60 min to leave (half an hour of dry air doesn't move it). Visits are long (20–50 min) and come most hours, so a warm, humid day brings ~10 visits and 5–7 hours of sloth.
@@ -433,7 +468,7 @@ trust a place, quick to leave it.
     Stable within a stretch (a refresh never changes it); a new grip fades in slowly. Preview `#sloth=hanging:left_branch:one_arm`, or the grip chips in Developer → Visitors.
   - **Petting:** a slow look toward you and a long, slow blink (at most every 6 s). It never flees and never plays: the squirrel plays, the dragonfly darts, the sloth just looks at you.
   - **Words and diary:** a "sloth came" thought of the day; "A sloth spent time in the tree · about 5.3 h across 8 visits" per day.
-  - Nothing is stored; health, mood, energy, the squirrel and the dragonfly never read it. Tested: `npm run test:behaviour` SL1–SL7.
+  - Nothing is stored; health, energy, the squirrel and the dragonfly never read it (its company lifts the mood a little). Tested: `npm run test:behaviour` SL1–SL7.
 - **Encounters: visitors in the tree together** (`behaviour/encounters.ts`, evidence class *art*). Each visitor's own engine decides whether it comes; when two coincide, `meet()` only arranges who sits where and names the encounter (`habitat.encounters` → `expression.encounters` plus cues on the presentations):
   - **The squirrel peeks at the sloth.** It never sits on the sloth's branch: it takes the other branch or the crown, and its play never hops there. If it came for that spot (a care answer), the sloth hangs on the other branch instead. They look at each other: the squirrel faces it, and the sloth turns its head slowly toward the squirrel and keeps it there (not while asleep).
   - **The squirrel watches the dragonfly.** The dragonfly never rests on the leaves right by the squirrel; the squirrel's head follows it.
@@ -486,7 +521,8 @@ trust a place, quick to leave it.
   - "The squirrels stayed away" (naming what the tree went through)
   - "A squirrel built a drey in the crown" / "The drey was abandoned"
   - Nothing is stored for it.
-- **Boundaries:** the habitat is computed last in `evaluateBehaviour`, and health, mood, energy, speech and
+- **Boundaries:** the habitat is computed just before mood in `evaluateBehaviour` (the visitors' company
+  lifts the mood a little), and health, energy, speech and
   touch never read it. It is nonverbal: no lines.
 - **Previews:** Developer → Test Tree State → Squirrel, or `#visitor=visiting:crown` / `#visitor=hiding` /
   `#visitor=peek` / `#visitor=traces` (`traces:tail` for the tail by the pot). The Behaviour Debug panel

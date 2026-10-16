@@ -1,6 +1,6 @@
 import type { CollectorStatus, LivingSnapshot } from '../src/api/types';
 import { evaluateBehaviour } from '../src/behaviour/BehaviourEngine';
-import type { PlantBehaviourState, SlothMemory } from '../src/behaviour/behaviourTypes';
+import type { MoodMemory, PlantBehaviourState, SlothMemory } from '../src/behaviour/behaviourTypes';
 import { slothLife } from '../src/behaviour/sloth';
 import { decideSpeech, INITIAL_MESSAGE_MEMORY, MessageMemory } from '../src/behaviour/speech';
 import { APP_CONFIG } from '../src/config/appConfig';
@@ -31,6 +31,7 @@ const SETTINGS_KEY = 'collector_settings';
 const MEMORY_KEY = 'health_memory';
 const SUPPRESS_KEY = 'watering_detection_suppressed_until';
 const SPEECH_KEY = 'message_memory';
+const MOOD_KEY = 'mood_memory'; // where the mood was: it drifts from there (behaviour/mood.ts)
 const CALIBRATION_KEY = 'calibration';
 // Settings that are NOT changed through a settings save (calibration has its own API and history)
 const NOT_FROM_SETTINGS_SAVE = ['calibration', 'useAppSoilCalibration', 'soilRawDry', 'soilRawWet', 'lastSoilRaw'] as const;
@@ -496,7 +497,9 @@ export class LivingCollector {
       now,
       location: this.location(),
       wanderers: { sloth: this.slothMemory(now, perception.history.cadenceMs) },
+      moodMemory: this.db.getMeta<MoodMemory>(MOOD_KEY),
     });
+    this.db.setMeta(MOOD_KEY, behaviour.moodState.memory);
     // When to speak or stay quiet; persisted so refreshes and restarts don't replay lines
     const speech = decideSpeech({ behaviour, severity: health.severity, memory: this.messageMemory, now });
     if (speech.memory !== this.messageMemory) {

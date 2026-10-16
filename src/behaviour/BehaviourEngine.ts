@@ -18,9 +18,11 @@ import type {
   PlantBehaviourState,
   ReactionKind,
   RecoveryStage,
+  MoodMemory,
   SlothMemory,
   TimeOfDay,
 } from './behaviourTypes';
+import { evaluateMood } from './mood';
 import { evaluateCanopy } from './canopy';
 import { evaluateDragonfly } from './dragonfly';
 import { evaluateSloth } from './sloth';
@@ -49,6 +51,7 @@ export interface BehaviourInput {
   // sloth's loyalty from the last days of readings (the collector derives it; perception has only 24 h)
   location?: { latitude: number | null; longitude: number | null };
   wanderers?: { sloth?: SlothMemory };
+  moodMemory?: MoodMemory | null; // where the mood was (persisted by the collector): it drifts from there
 }
 
 const CARE_REACTION: Partial<Record<PlantEvent['type'], ReactionKind>> = {
@@ -273,7 +276,7 @@ const isStressEpisode = (e: BehaviourEpisode) => seriousStress(e.condition) || e
 
 // "Given what is happening, what happened recently, and how the human has cared for the tree,
 // how should the companion behave?" Deterministic: history, duration, context, relationship.
-export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers }: BehaviourInput): PlantBehaviourState {
+export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, moodMemory = null }: BehaviourInput): PlantBehaviourState {
   const reasons: string[] = [];
   const condition = health.condition;
 
@@ -362,6 +365,52 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (care.calm > 0) careEffects.push(`pruned ${Math.round(care.recentPruning!.ageHours)}h ago: calmer, gentler movement`);
   energy = round2(Math.max(0.1, Math.min(1, energy)));
 
+  // ---- Habitat (visitors): from episodes and the air; before mood (their company lifts it), nothing
+  // they read depends on mood ----
+  const habitat = evaluateHabitat({
+    episodes,
+    condition,
+    modifiers: health.modifiers,
+    isDay: perception.sun.isDay,
+    season: { id: season.id, energy: season.energy },
+    now,
+    outside: perception.outside ? { sky: perception.outside.sky, rainEndedAt: perception.outside.rainEndedAt ?? null } : null,
+    reaction: reaction ? { kind: reaction.kind, eventId: reaction.eventId, at: reaction.at, seasonal: reaction.seasonal } : null,
+    location,
+    seasonAt: seasonEnergyAt(location?.latitude ?? null, species),
+    interactions,
+  });
+  // ---- The dragonfly: the same habitat mechanism, reading the air of the last hours ----
+  habitat.dragonfly = evaluateDragonfly({
+    samples: perception.recent,
+    outsideToday: perception.outsideToday ?? [],
+    species,
+    cadenceMs: perception.history.cadenceMs,
+    condition,
+    modifiers: health.modifiers,
+    isDay: perception.sun.isDay,
+    insideTemp: perception.readings.temperature,
+    now,
+  });
+  if (habitat.dragonfly.active) reasons.push(`Dragonfly ${habitat.dragonfly.value}: ${habitat.dragonfly.why}`);
+  // ---- The sloth: the same air-wanderer engine, warm, humid and still ----
+  habitat.sloth = evaluateSloth({
+    samples: perception.recent,
+    outsideToday: perception.outsideToday ?? [],
+    species,
+    cadenceMs: perception.history.cadenceMs,
+    condition,
+    modifiers: health.modifiers,
+    isDay: perception.sun.isDay,
+    insideTemp: perception.readings.temperature,
+    now,
+    memory: wanderers?.sloth,
+  });
+  if (habitat.sloth.active) reasons.push(`Sloth ${habitat.sloth.value}: ${habitat.sloth.why}`);
+  // ---- Encounters: visitors in the tree together arrange themselves (art; nothing above reads it) ----
+  const met = applyEncounters(habitat);
+  if (met.length) reasons.push(`Encounters: ${met.map((e) => e.replace('_', ' + ')).join(', ')}`);
+
   // ---- Mood ----
   const concern = condition === 'comfortable' ? findConcern(health) : null;
   let mood: Mood;
@@ -377,6 +426,26 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   else if (afterglow && glow < 0.5) mood = 'relieved';
   else if (energy < 0.45) mood = 'tired';
   else mood = 'content';
+  // Mood as its own layer: health anchors it (the mood above); the environment, petting and care, the
+  // visitors and the outside weather nudge it inside the band health allows; it drifts with inertia
+  const moodState = evaluateMood({
+    base: mood,
+    forced: condition === 'sensor_uncertain' || condition === 'sleeping' || !!reaction,
+    condition,
+    modifiers: health.modifiers,
+    concern: !!concern,
+    perception,
+    species,
+    interactions,
+    events,
+    habitat,
+    twilight: { event: twilight.event, minutes: twilight.minutes },
+    seasonEnergy: season.energy,
+    memory: moodMemory,
+    now,
+  });
+  if (moodState.label !== mood) reasons.push(`Mood ${moodState.label} (health alone: ${mood}): ${moodState.influences.filter((x) => x.source !== 'health').map((x) => x.why).join('; ')}`);
+  mood = moodState.label;
 
   // ---- Responsiveness: how strongly care and touch show right now (never biology) ----
   const recentlyCared = relationship.hoursSinceCare !== null && relationship.hoursSinceCare < 1;
@@ -440,51 +509,6 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (perception.quality.insufficientHistory) reasons.push('Little history yet: staying cautious');
   if (health.modifiers.includes('sensor_uncertain')) reasons.push("Data overlay: biological state held while it can't be observed");
 
-  // ---- Habitat (visitors): computed last, from episodes only; nothing above may depend on it ----
-  const habitat = evaluateHabitat({
-    episodes,
-    condition,
-    modifiers: health.modifiers,
-    isDay: perception.sun.isDay,
-    season: { id: season.id, energy: season.energy },
-    now,
-    outside: perception.outside ? { sky: perception.outside.sky, rainEndedAt: perception.outside.rainEndedAt ?? null } : null,
-    reaction: reaction ? { kind: reaction.kind, eventId: reaction.eventId, at: reaction.at, seasonal: reaction.seasonal } : null,
-    location,
-    seasonAt: seasonEnergyAt(location?.latitude ?? null, species),
-    interactions,
-  });
-  // ---- The dragonfly: the same habitat mechanism, reading the air of the last hours ----
-  habitat.dragonfly = evaluateDragonfly({
-    samples: perception.recent,
-    outsideToday: perception.outsideToday ?? [],
-    species,
-    cadenceMs: perception.history.cadenceMs,
-    condition,
-    modifiers: health.modifiers,
-    isDay: perception.sun.isDay,
-    insideTemp: perception.readings.temperature,
-    now,
-  });
-  if (habitat.dragonfly.active) reasons.push(`Dragonfly ${habitat.dragonfly.value}: ${habitat.dragonfly.why}`);
-  // ---- The sloth: the same air-wanderer engine, warm, humid and still ----
-  habitat.sloth = evaluateSloth({
-    samples: perception.recent,
-    outsideToday: perception.outsideToday ?? [],
-    species,
-    cadenceMs: perception.history.cadenceMs,
-    condition,
-    modifiers: health.modifiers,
-    isDay: perception.sun.isDay,
-    insideTemp: perception.readings.temperature,
-    now,
-    memory: wanderers?.sloth,
-  });
-  if (habitat.sloth.active) reasons.push(`Sloth ${habitat.sloth.value}: ${habitat.sloth.why}`);
-  // ---- Encounters: visitors in the tree together arrange themselves (art; nothing above reads it) ----
-  const met = applyEncounters(habitat);
-  if (met.length) reasons.push(`Encounters: ${met.map((e) => e.replace('_', ' + ')).join(', ')}`);
-
   // ---- Canopy over the last weeks (drawn only) ----
   const canopy = evaluateCanopy({ episodes, events, growth: season.growth, species, now });
   // ---- The day's thoughts (grounded in today's data; the speech policy spaces them) ----
@@ -499,6 +523,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     previousState,
     episode: { id: open?.id ?? null, condition, startedAt, minutes },
     mood,
+    moodState,
     energy,
     responsiveness,
     expressionIntensity: intensity,

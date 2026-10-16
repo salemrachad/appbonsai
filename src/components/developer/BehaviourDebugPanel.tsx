@@ -46,6 +46,20 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
 
       <Section title="Behaviour">
         <Row label="Mood" value={b.mood} strong />
+        {/* Older servers send no mood layer */}
+        {b.moodState && (
+          <>
+            <Row
+              label="· feeling (valence · arousal)"
+              value={`${b.moodState.valence} · ${b.moodState.arousal} → drifting to ${b.moodState.target.valence} · ${b.moodState.target.arousal}${b.moodState.forced ? ' (event mood)' : ''}`}
+            />
+            <Row label="· anchor (health)" value={`${b.moodState.base} · ceiling ${b.moodState.ceiling}`} />
+            <Row
+              label="· nudges"
+              value={b.moodState.influences.filter((x) => x.source !== 'health').map((x) => `${x.source} ${x.v >= 0 ? '+' : ''}${x.v}/${x.a >= 0 ? '+' : ''}${x.a} (${x.why})`).join(' · ') || 'none'}
+            />
+          </>
+        )}
         <Row label="Energy" value={b.energy} />
         <Row label="Responsiveness" value={b.responsiveness} />
         <Row label="Intensity" value={`${b.expressionIntensity} · tier ${b.intensityTier}`} />
