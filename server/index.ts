@@ -1,3 +1,4 @@
+import compression from 'compression';
 import express from 'express';
 import { existsSync } from 'node:fs';
 import { hostname } from 'node:os';
@@ -40,6 +41,7 @@ const calibration = new CalibrationService(db, collector);
 const backend: BackendInfo = { mode, hostname: hostname(), host, port, dbPath: db.path, collector: 'this server', servesApp };
 
 const app = express();
+app.use(compression()); // gzip: the bundle and /api/current are ~4× smaller on the phone
 app.use('/api', corsForLocalNetwork((process.env.APPBONSAI_CORS_ORIGINS ?? '').split(',')));
 app.use(express.json({ limit: '5mb' })); // browser history import can be a few MB
 
@@ -53,8 +55,15 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route'
 
 // Production: the built frontend (npm run build) from the same server, so the app and its API share an origin
 if (servesApp) {
-  app.use(express.static(distDir));
-  app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html')));
+  // Hashed assets never change, so the browser keeps them; index.html is always revalidated to pick up a new build
+  const assetsDir = path.join(distDir, 'assets');
+  app.use(
+    express.static(distDir, {
+      setHeaders: (res, file) =>
+        res.setHeader('Cache-Control', file.startsWith(assetsDir) ? 'public, max-age=31536000, immutable' : 'no-cache'),
+    })
+  );
+  app.get('*', (_req, res) => res.sendFile(path.join(distDir, 'index.html'), { headers: { 'Cache-Control': 'no-cache' } }));
 }
 
 const server = app.listen(port, host, () => {

@@ -39,6 +39,14 @@ export default defineConfig(({mode}) => {
     define: {
       'import.meta.env.VITE_API_BASE_URL': JSON.stringify(apiBase),
     },
+    build: {
+      rollupOptions: {
+        output: {
+          // Libraries in their own chunk: an app deploy doesn't make the phone download React again
+          manualChunks: (id) => (/[\\/]node_modules[\\/](react|react-dom|scheduler|lucide-react)[\\/]/.test(id) ? 'vendor' : undefined),
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
