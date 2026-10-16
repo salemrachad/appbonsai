@@ -61,10 +61,10 @@ Each layer has one job. Keep them separate. Biological thresholds never go in Re
 | Health | `src/health/` | `evaluatePlantHealth({perception, species, memory})` → `{state, memory}`: the biological condition, modifiers, health scores, vitality with a full breakdown, hysteresis debug. It decides no wording or personality. |
 | Behaviour | `src/behaviour/` | `evaluateBehaviour()`: mood, energy, responsiveness, intensity + tier, recovery stage, afterglow, time of day, message intent, care reactions (diffraction), relationship memory (`relationship.ts`). `speech.ts` decides when to speak or stay silent; `messages.ts` is the only place with wording. |
 | Expression | `src/expression/` | `expressBehaviour()` → `ExpressionState`: avatar look (eyes/mouth/foliage/gaze/gesture/filter/effects), sway speed, leaf droop, atmosphere (scene per condition, season, day/night theme), message + tip, and the three Living Art layers (epidermal / wording / diffraction). |
-| Server | `server/` | `index.ts` (Express, modes production / local-dev, serves `dist/`), `cors.ts` (local-network CORS), `collector.ts` (the living loop), `database.ts` + `schema.ts` (node:sqlite), `episodes.ts`, `routes/*`. |
+| Server | `server/` | `index.ts` (Express, modes production / local-dev, serves `dist/`), `cors.ts` (local-network CORS), `collector/` (the living loop, one job per file: `index.ts` the loop and `LivingCollector`, `settings.ts` settings + calibration storage, `watering.ts` sensor-detected waterings, `careEvents.ts`, `interactions.ts`, `metaStore.ts` the typed `meta` keys, `records.ts` row conversions), `calibration.ts` (guided calibration), `database.ts` + `schema.ts` (node:sqlite), `episodes.ts`, `routes/*`. |
 | UI | `src/App.tsx`, `src/pages/`, `src/components/`, `src/hooks/` | Show what the server concluded. `useLivingState` polls `/api/current` every 5 s with the last `ETag` (`If-None-Match`); an unchanged state answers 304 with no body and nothing re-renders; `usePlantHealth`/`usePlantBehaviour` apply developer previews. |
 
-### The living loop (`server/collector.ts`)
+### The living loop (`server/collector/`)
 
 Each poll (ESP32 every `telemetryIntervalMs`, 60 s by default and changeable in Settings; every 15 min in `weather_estimate` mode) does the following:
 1. Fetch with `telemetryManager` (injectable, with the clock, via `CollectorOptions` for tests). On failure it never invents a reading.
