@@ -6,6 +6,7 @@ import type { OutsideObservation, OutsideSky } from '../telemetry/outsideWeather
 import type { DragonflyPerch, DragonflyState, DragonflyStop } from './behaviourTypes';
 import { stableVariant } from './speech';
 import { airDiary, AirInput, AirWandererSpec, baseGate, evaluateAir, replayAir } from './wanderer';
+import { hhmm } from '../lib/time';
 
 // The dragonfly: an air wanderer (see wanderer.ts). Where the squirrel reads the tree's HISTORY over days,
 // the dragonfly reads the AIR over the last hours: warm inside, daylight with useful light, and calm, dry
@@ -133,6 +134,5 @@ export function stopAt<S extends { at: number }>(route: S[], t: number): S | nul
 }
 
 export function dragonflyDiary(samples: PerceptionSample[], obs: OutsideObservation[], episodes: BehaviourEpisode[], species: SpeciesProfile, cadenceMs: number, now: number, days: number, windowsOut?: { from: number; to: number }[]): DiaryItem[] {
-  const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   return airDiary(DRAGONFLY, samples, obs, episodes, species, cadenceMs, now, days, (v) => ({ title: 'A dragonfly visited', detail: `${v.count} visit${v.count > 1 ? 's' : ''} · first at ${hhmm(v.firstAt)}` }), 'dragonfly', windowsOut);
 }

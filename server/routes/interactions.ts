@@ -3,8 +3,8 @@ import type { InteractionKind } from '../../src/history/historyTypes';
 import { INTERACTION_KINDS } from '../../src/history/historyTypes';
 import type { LivingCollector } from '../collector';
 import type { AppDatabase } from '../database';
+import { DAY } from '../../src/lib/time';
 
-const DAY = 24 * 3600 * 1000;
 
 // Attention, not care. GET /api/interactions?days=7&kind=pet
 // POST /api/interactions {kind: 'pet', startedAt, endedAt, count, activeMs}: one call per petting SESSION

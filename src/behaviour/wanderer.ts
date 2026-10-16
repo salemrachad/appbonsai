@@ -6,6 +6,7 @@ import type { SpeciesProfile } from '../species';
 import type { OutsideObservation } from '../telemetry/outsideWeather';
 import { driftToward, schmitt, slotWindow } from './habitat';
 import { stableVariant } from './speech';
+import { DAY, HOUR, MIN } from '../lib/time';
 
 // "Air wanderers": habitat visitors driven by the AIR of the last hours (the dragonfly, the sloth), as
 // opposed to the squirrel, which reads the tree's history over days. One mechanism for all of them, built
@@ -14,9 +15,6 @@ import { stableVariant } from './speech';
 // how long it visits, and which tree states keep it away. Evidence class "art"; derived from perceived
 // samples; nothing stored; never read by health, mood or energy.
 
-const MIN = 60 * 1000;
-const HOUR = 60 * MIN;
-const DAY = 24 * HOUR;
 
 export interface AirWandererSpec<Spot extends string, Style extends string> {
   key: string; // seeds its own slots (never shared with another species)

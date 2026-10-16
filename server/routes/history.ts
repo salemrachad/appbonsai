@@ -12,9 +12,8 @@ import { ACTIVE_SPECIES } from '../../src/species';
 import type { DailySummary } from '../../src/history/historyTypes';
 import type { LivingCollector } from '../collector';
 import type { AppDatabase } from '../database';
+import { DAY, HOUR } from '../../src/lib/time';
 
-const HOUR = 3600 * 1000;
-const DAY = 24 * HOUR;
 
 const localDate = (t: number) => {
   const d = new Date(t);

@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { PLANT_EVENT_TYPES, PlantEventType } from '../../src/history/historyTypes';
 import type { LivingCollector } from '../collector';
 import type { AppDatabase } from '../database';
+import { DAY } from '../../src/lib/time';
 
-const DAY = 24 * 3600 * 1000;
 
 // GET /api/events?days=30 · POST /api/events {type, note?, timestamp?} · DELETE /api/events/:id
 export function eventRoutes(db: AppDatabase, collector: LivingCollector): Router {

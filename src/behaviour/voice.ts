@@ -4,6 +4,7 @@ import type { SpeciesProfile } from '../species';
 import type { CanopyState, HabitatState, Musing, MusingId, PlantBehaviourState, RelationshipContext, VoiceState } from './behaviourTypes';
 import { ENCOUNTER_PAIRS } from './encounters';
 import { stableVariant } from './speech';
+import { DAY, HOUR } from '../lib/time';
 
 // The tree's voice for the day: how many thoughts it has to share, and which ones are true right now.
 //
@@ -16,8 +17,6 @@ import { stableVariant } from './speech';
 // - the speech policy spreads them over the daylight hours, says each at most once a day, and never
 //   interrupts something more important. Wording lives in messages.ts (by id, with facts).
 
-const HOUR = 3600 * 1000;
-const DAY = 24 * HOUR;
 const MUSING_INTENTS: PlantBehaviourState['messageIntent'][] = ['joy', 'content', 'afterglow'];
 const SEASON_VOICE: Record<SpeciesProfile['seasons'][keyof SpeciesProfile['seasons']]['growth'], number> = { flush: 1, active: 1, slowing: 0.7, resting: 0.4 };
 

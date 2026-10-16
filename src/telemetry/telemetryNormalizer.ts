@@ -2,6 +2,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import { TreeSettings } from '../settings/settings';
 import { lightPercentFromRaw, soilPercentFromRaw } from './calibration';
 import { PlantTelemetry } from './types';
+import { hhmmss } from '../lib/time';
 
 const toNumber = (v: any): number | null =>
   v !== undefined && v !== null && v !== '' && !isNaN(Number(v)) ? Number(v) : null;
@@ -87,7 +88,7 @@ export function normalizeESP32Payload(raw: any, settings: TreeSettings): PlantTe
   return {
     timestamp: Date.now(),
     source: 'esp32_sensor',
-    updatedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    updatedAt: hhmmss(new Date()),
     soilMoisture,
     soilRaw,
     apiSoilMoisture,

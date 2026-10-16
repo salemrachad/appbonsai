@@ -2,12 +2,12 @@ import type { SpeciesProfile } from '../species';
 import type { OutsideObservation, OutsideSky } from '../telemetry/outsideWeather';
 import type { PerceptionSample } from './perceptionTypes';
 import { sunState } from './sun';
+import { MIN } from '../lib/time';
 
 // "How much useful light did the tree get today?" from the relative LDR % (never lux), accumulated
 // over the local calendar day. Only observed time counts: hours without data are reported as missing,
 // never as darkness. Night readings never enter it.
 
-const MIN = 60 * 1000;
 const SLOT_MIN = 5; // resolution of the expected-daylight calculation
 
 export interface DailyLight {

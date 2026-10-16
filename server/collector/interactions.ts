@@ -2,8 +2,8 @@ import { APP_CONFIG } from '../../src/config/appConfig';
 import { INTERACTION_KINDS } from '../../src/history/historyTypes';
 import type { Interaction, InteractionKind } from '../../src/history/historyTypes';
 import type { AppDatabase } from '../database';
+import { DAY } from '../../src/lib/time';
 
-const DAY = 24 * 3600 * 1000;
 
 // ---- attention (not care) ----
 // A petting session reported by the browser, checked and capped. Stored for relationship memory only: it

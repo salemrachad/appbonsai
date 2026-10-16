@@ -1,4 +1,5 @@
 import React from 'react';
+import { hhmm } from '../../lib/time';
 
 // Small building blocks shared by the developer panels.
 
@@ -51,4 +52,4 @@ export function duration(minutes: number): string {
 }
 
 export const clock = (t: number | null | undefined) =>
-  t ? new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '–';
+  t ? hhmm(t) : '–';

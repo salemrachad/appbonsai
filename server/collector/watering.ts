@@ -6,7 +6,8 @@ import type { SensorCalibration } from '../../src/telemetry/calibration';
 import type { PlantTelemetry } from '../../src/telemetry/types';
 import type { AppDatabase } from '../database';
 import type { MetaStore } from './metaStore';
-import { fmtTime, fromRecord } from './records';
+import { fromRecord } from './records';
+import { hhmmss } from '../../src/lib/time';
 
 // Sensor-detected waterings: runs the pure detector (perception/wateringDetector.ts) on each ESP32 reading
 // and turns its decisions into care events: a new watering, a longer session, or a merge with a watering
@@ -60,9 +61,9 @@ export class WateringDetection {
     if (out.kind === 'none' || out.kind === 'suppressed') return;
 
     if (out.kind === 'candidate') {
-      this.lastDecision = `candidate rise +${out.rise}% at ${fmtTime(t.timestamp)}, waiting for confirmation`;
+      this.lastDecision = `candidate rise +${out.rise}% at ${hhmmss(t.timestamp)}, waiting for confirmation`;
     } else if (out.kind === 'rejected') {
-      this.lastDecision = `ignored (${out.reason}): ${out.detail} at ${fmtTime(t.timestamp)}`;
+      this.lastDecision = `ignored (${out.reason}): ${out.detail} at ${hhmmss(t.timestamp)}`;
       this.log(`[collector] watering ${this.lastDecision}`);
     } else if (out.kind === 'session_extended') {
       if (this.sessionEventId !== null) {
@@ -110,7 +111,7 @@ export class WateringDetection {
     const until = minutes > 0 ? now + minutes * 60 * 1000 : 0;
     this.detector = minutes > 0 ? suppressDetection(this.detector, until) : { ...this.detector, suppressedUntil: 0, window: this.detector.window.slice(-1) };
     this.meta.set('watering_detection_suppressed_until', this.detector.suppressedUntil);
-    this.lastDecision = minutes > 0 ? `paused for calibration until ${fmtTime(until)}` : 'resumed';
+    this.lastDecision = minutes > 0 ? `paused for calibration until ${hhmmss(until)}` : 'resumed';
     return this.detector.suppressedUntil;
   }
 }

@@ -2,6 +2,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import type { DragonflyPerch, HabitatEncounter, HabitatState, SlothBranch, VisitSpot } from './behaviourTypes';
 import { dragonflyRoute, livelinessOf } from './dragonfly';
 import { stableVariant } from './speech';
+import { hhmm } from '../lib/time';
 
 // Encounters: two visitors in the tree at the same time (evidence class "art"). Nothing new is decided
 // about WHETHER anyone visits: each visitor's own engine did that. This only arranges who sits where when
@@ -106,7 +107,6 @@ const NAMES: Record<HabitatEncounter, string> = {
 };
 
 export function encounterDiary(windows: { squirrel: Window[]; dragonfly: Window[]; sloth: Window[] }, since: number, now: number) {
-  const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const items: { at: number; kind: 'habitat'; habitat: 'encounter'; title: string; detail: string }[] = [];
   const pairs: [HabitatEncounter, Window[], Window[]][] = [
     ['squirrel_sloth', windows.squirrel, windows.sloth],

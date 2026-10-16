@@ -2,9 +2,9 @@ import { TreeSettings } from '../settings/settings';
 import { calculateVPD } from './telemetryNormalizer';
 import { calculateEstimatedPotMoisture } from './weatherMoistureModel';
 import { HourlyTelemetryPoint, ITelemetryProvider, PlantTelemetry, TelemetryFetchResult, TimelineEvent } from './types';
+import { hhmm } from '../lib/time';
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
-const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 // Open-Meteo weather for the tree's location; soil moisture is modelled, not measured.
 export class WeatherTelemetryProvider implements ITelemetryProvider {
@@ -52,7 +52,7 @@ export class WeatherTelemetryProvider implements ITelemetryProvider {
     const current: PlantTelemetry = {
       timestamp: Date.now(),
       source: 'weather_estimate',
-      updatedAt: fmtTime(new Date()),
+      updatedAt: hhmm(new Date()),
       soilMoisture,
       temperature: round1(temp),
       humidity: Math.round(humidity),
@@ -77,7 +77,7 @@ export class WeatherTelemetryProvider implements ITelemetryProvider {
       const hLight = at('shortwave_radiation', i) ?? 0;
       const hVpd = at('vapour_pressure_deficit', i) ?? calculateVPD(hTemp, hHum);
       hourly.push({
-        time: fmtTime(d),
+        time: hhmm(d),
         hour: d.getHours(),
         timestamp: d.getTime(),
         temperature: round1(hTemp),
@@ -114,7 +114,7 @@ function buildTimeline(dailyRaw: any, nowIso: string, hourly: HourlyTelemetryPoi
   if (dailyRaw.sunrise?.[today]) {
     events.push({
       id: 'sunrise',
-      time: fmtTime(new Date(dailyRaw.sunrise[today])),
+      time: hhmm(new Date(dailyRaw.sunrise[today])),
       type: 'sunrise',
       title: 'Sunrise',
       description: 'Photosynthesis begins with the morning light.',
@@ -152,7 +152,7 @@ function buildTimeline(dailyRaw: any, nowIso: string, hourly: HourlyTelemetryPoi
   if (dailyRaw.sunset?.[today]) {
     events.push({
       id: 'sunset',
-      time: fmtTime(new Date(dailyRaw.sunset[today])),
+      time: hhmm(new Date(dailyRaw.sunset[today])),
       type: 'sunset',
       title: 'Sunset & rest',
       description: 'Daylight ends; the tree rests overnight.',

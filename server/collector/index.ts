@@ -27,6 +27,7 @@ import { MetaStore } from './metaStore';
 import { fromRecord, stamp, toLive } from './records';
 import { SettingsStore } from './settings';
 import { WateringDetection } from './watering';
+import { DAY, HOUR } from '../../src/lib/time';
 
 // The collector, one job per file:
 //   index.ts        the living loop (below): poll → store → perception → health → episodes → behaviour → expression,
@@ -39,8 +40,6 @@ import { WateringDetection } from './watering';
 //   records.ts      stored rows → the shapes the engines and the UI read
 export { fromRecord } from './records';
 
-const HOUR = 3600 * 1000;
-const DAY = 24 * HOUR;
 
 export interface CollectorOptions {
   now?: () => number; // clock (scenario tests run simulated time)

@@ -6,6 +6,7 @@ import type { OutsideObservation } from '../telemetry/outsideWeather';
 import type { SlothBranch, SlothGrip, SlothMemory, SlothState } from './behaviourTypes';
 import { stableVariant } from './speech';
 import { AirDay, airDays, AirInput, AirWandererSpec, baseGate, evaluateAir, replayAir } from './wanderer';
+import { DAY } from '../lib/time';
 
 // The sloth: the third wanderer, an air wanderer like the dragonfly (see wanderer.ts) with its own
 // character. It loves warm, humid, still air (a greenhouse is perfect): warmth and humidity inside, no
@@ -48,7 +49,6 @@ export const SLOTH: AirWandererSpec<SlothBranch, 'hanging' | 'climbing' | 'sleep
   },
 };
 
-const DAY = 24 * 3600 * 1000;
 const L = () => C().loyalty;
 export const NO_SLOTH_MEMORY: SlothMemory = { loyalty: 0, homeBranch: null, daysWithIt: 0 };
 

@@ -2,6 +2,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import type { Severity } from '../health/healthTypes';
 import type { CareLine, DayLine, IntensityTier, Musing, ObservationId, PlantBehaviourState } from './behaviourTypes';
 import { messageKey, variantCount } from './messages';
+import { MIN } from '../lib/time';
 
 // When the tree speaks, and when it stays quiet.
 //
@@ -15,7 +16,6 @@ import { messageKey, variantCount } from './messages';
 //   (behaviour.voice), each at most once a day, spaced over the daylight, never over something else.
 // The memory is persisted by the server, so browser refreshes and restarts don't replay anything.
 
-const MIN = 60 * 1000;
 
 export const SPEECH = {
   minGapMs: 10 * MIN, // between two non-urgent lines

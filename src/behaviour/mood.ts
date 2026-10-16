@@ -5,6 +5,7 @@ import type { Interaction, PlantEvent } from '../history/historyTypes';
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { SpeciesProfile } from '../species';
 import type { HabitatState, Mood, MoodInfluence, MoodMemory, MoodState } from './behaviourTypes';
+import { HOUR, MIN } from '../lib/time';
 
 // Mood: its own slow layer (evidence class "art"). Two dimensions, valence (−1 unpleasant … 1 pleasant)
 // and arousal (0 still … 1 lively), drift with inertia toward a target:
@@ -57,8 +58,6 @@ export interface MoodInput {
   now: number;
 }
 
-const MIN = 60 * 1000;
-const HOUR = 60 * MIN;
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 const r2 = (x: number) => Math.round(x * 100) / 100;
 const drift = (from: number, to: number, dtMin: number, tauMin: number) => to + (from - to) * Math.exp(-dtMin / tauMin);

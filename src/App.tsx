@@ -24,6 +24,7 @@ import { Developer } from './pages/Developer';
 import { Home } from './pages/Home';
 import { History } from './pages/History';
 import { Settings } from './pages/Settings';
+import { hhmm } from './lib/time';
 
 type Panel = 'history' | 'settings' | 'developer' | null;
 
@@ -213,7 +214,7 @@ export default function App() {
         setCharts({
           days,
           hourly: buckets.map((b) => ({
-            time: new Date(b.hourStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            time: hhmm(b.hourStart),
             hour: new Date(b.hourStart).getHours(),
             timestamp: b.hourStart,
             temperature: b.avgTemp,

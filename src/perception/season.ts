@@ -1,5 +1,5 @@
+import { DAY } from '../lib/time';
 const RAD = Math.PI / 180;
-const DAY = 86400000;
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export const SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter'];

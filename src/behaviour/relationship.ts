@@ -3,9 +3,8 @@ import { APP_CONFIG } from '../config/appConfig';
 import type { SpeciesProfile } from '../species';
 import type { HealthCondition } from '../health/healthTypes';
 import type { RelationshipContext } from './behaviourTypes';
+import { DAY, HOUR } from '../lib/time';
 
-const HOUR = 3600 * 1000;
-const DAY = 24 * HOUR;
 const THIRST: HealthCondition[] = ['thirsty', 'very_dry', 'hot_and_dry'];
 
 const median = (xs: number[]) => {

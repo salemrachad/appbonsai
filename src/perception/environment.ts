@@ -3,6 +3,7 @@ import type { PlantEvent } from '../history/historyTypes';
 import type { SpeciesProfile } from '../species';
 import { calculateVPD } from '../telemetry/telemetryNormalizer';
 import type { PerceptionSample } from './perceptionTypes';
+import { HOUR } from '../lib/time';
 
 // Derived environmental metrics from timestamped samples. Perception only CALCULATES and qualifies them
 // (with a confidence); it never judges the plant. Health interprets them (see HealthEngine).
@@ -14,7 +15,6 @@ import type { PerceptionSample } from './perceptionTypes';
 // - Temperature exposure: degree-hours outside the species' optimal range over the last day, each
 //   weighted by an exponential decay, so it builds with sustained heat or cold and fades gradually.
 
-const HOUR = 3600 * 1000;
 
 export interface SoilDryDown {
   perHour: number; // %/h (negative = drying)

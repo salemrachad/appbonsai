@@ -11,8 +11,8 @@ import { computeDailyLight } from './dailyLight';
 import { dryingCoupling, soilDryDown, temperatureExposure } from './environment';
 import { seasonState } from './season';
 import { sunState, sunTimes, type SunState } from './sun';
+import { HOUR } from '../lib/time';
 
-const HOUR = 3600 * 1000;
 const EMPTY_READINGS: PerceivedReadings = {
   soilMoisture: null,
   soilRaw: null,

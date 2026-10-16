@@ -1,6 +1,7 @@
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { SpeciesProfile } from '../species';
 import type { CouplingMemory, HealthEnvironment } from './healthTypes';
+import { DAY, HOUR } from '../lib/time';
 
 // Health's interpretation of the derived environmental metrics that Perception calculated.
 //
@@ -11,8 +12,6 @@ import type { CouplingMemory, HealthEnvironment } from './healthTypes';
 // - Temperature exposure: decayed degree-hours outside the optimal range lower the EXISTING temperature
 //   score (same component, same weight), fading as the exposure decays. Provisional thresholds.
 
-const HOUR = 3600 * 1000;
-const DAY = 24 * HOUR;
 
 export const INITIAL_COUPLING: CouplingMemory = { baseline: null, hours: 0, firstAt: null, updatedAt: null };
 

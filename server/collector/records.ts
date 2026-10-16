@@ -2,8 +2,7 @@ import type { TelemetryRecord } from '../../src/history/historyTypes';
 import { lightPercentFromRaw, NO_CALIBRATION, SensorCalibration, soilPercentFromRaw } from '../../src/telemetry/calibration';
 import { calculateVPD } from '../../src/telemetry/telemetryNormalizer';
 import type { LiveReading, PlantTelemetry } from '../../src/telemetry/types';
-
-export const fmtTime = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+import { hhmmss } from '../../src/lib/time';
 
 // Stored row → the telemetry shape the engines read. Raw values are interpreted with the CURRENT
 // calibration (so a new calibration applies to recent history too); the stored row is never changed.
@@ -15,7 +14,7 @@ export function fromRecord(r: TelemetryRecord, cal: SensorCalibration = NO_CALIB
   return {
     timestamp: r.timestamp,
     source: r.source,
-    updatedAt: withTime ? fmtTime(r.timestamp) : '',
+    updatedAt: withTime ? hhmmss(r.timestamp) : '',
     soilMoisture: esp && cal.soil && r.soilRaw !== null ? soilPercentFromRaw(r.soilRaw, cal.soil) : r.soilMoisture,
     soilRaw: r.soilRaw,
     apiSoilMoisture: r.apiSoilMoisture,
@@ -30,7 +29,7 @@ export function fromRecord(r: TelemetryRecord, cal: SensorCalibration = NO_CALIB
   };
 }
 
-export const stamp = (t: PlantTelemetry | null): PlantTelemetry | null => (t && !t.updatedAt ? { ...t, updatedAt: fmtTime(t.timestamp) } : t);
+export const stamp = (t: PlantTelemetry | null): PlantTelemetry | null => (t && !t.updatedAt ? { ...t, updatedAt: hhmmss(t.timestamp) } : t);
 
 export const toLive = (t: PlantTelemetry): LiveReading => ({
   t: t.timestamp,

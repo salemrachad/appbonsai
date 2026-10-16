@@ -2,6 +2,7 @@ import { CONDITION_LABELS } from '../health/labels';
 import type { HealthModifier, StressSummary } from '../health/healthTypes';
 import type { Season } from '../perception/season';
 import type { CareLine, Concern, DayLine, IntensityTier, MessageIntent, MusingId, ObservationId, RecoveryStage, SeasonalCare } from './behaviourTypes';
+import { hhmm } from '../lib/time';
 
 // The tree's words. Gentle and plant-centred, never blaming.
 // Only wording lives here: behaviour works with intents/tiers/ids, so any sentence can be rewritten freely.
@@ -164,7 +165,6 @@ export const MUSING_LINES: Record<MusingId, Lines> = {
   drey_growing: ['Someone is building a nest in my crown. 🪺', 'More twigs in my crown today. 🪺', 'A little home is taking shape up top. 🪺'],
 };
 const fmtHours = (h: number) => (h >= 36 ? `${Math.round(h / 24)} days` : h >= 2 ? `${Math.round(h)} hours` : 'a couple of hours');
-const clock = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 export const MUSING_TIPS: Record<MusingId, (f: Record<string, number>) => string> = {
   soil_steady: (f) => (f.hoursToThirsty > 0 ? `Soil at ${f.soil}%. At this pace I'd get thirsty in about ${fmtHours(f.hoursToThirsty)}.` : `Soil at ${f.soil}%, barely drying right now.`),
   days_since_water: (f) => `Last watered ${f.days} days ago; the soil is still in range, so no need to water yet.`,
@@ -175,9 +175,9 @@ export const MUSING_TIPS: Record<MusingId, (f: Record<string, number>) => string
   humid_morning: (f) => `Humidity ${f.rh}% inside.${f.fog ? ' The glass may fog; airing the balcony for a while helps.' : ' Some air flow later in the day helps.'}`,
   warmest_hour: (f) => `${f.temp}°C now, the warmest reading of the day so far.`,
   warmer_than_outside: (f) => `${f.inside}°C in here, ${f.outside}°C outside.`,
-  squirrel_came: (f) => `${f.count} visit${f.count > 1 ? 's' : ''} today, the first around ${clock(f.firstAt)}. They come when the tree has been a good place to be.`,
+  squirrel_came: (f) => `${f.count} visit${f.count > 1 ? 's' : ''} today, the first around ${hhmm(f.firstAt)}. They come when the tree has been a good place to be.`,
   sloth_came: (f) => `${f.count} visit${f.count > 1 ? 's' : ''} today, about ${f.minutes >= 90 ? `${Math.round((f.minutes / 60) * 10) / 10} h` : `${f.minutes} min`} in all. Sloths like warm, humid, still air.`,
-  dragonfly_came: (f) => `${f.count} dragonfly visit${f.count > 1 ? 's' : ''} today, the first around ${clock(f.firstAt)}. They come with warm, bright, calm air.`,
+  dragonfly_came: (f) => `${f.count} dragonfly visit${f.count > 1 ? 's' : ''} today, the first around ${hhmm(f.firstAt)}. They come with warm, bright, calm air.`,
   visitors_met: (f) =>
     [
       'The squirrel keeps to another branch and peeks at the sloth; the sloth turns its head, very slowly.',

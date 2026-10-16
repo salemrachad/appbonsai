@@ -2,6 +2,7 @@ import { CONDITION_LABELS } from '../health/labels';
 import type { HealthCondition } from '../health/healthTypes';
 import type { OutsideObservation } from '../telemetry/outsideWeather';
 import type { BehaviourEpisode, DiaryItem, PlantEvent, WeatherSpellKind } from './historyTypes';
+import { hhmm } from '../lib/time';
 
 // Calm, narrative titles for the plant diary (History). One line per meaningful change.
 function episodeTitle(c: HealthCondition, prev: HealthCondition | null): string {
@@ -54,7 +55,6 @@ function spellKind(o: OutsideObservation): WeatherSpellKind | null {
   return null;
 }
 
-const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 // Outside weather → one diary line per notable spell (rain, storm, snow, fog, frost). Context only.
 export function weatherSpells(observations: OutsideObservation[]): DiaryItem[] {

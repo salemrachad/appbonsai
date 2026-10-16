@@ -1,10 +1,10 @@
 import type { PlantEvent, PlantEventType } from '../history/historyTypes';
 import type { SpeciesProfile } from '../species';
+import { HOUR } from '../lib/time';
 
 // "What recently happened to the tree": structured, fading context from care events.
 // Behaviour and health read these fields; nobody parses diary text.
 
-const HOUR = 3600 * 1000;
 
 export interface CareContextItem {
   type: PlantEventType;

@@ -3,6 +3,7 @@ import { CONDITION_SEVERITY, STRESS_CONDITIONS } from '../health/statePriority';
 import type { BehaviourEpisode, PlantEvent } from '../history/historyTypes';
 import type { SpeciesProfile } from '../species';
 import type { CanopyState } from './behaviourTypes';
+import { DAY, HOUR } from '../lib/time';
 
 // The canopy: how full the tree's foliage looks, from its LAST WEEKS (evidence class "inference").
 // A ficus answers a long stress by dropping leaves, often drops some after being moved, and refills over
@@ -16,8 +17,6 @@ import type { CanopyState } from './behaviourTypes';
 //   unsure data, gaps, unobserved time           held
 //   never below the floor: the app can't know the real tree is bare
 
-const HOUR = 3600 * 1000;
-const DAY = 24 * HOUR;
 const REGROWS: HealthCondition[] = ['comfortable', 'thriving', 'recovering', 'sleeping', 'very_bright'];
 
 export interface CanopyInput {

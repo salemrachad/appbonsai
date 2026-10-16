@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Droplet, Sun, Loader2 } from 'lucide-react';
 import { api } from '../api/client';
 import type { CalibrationSaveResult, CalibrationState, CaptureResult, ServerStatus } from '../api/types';
+import { hhmm } from '../lib/time';
 
 type Sensor = 'soil' | 'light';
 type Step = 'idle' | 'first' | 'second' | 'review' | 'manual';
@@ -330,7 +331,7 @@ export const CalibrationPanel: React.FC<{ serverStatus: ServerStatus | null }> =
       <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#D49B53]/8 border border-[#D49B53]/25">
         <span className="sans text-[11px] text-[#2D332A]/75">
           {pausedUntil
-            ? `Watering detection paused until ${new Date(pausedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`
+            ? `Watering detection paused until ${hhmm(pausedUntil)}.`
             : 'Handling the soil probe for another reason? Pause watering detection.'}
         </span>
         <button type="button" onClick={togglePause} className="px-2.5 py-1 rounded-lg border border-[#D49B53]/50 text-[#8F5E24] sans text-[11px] font-semibold hover:bg-[#D49B53]/15 cursor-pointer shrink-0">

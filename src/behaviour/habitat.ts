@@ -9,6 +9,7 @@ import { sunState } from '../perception/sun';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 import type { DreyState, HabitatState, HabitatVisit, ReactionKind, SquirrelMemory, SquirrelStage, SquirrelTraces, VisitSpot } from './behaviourTypes';
 import { stableVariant } from './speech';
+import { DAY, HOUR, MIN, hhmm } from '../lib/time';
 
 // Habitat: how welcoming the tree has been as a place to be, and whether a visitor (the squirrel) is
 // here right now. Evidence class "art": wild animals don't read soil probes, but they do behave like
@@ -43,9 +44,6 @@ import { stableVariant } from './speech';
 // - BOLDNESS from trust and from play (petting during its visits). It only changes how it plays, never
 //   whether or when it comes: more petting never brings more visits.
 
-const HOUR = 3600 * 1000;
-const MIN = 60 * 1000;
-const DAY = 24 * HOUR;
 
 const WELCOMING: HealthCondition[] = ['comfortable', 'thriving'];
 const HELD: HealthCondition[] = ['sleeping', 'recovering', 'very_bright', 'sensor_uncertain'];
@@ -511,7 +509,6 @@ export function habitatDiary({ episodes, now, days, location, seasonAt, windowsO
     else visitsByDay.set(key, { first: v.startedAt, count: 1, peeks: v.stage === 'peeking' });
   }
 
-  const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const items: DiaryItem[] = [];
   let lastVisitDay: number | null = null;
   for (const { first, count, peeks } of [...visitsByDay.values()].sort((a, b) => a.first - b.first)) {

@@ -30,9 +30,8 @@ import { applyEncounters } from './encounters';
 import { evaluateVoice } from './voice';
 import { evaluateHabitat, seasonEnergyAt } from './habitat';
 import { computeRelationship } from './relationship';
+import { HOUR, MIN } from '../lib/time';
 
-const HOUR = 3600 * 1000;
-const MIN = 60 * 1000;
 const THIRST: HealthCondition[] = ['thirsty', 'very_dry', 'hot_and_dry'];
 const CALM: HealthCondition[] = ['comfortable', 'thriving', 'recovering', 'very_bright'];
 

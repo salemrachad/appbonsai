@@ -14,9 +14,8 @@ import {
   STRESS_CONDITIONS,
 } from './statePriority';
 import { computeVitality, healthScores, qualitativeFor } from './vitality';
+import { HOUR, MIN } from '../lib/time';
 
-const HOUR = 3600 * 1000;
-const MIN = 60 * 1000;
 
 // What the health model remembers between evaluations. Saved by the server after every evaluation
 // (SQLite meta) and restored on start, so a restart doesn't turn the bonsai into a new plant.

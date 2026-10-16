@@ -10,6 +10,7 @@ import {
   VitalityBreakdown,
 } from './healthTypes';
 import { CONDITION_LABELS } from './labels';
+import { HOUR } from '../lib/time';
 
 // 0-100 health score for a value against a species range: 100 inside optimal,
 // sliding through the warning band (65-100) and critical band (25-65), low beyond.
@@ -36,7 +37,6 @@ export function scoreAgainstRange(value: number, range: ComfortRange): number {
   return 15;
 }
 
-const HOUR = 3600 * 1000;
 const SCORE_LABEL: Record<ScoreId, string> = {
   moisture: 'Moisture',
   temperature: 'Temperature',

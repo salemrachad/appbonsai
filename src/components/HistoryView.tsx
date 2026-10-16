@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Squirrel, Home, Sparkles, PawPrint, Users } from 'lucide-react';
 import type { HealthCondition } from '../health/healthTypes';
 import type { DailySummary, DiaryItem, PlantEventType, WeatherSpellKind } from '../history/historyTypes';
+import { hhmm } from '../lib/time';
 
 interface HistoryViewProps {
   days: DailySummary[];
@@ -159,7 +160,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
               return (
                 <div key={`${item.at}-${i}`} className={`flex items-start gap-3 py-1.5 ${item.kind === 'episode_gap' ? 'opacity-50' : ''}`}>
                   <span className="sans text-[11px] font-mono text-[#2D332A]/50 w-16 shrink-0 pt-0.5 whitespace-nowrap">
-                    {new Date(item.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {hhmm(item.at)}
                   </span>
                   {item.kind === 'episode_gap' ? <X className="w-3.5 h-3.5 mt-0.5 text-[#2D332A]/40 shrink-0" /> : <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color }} />}
                   <div className="flex flex-col min-w-0">
