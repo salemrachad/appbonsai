@@ -152,23 +152,24 @@
 .animate-drip-fast { animation: drip 0.9s ease-in infinite; }
 /* A humid night: dew glinting on the leaves, a drop letting go now and then, mist drifting low */
 /* Everything here is calm: slow glints, a rare drop, mist that barely drifts */
-@keyframes dew-glint { 0%, 60%, 100% { opacity: 0.8; transform: scale(1); } 78% { opacity: 1; transform: scale(1.12); } }
-.dew-glint { animation: dew-glint 14s ease-in-out infinite; }
+@keyframes dew-glint { 0%, 50%, 100% { opacity: 0.7; transform: scale(1); } 72% { opacity: 1; transform: scale(1.22); } }
+.dew-glint { animation: dew-glint 8s ease-in-out infinite; }
 @keyframes dew-fall {
   0%, 80% { transform: translateY(0) scale(0.6); opacity: 0; }
   88% { transform: translateY(0) scale(1); opacity: 1; }
   100% { transform: translateY(70px) scale(0.9, 1.15); opacity: 0; }
 }
-.dew-fall { animation: dew-fall 24s ease-in-out infinite; }
-@keyframes night-mist-a { 0%, 100% { transform: translateX(-8px); } 50% { transform: translateX(8px); } }
-@keyframes night-mist-b { 0%, 100% { transform: translateX(6px); } 50% { transform: translateX(-6px); } }
-.night-mist-1 { animation: night-mist-a 50s ease-in-out infinite; }
-.night-mist-2 { animation: night-mist-b 64s ease-in-out infinite; }
+.dew-fall { animation: dew-fall 15s ease-in-out infinite; }
+/* The mist drifts and slowly thickens and thins (it breathes), so it lives without hurrying */
+@keyframes night-mist-a { 0%, 100% { transform: translateX(-18px); opacity: 0.75; } 50% { transform: translateX(18px); opacity: 1; } }
+@keyframes night-mist-b { 0%, 100% { transform: translateX(14px); opacity: 1; } 50% { transform: translateX(-14px); opacity: 0.7; } }
+.night-mist-1 { animation: night-mist-a 26s ease-in-out infinite; }
+.night-mist-2 { animation: night-mist-b 33s ease-in-out infinite; }
 /* The daytime humid mist: a slow drift and swell, not the heat shimmer */
-@keyframes mist-drift { 0%, 100% { transform: translateX(-6px) scaleX(1); opacity: 0.85; } 50% { transform: translateX(6px) scaleX(1.06); opacity: 1; } }
+@keyframes mist-drift { 0%, 100% { transform: translateX(-12px) scaleX(1); opacity: 0.6; } 50% { transform: translateX(12px) scaleX(1.12); opacity: 1; } }
 .mist-drift-1, .mist-drift-2 { transform-box: fill-box; transform-origin: center; }
-.mist-drift-1 { animation: mist-drift 36s ease-in-out infinite; }
-.mist-drift-2 { animation: mist-drift 46s ease-in-out -18s infinite; }
+.mist-drift-1 { animation: mist-drift 18s ease-in-out infinite; }
+.mist-drift-2 { animation: mist-drift 23s ease-in-out -9s infinite; }
 @keyframes ripple { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
 .animate-ripple { animation: ripple 2.6s ease-out infinite; }
 @keyframes breath {

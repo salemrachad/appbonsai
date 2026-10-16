@@ -202,7 +202,7 @@ export const PadLeaves: React.FC<{
                 {p.gloss && l.r > 0.6 && <path d="M 3,-1.6 Q 6,-3 9,-1.4" stroke="#FFFFFF" strokeWidth="0.8" opacity="0.45" fill="none" strokeLinecap="round" />}
                 {dew && l.r < 0.55 ? (
                   // A dew bead catching the light, glinting at its own pace
-                  <g className="dew-glint" style={{ animationDelay: `${((l.r * 37) % 14).toFixed(2)}s`, transformBox: 'fill-box', transformOrigin: 'center' }}>
+                  <g className="dew-glint" style={{ animationDelay: `${((l.r * 37) % 8).toFixed(2)}s`, transformBox: 'fill-box', transformOrigin: 'center' }}>
                     <circle cx="8" cy="1.5" r="1.8" fill="#EAF6FF" opacity="0.95" />
                     <circle cx="7.4" cy="0.9" r="0.6" fill="#FFFFFF" />
                   </g>
