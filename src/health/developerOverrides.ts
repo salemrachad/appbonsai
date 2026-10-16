@@ -34,6 +34,8 @@ export const DEV_PRESETS: DevPreset[] = [
   { id: 'sensor_uncertain', label: 'Unsure', emoji: '🤔', condition: 'sensor_uncertain', modifiers: [], vitality: 70 },
   { id: 'thirsty_hot_dryair', label: 'Thirsty + hot air', emoji: '🥵', condition: 'thirsty', modifiers: ['hot', 'dry_air', 'very_bright'], vitality: 60 },
   { id: 'sleeping_thirsty', label: 'Asleep, dry soil', emoji: '😴', condition: 'thirsty', modifiers: ['sleeping'], vitality: 68 },
+  // A humid night (≥ 88 % for hours): still asleep, with mist and beads of water on the leaves
+  { id: 'sleeping_humid', label: 'Asleep, humid night', emoji: '🌫️', condition: 'sleeping', modifiers: ['high_humidity'], vitality: 83 },
 ];
 
 // The live state with the preset's condition shown on top. Measured metrics and the

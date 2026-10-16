@@ -50,7 +50,7 @@ const PRESET_GROUPS: { label: string; ids: string[] }[] = [
   { label: 'Water', ids: ['thirsty', 'very_dry', 'too_wet'] },
   { label: 'Air & heat', ids: ['hot', 'hot_and_dry', 'cold', 'freezing_risk', 'dry_air', 'high_humidity'] },
   { label: 'Light', ids: ['too_dark', 'very_bright'] },
-  { label: 'Combined', ids: ['multiple_stress', 'thirsty_hot_dryair', 'sleeping_thirsty'] },
+  { label: 'Combined', ids: ['multiple_stress', 'thirsty_hot_dryair', 'sleeping_thirsty', 'sleeping_humid'] },
   { label: 'Data', ids: ['sensor_uncertain'] },
 ];
 const listed = new Set(PRESET_GROUPS.flatMap((g) => g.ids));
