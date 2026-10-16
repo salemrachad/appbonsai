@@ -399,14 +399,20 @@
   animation-timing-function: ease-out;
 }
 .weather-front .p-snow { box-shadow: 0 0 0 1px rgba(110, 130, 155, 0.3), 0 0 6px rgba(255, 255, 255, 0.95); filter: none; }
-/* Fog: a veil over the plant and soft banks drifting across it */
+/* Fog: a veil over the plant and soft banks drifting across it. The layer is a box around the avatar, so it
+   fades out before its edges (otherwise the veil and the clipped banks show as a lit rectangle, worst at night) */
+.weather-front-fog {
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%);
+}
 .wf-veil {
   position: absolute;
   inset: 0;
   background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(250, 251, 252, 0.35), rgba(245, 247, 249, 0.6));
   opacity: calc(0.55 + 0.45 * var(--weather-intensity, 0.8));
 }
-.night .wf-veil { background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(170, 180, 200, 0.18), rgba(150, 160, 185, 0.35)); }
+/* At night fog is a faint blue-grey haze, not a pale wash that lights up the dark */
+.night .wf-veil { background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(120, 132, 160, 0.08), rgba(110, 122, 152, 0.2)); }
 .wf-bank {
   position: absolute;
   left: -60%;
@@ -416,7 +422,7 @@
   filter: blur(18px);
   animation: fog-pass linear infinite;
 }
-.night .wf-bank { background: radial-gradient(ellipse at center, rgba(185, 195, 215, 0.45), rgba(185, 195, 215, 0) 70%); }
+.night .wf-bank { background: radial-gradient(ellipse at center, rgba(140, 152, 182, 0.3), rgba(140, 152, 182, 0) 70%); }
 @keyframes fog-pass {
   0% { transform: translateX(0); opacity: 0; }
   15% { opacity: 1; }
@@ -433,6 +439,8 @@
 .weather-heavy_rain .weather-tint { background: linear-gradient(180deg, rgba(60, 72, 92, 0.5), rgba(60, 72, 92, 0.18) 80%); }
 .weather-thunderstorm .weather-tint { background: linear-gradient(180deg, rgba(50, 45, 65, 0.4), rgba(50, 45, 65, 0.1) 75%); }
 .weather-fog .weather-tint { background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(240, 243, 246, 0.45)); }
+/* The fog banks behind the tree: their day colours are near-white, which glows on a night sky */
+.night .weather-layer .p-fog { background: rgba(120, 132, 162, 0.3); }
 .night .weather-fog .weather-tint { background: linear-gradient(180deg, rgba(160, 170, 190, 0.3), rgba(140, 150, 170, 0.2)); }
 .weather-snow .weather-tint { background: linear-gradient(180deg, rgba(170, 186, 208, 0.6), rgba(200, 212, 228, 0.4) 55%, rgba(235, 241, 248, 0.4)); }
 .night .weather-snow .weather-tint { background: linear-gradient(180deg, rgba(150, 165, 195, 0.18), rgba(170, 185, 210, 0.12)); }
