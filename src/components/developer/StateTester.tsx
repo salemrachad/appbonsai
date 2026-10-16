@@ -290,9 +290,15 @@ export const StateTester: React.FC<StateTesterProps> = ({
           <button onClick={() => onSelectVisitor(null)} className={chip(!activeVisitor)}>
             Live
           </button>
-          {(['visiting', 'hiding'] as const).map((mode) => (
+          <button onClick={() => onSelectVisitor({ mode: 'traces', spot: 'left_branch', traces: 'nibbled_leaf' })} className={chip(activeVisitor?.mode === 'traces' && activeVisitor.traces === 'nibbled_leaf')}>
+            🍂 Nibbled leaf
+          </button>
+          <button onClick={() => onSelectVisitor({ mode: 'traces', spot: 'left_branch', traces: 'tail_at_pot' })} className={chip(activeVisitor?.mode === 'traces' && activeVisitor.traces === 'tail_at_pot')}>
+            🪴 Tail by the pot
+          </button>
+          {(['peek', 'visiting', 'hiding'] as const).map((mode) => (
             <button key={mode} onClick={() => onSelectVisitor({ mode, spot: activeVisitor?.spot ?? 'left_branch' })} className={chip(activeVisitor?.mode === mode && !activeVisitor.action)}>
-              {mode === 'visiting' ? '🐿️ Visiting' : '🍃 Hiding'}
+              {mode === 'peek' ? '👀 Peeking (new)' : mode === 'visiting' ? '🐿️ Visiting' : '🍃 Hiding'}
             </button>
           ))}
           <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: 'pot_rim', action: 'drinking' })} className={chip(activeVisitor?.action === 'drinking')}>
@@ -308,7 +314,7 @@ export const StateTester: React.FC<StateTesterProps> = ({
             🌙 Asleep
           </button>
         </Row>
-        {activeVisitor && activeVisitor.mode !== 'sleeping' && !activeVisitor.action && (
+        {activeVisitor && activeVisitor.mode !== 'sleeping' && activeVisitor.mode !== 'traces' && !activeVisitor.action && (
           <Row label="· spot">
             {(Object.keys(SPOT_LABEL) as VisitorPreview['spot'][]).map((spot) => (
               <button key={spot} onClick={() => onSelectVisitor({ ...activeVisitor, spot })} className={chip(activeVisitor.spot === spot)}>

@@ -110,7 +110,7 @@ export interface DiaryItem {
   condition?: HealthCondition;
   eventType?: PlantEventType;
   weather?: WeatherSpellKind;
-  habitat?: 'visit' | 'returned' | 'left' | 'drey_built' | 'drey_gone' | 'dragonfly' | 'sloth' | 'encounter';
+  habitat?: 'visit' | 'returned' | 'left' | 'drey_built' | 'drey_gone' | 'dragonfly' | 'sloth' | 'encounter' | 'traces' | 'peek' | 'wary' | 'settled' | 'sloth_home';
 }
 
 // A notable stretch of outside weather (the tree is in a greenhouse: context, never the tree's state).

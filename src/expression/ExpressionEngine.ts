@@ -289,14 +289,18 @@ export function visitorPlay(condition: HealthCondition, mode: VisitorPresentatio
     // Asleep in the drey: a stroke only makes the tail twitch, in the tree's slow night rhythm
     return { kind: 'asleep', hopEveryMs: 0, hideChance: 0, returnMs: cfg.returnMs, lingerMs: cfg.lingerMs, wag: { tempo: r2(motion.swaySpeed * 0.6), amount: r2(motion.swayAmount * 0.3) } };
   }
-  const kind: Exclude<VisitorPlay['kind'], 'asleep'> = mode === 'hiding' ? 'shy' : condition === 'thriving' && !b.afterglow ? 'playful' : 'gentle';
+  // Hiding through a stress, or still only peeking (a new or wary squirrel): it doesn't play
+  const kind: Exclude<VisitorPlay['kind'], 'asleep'> = mode === 'hiding' || mode === 'peek' ? 'shy' : condition === 'thriving' && !b.afterglow ? 'playful' : 'gentle';
   const t = cfg[kind];
   // An afterglow or a watched reading: a little more careful
   const careful = kind === 'gentle' && (b.afterglow || !!b.concern);
+  // Its own boldness (trust and past play; 0.5 = neutral): a bold squirrel hops sooner and hides less
+  const bold = kind === 'shy' ? 0.5 : b.habitat?.memory?.boldness ?? 0.5;
+  const hop = (careful ? t.hopEveryMs * 1.4 : t.hopEveryMs) * (1.2 - 0.4 * bold);
   return {
     kind,
-    hopEveryMs: careful ? Math.round(t.hopEveryMs * 1.4) : t.hopEveryMs,
-    hideChance: careful ? Math.min(1, t.hideChance + 0.15) : t.hideChance,
+    hopEveryMs: Math.round(hop),
+    hideChance: r2(clamp((careful ? t.hideChance + 0.15 : t.hideChance) + (0.5 - bold) * 0.2, 0, 1)),
     returnMs: cfg.returnMs,
     lingerMs: cfg.lingerMs,
     // Shy: small quick nervous flicks; otherwise the tree's own tempo and amplitude
@@ -495,11 +499,11 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
       ? {
           kind: h.visit.kind,
           id: h.visit.id,
-          mode: h.presence,
+          mode: h.presence === 'peeking' ? 'peek' : h.presence,
           spot: h.visit.spot,
           carrying: h.visit.carrying,
           action: h.visit.action ?? null,
-          play: visitorPlay(condition, h.presence, b, motion),
+          play: visitorPlay(condition, h.presence === 'peeking' ? 'peek' : h.presence, b, motion),
         }
       : null;
   const drey: DreyLook = h?.drey?.stage ?? 'none';
@@ -531,6 +535,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     reactionStrength: b.responsiveness,
     touch: touchResponse(condition, modifiers, b),
     visitor: met.visitor,
+    squirrelTraces: h?.traces ?? null,
     dragonfly: met.dragonfly,
     sloth: met.sloth,
     encounters: h?.encounters ?? [],
@@ -610,7 +615,7 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
     out.push(
       v.mode === 'sleeping'
         ? 'a squirrel asleep in its drey'
-        : `a squirrel ${v.mode === 'visiting' ? 'visiting' : 'hiding'} ${v.action ? doing[v.action] : `on the ${v.spot.replace('_', ' ')}`}${v.carrying ? ' with a nut' : ''}`
+        : `a squirrel ${v.mode === 'visiting' ? 'visiting' : v.mode === 'peek' ? 'peeking warily from the leaves' : 'hiding'} ${v.action ? doing[v.action] : `on the ${v.spot.replace('_', ' ')}`}${v.carrying ? ' with a nut' : ''}`
     );
     out.push(
       v.play.kind === 'asleep'

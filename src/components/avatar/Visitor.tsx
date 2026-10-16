@@ -7,8 +7,9 @@ import { habituate } from '../../expression/touch';
 //
 // Petting the leaves while it visits is play (attention, never stored): it hops around the tree, sometimes
 // dives behind a pad and comes back out after `play.returnMs`. HOW it plays comes from upstream
-// (`visitor.play`, from the tree's state): a thriving tree's squirrel is playful, a comfortable one's gentle,
-// and one hiding through a stress only ducks and peeks again. Its tail wags in the tree's own rhythm
+// (`visitor.play`, from the tree's state and its own boldness): a thriving tree's squirrel is playful, a
+// comfortable one's gentle, and one hiding through a stress, or a new (or wary) one that only peeks
+// (`mode: 'peek'`), only ducks and peeks again. Before its first visits there are only its traces. Its tail wags in the tree's own rhythm
 // (`play.wag`, the tree's sway). Continuous stroking settles the play (the touch habituation); a rest
 // recovers it. More petting never brings more visits.
 //
@@ -53,7 +54,7 @@ const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia
 const basePose = (v: VisitorPresentation): VisitorPose =>
   v.mode === 'sleeping'
     ? { at: 'drey', twitch: 0 }
-    : v.mode === 'hiding'
+    : v.mode === 'hiding' || v.mode === 'peek'
     ? { at: 'hide', pad: HIDE_FOR[v.spot], phase: 'peek' }
     : { at: 'perch', spot: v.spot, hop: 0 };
 
@@ -277,6 +278,36 @@ export const Visitor: React.FC<VisitorProps> = ({ visitor, pose, layer, watchAt 
       </g>
     </g>
   );
+};
+
+// Signs of a squirrel that isn't here yet (its first days): a leaf at the tip of the left branch with a
+// bite out of it and a few crumbs below, or a bushy tail tip showing over the back of the pot now and then
+// (drawn before the pot, so the pot hides the rest). Static under reduced motion.
+export const SquirrelTraces: React.FC<{ traces: 'nibbled_leaf' | 'tail_at_pot' | null; layer: 'behind_pot' | 'front' }> = ({ traces, layer }) => {
+  if (traces === 'tail_at_pot' && layer === 'behind_pot')
+    return (
+      <g pointerEvents="none" aria-hidden transform="translate(318 380)">
+        <g className="traces-tail" style={{ transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
+          <path d="M -3,6 C -9,-2 -10,-14 -4,-22 C 0,-27 7,-25 6,-18 C 5,-13 0,-11 1,-4 C 2,1 2,4 2,6 Z" fill="#A85A2A" />
+          <path d="M -3,-20 C 0,-25 5,-24 5,-19 C 3,-21 0,-21 -3,-20 Z" fill="#D08A4E" opacity="0.8" />
+        </g>
+      </g>
+    );
+  if (traces === 'nibbled_leaf' && layer === 'front')
+    return (
+      <g pointerEvents="none" aria-hidden transform="translate(104 214)">
+        {/* The leaf hangs from the branch tip; a round bite is missing from its edge */}
+        <path d="M 0,0 C -6,4 -8,12 -4,19 C -1,23 4,22 6,17 C 3,16 2,12 4,10 C 6,8 6,4 4,2 C 3,1 1,0 0,0 Z" fill="#6E9A4C" />
+        <path d="M 0,1 C -1,7 -2,13 -2,19" stroke="#4E7434" strokeWidth="0.7" fill="none" />
+        {/* Crumbs on the moss below */}
+        <g fill="#8E7454">
+          <circle cx="22" cy="158" r="1" />
+          <circle cx="28" cy="160" r="0.8" />
+          <circle cx="33" cy="157" r="0.9" />
+        </g>
+      </g>
+    );
+  return null;
 };
 
 // The drey: a nest of twigs and leaves tucked into the right side of the crown. Weeks of a welcoming tree

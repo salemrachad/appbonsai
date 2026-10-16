@@ -16,6 +16,8 @@ const WET: OutsideSky[] = ['drizzle', 'rain', 'heavy_rain', 'thunderstorm', 'sno
 const PERCHES: DragonflyPerch[] = ['left_tip', 'right_tip', 'crown_tip', 'left_top'];
 
 const C = () => APP_CONFIG.habitat.dragonfly;
+// The day's territory: the tip it holds as its own today (the same all day, a new choice tomorrow)
+export const territoryOf = (dayKey: string): DragonflyPerch => PERCHES[stableVariant(`dragonfly:territory:${dayKey}`, PERCHES.length)];
 
 export const DRAGONFLY: AirWandererSpec<DragonflyPerch, 'perched' | 'hovering'> = {
   key: 'dragonfly',
@@ -46,6 +48,8 @@ export const DRAGONFLY: AirWandererSpec<DragonflyPerch, 'perched' | 'hovering'> 
     };
   },
   spots: PERCHES,
+  // Territory: within a day it holds one tip as its own; most visits start there. No memory across days.
+  spot: (w) => (w.roll('territory') < C().territory.homeChance ? territoryOf(w.dayKey) : PERCHES[Math.floor(w.roll('perch') * PERCHES.length)]),
   style: (roll) => (roll('style') < C().perchedShare ? 'perched' : 'hovering'),
   gate: (condition, modifiers, isDay) => {
     const base = baseGate(condition, modifiers);

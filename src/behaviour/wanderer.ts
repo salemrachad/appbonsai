@@ -25,6 +25,9 @@ export interface AirWandererSpec<Spot extends string, Style extends string> {
   latch: { riseMinutes: number; fallMinutes: number; enter: number; exit: number };
   slots: { slotMinutes: number; visitChance: { min: number; max: number }; visitMinutes: { min: number; max: number }; scale: (t: number) => number };
   spots: readonly Spot[];
+  // Where a visit starts, when the species has a preference (a home branch, the day's territory); without
+  // it, a stable roll over `spots`
+  spot?: (w: { roll: (salt: string) => number; dayKey: string }) => Spot;
   style: (roll: (salt: string) => number, isDay: boolean) => Style;
   // Which tree states keep it away (null = welcome). The only way the tree's state reaches it.
   gate: (condition: HealthCondition, modifiers: HealthModifier[], isDay: boolean) => string | null;
@@ -87,7 +90,7 @@ export function airVisitAt<S extends string, T extends string>(spec: AirWanderer
     id: `${spec.key}:${w.id}`,
     startedAt: w.startedAt,
     endsAt: w.endsAt,
-    spot: spec.spots[stableVariant(`${spec.key}:${w.dayKey}:${w.slot}:perch`, spec.spots.length)],
+    spot: spec.spot ? spec.spot(w) : spec.spots[stableVariant(`${spec.key}:${w.dayKey}:${w.slot}:perch`, spec.spots.length)],
     style: spec.style(w.roll, isDay),
   };
 }
@@ -99,6 +102,7 @@ export function airVisitsBetween<S extends string, T extends string>(spec: AirWa
   let firstAt: number | null = null;
   let minutes = 0;
   const windows: { from: number; to: number }[] = [];
+  const spots: Partial<Record<S, number>> = {}; // minutes per spot (where it spent its time)
   let pi = 0;
   for (let t = Math.ceil(from / slotMs) * slotMs; t + slotMs <= to; t += slotMs) {
     while (pi + 1 < points.length && points[pi + 1].t <= t) pi++;
@@ -110,10 +114,11 @@ export function airVisitsBetween<S extends string, T extends string>(spec: AirWa
       count++;
       firstAt = firstAt ?? v.startedAt;
       minutes += (v.endsAt - v.startedAt) / MIN;
+      spots[v.spot] = (spots[v.spot] ?? 0) + (v.endsAt - v.startedAt) / MIN;
       windows.push({ from: v.startedAt, to: v.endsAt });
     }
   }
-  return { count, firstAt, minutes: Math.round(minutes), windows };
+  return { count, firstAt, minutes: Math.round(minutes), windows, spots };
 }
 
 export interface AirState<S extends string, T extends string> {
@@ -138,7 +143,7 @@ export interface AirInput {
 export function evaluateAir<S extends string, T extends string>(spec: AirWandererSpec<S, T>, input: AirInput, notYet: string): AirState<S, T> {
   const { samples, outsideToday, species, cadenceMs, condition, modifiers, isDay, now } = input;
   const r = replayAir(spec, samples, outsideToday, species, cadenceMs, now, true);
-  const { windows: _w, ...visitsToday } = airVisitsBetween(spec, r.points, new Date(now).setHours(0, 0, 0, 0), now);
+  const { windows: _w, spots: _s, ...visitsToday } = airVisitsBetween(spec, r.points, new Date(now).setHours(0, 0, 0, 0), now);
   const blocked = spec.gate(condition, modifiers, isDay);
   let why: string;
   let visit: AirVisit<S, T> | null = null;
@@ -152,21 +157,25 @@ export function evaluateAir<S extends string, T extends string>(spec: AirWandere
 }
 
 // Its visits per day, from stored readings through the same replay and slots (the health gate from the
-// episodes). Shared by its diary lines and the encounter diary (the windows).
+// episodes). Shared by its diary lines and the encounter diary (the windows). `specAt` gives the spec for a
+// day from the days before it (a species with a memory, like the sloth's loyalty).
+export type AirDay<S extends string> = ReturnType<typeof airVisitsBetween<S, string>> & { day: number };
 export function airDays<S extends string, T extends string>(
-  spec: AirWandererSpec<S, T>,
+  spec0: AirWandererSpec<S, T>,
   samples: PerceptionSample[],
   obs: OutsideObservation[],
   episodes: BehaviourEpisode[],
   species: SpeciesProfile,
   cadenceMs: number,
   now: number,
-  days: number
+  days: number,
+  specAt?: (day: number, before: AirDay<S>[]) => AirWandererSpec<S, T>
 ) {
   const since = now - days * DAY;
-  const out: ReturnType<typeof airVisitsBetween>[] = [];
-  for (let day = new Date(since).setHours(0, 0, 0, 0); day < now; day += DAY) {
-    const end = Math.min(day + DAY, now);
+  const out: AirDay<S>[] = [];
+  for (let day = new Date(since).setHours(0, 0, 0, 0); day < now; day = new Date(day + 36 * HOUR).setHours(0, 0, 0, 0)) {
+    const end = Math.min(new Date(day + 36 * HOUR).setHours(0, 0, 0, 0), now);
+    const spec = specAt ? specAt(day, out) : spec0;
     // The latch is replayed per day from the readings of that day and the evening before
     const daySamples = samples.filter((s) => s.t >= day - 6 * HOUR && s.t < end);
     if (daySamples.length < 2) continue;
@@ -176,7 +185,7 @@ export function airDays<S extends string, T extends string>(
       return e && spec.gate(e.condition, [], e.condition !== 'sleeping') !== null ? { ...p, active: false } : p;
     });
     const v = airVisitsBetween(spec, gated, day, end);
-    if (v.count > 0) out.push(v);
+    if (v.count > 0) out.push({ ...v, day });
   }
   return out;
 }

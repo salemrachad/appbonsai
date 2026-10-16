@@ -86,6 +86,37 @@ export const APP_CONFIG = {
     // a pruning. At most one per care event; watering on wet soil gets no answer.
     careVisitMinutes: { drinking: 10, inspecting: 8, inspectingOffSeason: 3 },
     shakeOffAfterRainMs: 30 * 60 * 1000, // first visit within this long after rain stops: it shakes off
+    // The squirrel as an individual (art). TRUST in the place grows with welcoming time and gives its
+    // stages: traces (signs, no animal) → peeking (short peeks from the leaves, no play) → visiting →
+    // settled (longer visits, ventures lower). When the place stops being welcoming trust breaks, and for a
+    // while it rebuilds slower: it comes back warily.
+    trust: {
+      riseDays: 4, // welcoming time, time constant toward 1
+      fallDays: 10, // not welcoming: fades slowly toward 0 (on top of the break)
+      breakFactor: 0.25, // the latch flips off: trust is cut to this share
+      waryDays: 14, // after a break, for this long…
+      waryFactor: 1.6, // …trust rises this much slower
+      tracesFrom: 0.35, // habitat value from which signs show while it is rising (not welcoming yet)
+      tracesExit: 0.3,
+      peekUntil: 0.3, // welcoming but trust below this: only peeks (hysteresis below)
+      peekExit: 0.2, // falling back below this: peeking again
+      settledFrom: 0.75,
+      settledExit: 0.65,
+      peekLength: 0.5, // visit length × while peeking
+      settledLength: 1.4, // visit length × once settled
+    },
+    // Its habits, derived from its own past visits (habit-free replay, so nothing feeds back on itself):
+    // a usual hour and a favourite spot. Boldness comes from trust and from play (petting during visits);
+    // it only changes how it plays, never whether or when it comes (no reward loop).
+    habits: {
+      recencyDays: 7, // time constant of the recency weighting
+      minVisits: 4, // fewer past visits: no habit yet
+      nearHour: 1.4, // slot chance × within ±1 h of the usual hour…
+      otherHours: 0.85, // …and × elsewhere
+      favouriteBase: 0.4, // a visit starts on the favourite spot with chance base + trust × perTrust
+      favouritePerTrust: 0.4,
+      playSessions: 4, // play sessions (recency-weighted) for half the play part of boldness
+    },
     // The dragonfly (behaviour/dragonfly.ts): the same mechanism, faster and looser, driven by the air.
     // About the insect, not the plant (so not in the species profile). Art; provisional.
     dragonfly: {
@@ -104,6 +135,8 @@ export const APP_CONFIG = {
       midday: { from: 11, to: 15, scale: 1.2, otherScale: 0.8 },
       perchedShare: 0.6, // share of visits spent perched on a leaf tip (the rest hovering)
       returnAfterDartMs: 4000, // after a stroke it darts off and lands back on the same tip (UI only)
+      // Territory: no memory across days, but within a day it holds one tip as its own (stable per day)
+      territory: { homeChance: 0.7 }, // share of the day's visits that start on the day's territory tip
       // Flying around during a visit (behaviour/dragonfly.ts dragonflyRoute): it sits a while, then flies
       // back to its home perch, makes a short hovering sortie and lands again, or moves to another tip
       // (the high crown tip, where the light is, a little more often). Shorter stays in warmer air.
@@ -134,6 +167,20 @@ export const APP_CONFIG = {
       visitMinutes: { min: 20, max: 50 },
       hangingShare: 0.65, // share of daytime visits spent hanging (the rest slowly climbing)
       blinkCooldownMs: 6000, // a stroke gets a slow look and a slow blink, at most this often (UI only)
+      // Loyalty (behaviour/sloth.ts slothMemory): days with long visits make the tree its tree. A loyal
+      // sloth has a home branch, stays longer and is slow to give up when the air turns. No stages: it
+      // doesn't scout, it just turns up. Derived from the stored readings of the last days (nothing stored).
+      loyalty: {
+        days: 14, // days of readings replayed
+        fullDayMinutes: 180, // visit minutes in a day that count as a full day with it
+        riseRate: 0.35, // a full day moves loyalty this share of the way to 1
+        fallDays: 5, // days without it: time constant toward 0
+        exitDrop: 0.15, // latch exit lowered by this × loyalty (slow to give up)
+        visitLonger: 0.3, // visit length × (1 + this × loyalty)
+        homeBase: 0.5, // a visit hangs on its home branch with chance base + loyalty × perLoyalty
+        homePerLoyalty: 0.4,
+        homeNightFrom: 0.3, // from this loyalty it sleeps the night on its home branch
+      },
       // How it holds on, from its comfort (its value): the first stretch of a visit always all four; then
       // each stretch rolls a grip from the band its comfort is in. Asleep: all four, curled.
       grip: {

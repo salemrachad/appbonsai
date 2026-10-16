@@ -175,6 +175,12 @@ export type SlothBranch = 'left_branch' | 'right_branch';
 // How it holds on, from its comfort: all four when it has just arrived (or the air is marginal), relaxed
 // grips (one arm, by the legs) after long warm, humid, still air. Asleep: always curled in all four.
 export type SlothGrip = 'four' | 'arms' | 'legs' | 'one_arm' | 'two_legs_one_arm';
+// The sloth's loyalty to the tree, from its last days (derived from the stored readings, art)
+export interface SlothMemory {
+  loyalty: number; // 0-1
+  homeBranch: SlothBranch | null;
+  daysWithIt: number; // days in the window it spent time in the tree
+}
 export interface SlothState {
   value: number; // 0-1: how warm, humid and still the air has been lately (rises ~90 min, falls ~60 min)
   active: boolean;
@@ -182,6 +188,7 @@ export interface SlothState {
   visit: { id: string; startedAt: number; endsAt: number; branch: SlothBranch; pose: 'hanging' | 'climbing' | 'sleeping'; grip: SlothGrip } | null;
   visitsToday: { count: number; firstAt: number | null; minutes: number };
   insideTemp: number | null;
+  memory: SlothMemory;
   why: string;
 }
 
@@ -189,10 +196,26 @@ export interface SlothState {
 // dragonfly, the dragonfly rests on the sloth
 export type HabitatEncounter = 'squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth';
 
+// The squirrel as an individual: how far it trusts the place, and the habits it formed (derived, art)
+export type SquirrelStage = 'none' | 'traces' | 'peeking' | 'visiting' | 'settled';
+export type SquirrelTraces = 'nibbled_leaf' | 'tail_at_pot';
+export interface SquirrelMemory {
+  trust: number; // 0-1: grows with welcoming time, cut when the place stops being welcoming
+  stage: SquirrelStage; // with hysteresis
+  brokenAt: number | null; // when trust last broke (the latch flipped off): it comes back warily
+  usualHour: number | null; // the hour it tends to come (from its past visits), null = no habit yet
+  favouriteSpot: VisitSpot | null;
+  boldness: number; // 0-1, from trust and play: only how it plays
+  pastVisits: number; // visits it remembers (the last weeks)
+}
+
 export interface HabitatState {
   value: number; // 0-1: how welcoming the tree has been (slow to rise, quick to fall)
   welcoming: boolean; // latch (enter/exit) on value: do visitors come at all
-  presence: 'none' | 'visiting' | 'hiding' | 'sleeping'; // right now: out on a branch, tucked into the leaves, asleep in the drey
+  // right now: out on a branch, a first-days peek from the leaves, tucked into the leaves, asleep in the drey
+  presence: 'none' | 'visiting' | 'peeking' | 'hiding' | 'sleeping';
+  traces: SquirrelTraces | null; // not here yet, but signs of it (stage traces)
+  memory: SquirrelMemory;
   visit: HabitatVisit | null;
   drey: DreyState;
   visitsToday: { count: number; firstAt: number | null }; // squirrel visits so far today (for its thoughts)

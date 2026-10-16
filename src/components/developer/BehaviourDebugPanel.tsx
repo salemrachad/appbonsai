@@ -101,6 +101,19 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
             label="Right now"
             value={b.habitat.visit ? `squirrel ${b.habitat.presence} · ${b.habitat.visit.spot.replace('_', ' ')} · until ${clock(b.habitat.visit.endsAt)}` : b.habitat.why}
           />
+          {/* Older servers send no memory */}
+          {b.habitat.memory && (
+            <>
+              <Row label="Squirrel trust" value={`${b.habitat.memory.trust} · ${b.habitat.memory.stage}${b.habitat.traces ? ` (${b.habitat.traces.replace(/_/g, ' ')})` : ''}${b.habitat.memory.brokenAt ? ` · broken ${ago(b.habitat.memory.brokenAt)}` : ''}`} />
+              <Row
+                label="Squirrel habits"
+                value={`${b.habitat.memory.usualHour !== null ? `around ${b.habitat.memory.usualHour}:00` : 'no usual hour yet'} · ${b.habitat.memory.favouriteSpot?.replace('_', ' ') ?? 'no favourite spot'} · boldness ${b.habitat.memory.boldness} · ${b.habitat.memory.pastVisits} past visits`}
+              />
+            </>
+          )}
+          {b.habitat.sloth?.memory && (
+            <Row label="Sloth loyalty" value={`${b.habitat.sloth.memory.loyalty} · ${b.habitat.sloth.memory.homeBranch?.replace('_', ' ') ?? 'no home branch'} · ${b.habitat.sloth.memory.daysWithIt} days with it (14)`} />
+          )}
           {x.visitor && x.visitor.id.startsWith('preview') && <Row label="Shown" value={`preview: squirrel ${x.visitor.mode}`} />}
         </Section>
       )}

@@ -439,7 +439,47 @@ trust a place, quick to leave it.
   - **The dragonfly rests on the sloth.** In about half of its perched visits while a sloth is there (`APP_CONFIG.habitat.encounters`), it lands on the sloth's head, back or flank (drawn as the sloth's rider, so it sways with it; a stroke makes it dart and land back on the sloth). The sloth blinks slowly while it rests there.
   - **Remembered in words:** a rare "visitors met" thought of the day, only while it happens and at most once a day ("The squirrel and the sloth are sharing my branches."). In the diary, one line per pair and day where their visit windows overlapped ("The squirrel and the sloth shared the tree · 2 times").
   - Deterministic (stable rolls on visit ids), derived, nothing stored; health, mood and energy never read it. Previews of two visitors meet by the same rules. Tested: EN1–EN7.
+- **Individuals, not dice rolls: each visitor has its own kind of memory.** A score, a latch and a roll per
+  slot made every visit a fresh animal with no yesterday. Now each creature remembers in its own way. It is
+  still derived (nothing stored), deterministic and art only: health, mood, energy and speech never read it.
+  The three are deliberately different temperaments, not one machine in three costumes.
+  - **The squirrel: trust in stages, habits, boldness** (`habitat.ts`, `APP_CONFIG.habitat.trust` and `.habits`).
+    - **Trust** grows with welcoming time (τ 4 days, held time included, like the drey). It sets the stage,
+      each with hysteresis:
+      - **traces:** the habitat value rises past 0.35 before visits. A nibbled leaf at the left branch tip,
+        or a tail tip over the back of the pot now and then. No animal yet.
+      - **peeking:** welcoming, but trust < 0.3. Short peeks from behind a pad (half-length visits). It
+        doesn't play (petting makes it duck) and doesn't come down for care answers.
+      - **visiting:** as before.
+      - **settled:** trust ≥ 0.75. Visits are 1.4× longer, and it also starts on the trunk and the pot rim.
+
+      With calm days: traces on day 2, peeks on day 3, visits from day 4, settled from about day 8.
+    - **Broken trust:** when the latch flips off, trust is cut to a quarter and rebuilds 1.6× slower for
+      14 days. It comes back warily, peeking first, and settles later than the first time.
+    - **Habits** come from its own past visits. They are taken from the habit-free replay, so a habit never
+      feeds on itself:
+      - its **usual hour** (the 2-hour band most of its recent visits fell in, recency-weighted over a
+        week): visits are 1.4× likelier within an hour of it and 0.85× elsewhere;
+      - its **favourite spot**: visits start there with chance 0.4 + 0.4 × trust.
+    - **Boldness** comes from trust and from play (petting sessions during its visits). It only changes how
+      it plays (sooner hops, fewer dives). More petting never brings more visits or other times.
+  - **The sloth: loyalty, no stages** (`sloth.ts` `slothMemory()` / `withLoyalty()`, `APP_CONFIG.habitat.sloth.loyalty`).
+    - Days with long visits (from the stored readings of the last 14 days, each day replayed with the
+      loyalty of the days before it) make the tree its tree. Days away fade it (τ 5 days).
+    - A loyal sloth has a **home branch**: it hangs there most of the time and sleeps there at night.
+    - It **stays longer** (up to 1.3× visits) and is **slow to give up**: the latch exit is lower and its
+      fall time longer, so it holds on through a 90-minute cool spell that sends a new sloth away.
+    - It doesn't scout and has no stages: it just turns up. The collector derives its memory once a day
+      (perception only has 24 h).
+  - **The dragonfly: a territory for the day, no memory** (`dragonfly.ts` `territoryOf()`).
+    - Within a day it holds one leaf tip as its own: 70 % of its visits start there, and its route keeps
+      coming back to it.
+    - Tomorrow is a new choice. A creature of the moment, by contrast with the other two.
+  - Tested: V21–V25 (stages, broken trust, habits, boldness, restart), SL8, DF8.
 - **Remembered in the diary.** `habitatDiary()` replays the same history:
+  - "Signs of a squirrel: a nibbled leaf" (traces), "A squirrel peeked out from the leaves" (a day of peeks),
+    "The squirrel has made itself at home" (settled), "The squirrel came back, warily" (after broken trust)
+  - "The sloth is back on its branch" (a loyal sloth after days away, on its home branch)
   - "A squirrel visited" (once a day, with the count and the first time)
   - "The squirrel came back" (after 7+ days away)
   - "The squirrels stayed away" (naming what the tree went through)
@@ -447,11 +487,12 @@ trust a place, quick to leave it.
   - Nothing is stored for it.
 - **Boundaries:** the habitat is computed last in `evaluateBehaviour`, and health, mood, energy, speech and
   touch never read it. It is nonverbal: no lines.
-- **Previews:** Developer → Test Tree State → Squirrel, or `#visitor=visiting:crown` / `#visitor=hiding`.
-  The Behaviour Debug panel shows the value, the latch, the calm and stress hours, and why nobody is
-  visiting.
-- **Tested:** `npm run test:behaviour` V1–V20 (V11–V13 play; V14–V16 the drey; V17 shelter; V18–V19 care
-  answers; V20 the diary).
+- **Previews:** Developer → Test Tree State → Squirrel, or `#visitor=visiting:crown` / `#visitor=hiding` /
+  `#visitor=peek` / `#visitor=traces` (`traces:tail` for the tail by the pot). The Behaviour Debug panel
+  shows the value, the latch, the calm and stress hours, why nobody is visiting, the squirrel's trust, stage
+  and habits, and the sloth's loyalty.
+- **Tested:** `npm run test:behaviour` V1–V25 (V11–V13 play; V14–V16 the drey; V17 shelter; V18–V19 care
+  answers; V20 the diary; V21–V25 the individual).
 - **Open:** whether the thriving butterfly should join this system (arriving after a while, not on the latch
   minute), and other visitors (dawn birds; real ants once a pest observation can be logged).
 

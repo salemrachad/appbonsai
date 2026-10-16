@@ -82,7 +82,8 @@ export function applyEncounters(h: HabitatState): HabitatEncounter[] {
   const df = h.dragonfly?.visit ?? null;
   const sl = h.sloth?.visit ?? null;
   const m = meet({
-    squirrel: sq ? { id: sq.id, spot: sq.spot, mode: h.presence as 'visiting' | 'hiding' | 'sleeping', fixed: sq.cause === 'care' } : null,
+    // A peek from the leaves meets like hiding
+    squirrel: sq ? { id: sq.id, spot: sq.spot, mode: h.presence === 'peeking' ? 'hiding' : (h.presence as 'visiting' | 'hiding' | 'sleeping'), fixed: sq.cause === 'care' } : null,
     dragonfly: df ? { id: df.id, perch: df.perch, perched: df.style === 'perched' } : null,
     sloth: sl ? { id: sl.id, branch: sl.branch, asleep: sl.pose === 'sleeping' } : null,
   });

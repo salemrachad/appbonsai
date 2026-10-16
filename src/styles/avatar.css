@@ -338,13 +338,23 @@
 }
 .visitor-idle .visitor-head { animation: visitor-nibble 3.4s ease-in-out infinite; }
 
+/* Traces of a squirrel not here yet: its tail tip rises over the back of the pot, flicks, and is gone */
+@keyframes traces-tail {
+  0%, 62%, 100% { transform: translateY(26px); }
+  68% { transform: translateY(0) rotate(-6deg); }
+  72% { transform: translateY(0) rotate(8deg); }
+  76% { transform: translateY(0) rotate(-4deg); }
+  84% { transform: translateY(26px); }
+}
+.traces-tail { animation: traces-tail 16s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   [class*="animate-tree-"], .trunk-breathe, .leaf-quiver, .leaf-fresh, [class*="gesture-"],
   .animate-leaf-fall, .animate-drip, .animate-drip-fast, .animate-ripple, .animate-breath, .animate-firefly,
   .animate-butterfly-path, .animate-butterfly-wings, .animate-sun-throb, .animate-pollen, .animate-chatter, .animate-pant-mouth,
   .animate-eye-swirl path, .animate-cloud-bob, .animate-sweat-fly-left, .animate-sweat-fly-right,
   .visitor-arrive, .visitor-peek, .visitor-tail, .visitor-head, .visitor-hop, .visitor-dive, .visitor-peek-once,
-  .visitor-ripple, .visitor-shaking, .visitor-flick, .drey-tail, .drey-twitch, .drey-zzz,
+  .visitor-ripple, .visitor-shaking, .visitor-flick, .traces-tail, .drey-tail, .drey-twitch, .drey-zzz,
   .df-wings-fly, .df-perch, .df-hover, .df-hover-here, .df-fly, .df-dart,
   .sloth-hang, .sloth-climb, .sloth-sleep, .sloth-look, .sloth-blink, .sloth-regrip, .sloth-slowblink {
     animation: none !important;

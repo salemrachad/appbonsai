@@ -2,10 +2,12 @@ import { APP_CONFIG } from '../config/appConfig';
 import type { HealthCondition, HealthModifier } from '../health/healthTypes';
 import { CONDITION_LABELS } from '../health/labels';
 import { CONDITION_SEVERITY } from '../health/statePriority';
-import type { BehaviourEpisode, DiaryItem } from '../history/historyTypes';
+import type { BehaviourEpisode, DiaryItem, Interaction } from '../history/historyTypes';
+import { seasonState } from '../perception/season';
+import type { SpeciesProfile } from '../species';
 import { sunState } from '../perception/sun';
 import type { OutsideSky } from '../telemetry/outsideWeather';
-import type { DreyState, HabitatState, HabitatVisit, ReactionKind, VisitSpot } from './behaviourTypes';
+import type { DreyState, HabitatState, HabitatVisit, ReactionKind, SquirrelMemory, SquirrelStage, SquirrelTraces, VisitSpot } from './behaviourTypes';
 import { stableVariant } from './speech';
 
 // Habitat: how welcoming the tree has been as a place to be, and whether a visitor (the squirrel) is
@@ -30,6 +32,16 @@ import { stableVariant } from './speech';
 // - CARE: after a needed watering on a calm, welcoming tree it comes to drink at the pot rim; after a
 //   pruning it inspects the cut. One answer per care event; watering on wet soil gets none.
 // - DIARY: visits, coming back after an absence, staying away, the drey built or abandoned.
+//
+// The squirrel is an individual, not a dice roll (all derived, all art):
+// - TRUST in the place grows with welcoming time and gives its stages: traces (a nibbled leaf, a tail at
+//   the pot: signs, no animal) → peeking (short peeks from the leaves, no play) → visiting → settled
+//   (longer visits, it ventures down to the trunk and the pot rim). When the place stops being welcoming
+//   trust breaks, and for a while it rebuilds slower: it comes back warily, peeking first again.
+// - HABITS from its own past visits: a usual hour (visits gather around it) and a favourite spot. They are
+//   taken from the habit-free visits, so a habit never feeds on itself.
+// - BOLDNESS from trust and from play (petting during its visits). It only changes how it plays, never
+//   whether or when it comes: more petting never brings more visits.
 
 const HOUR = 3600 * 1000;
 const MIN = 60 * 1000;
@@ -60,9 +72,23 @@ export interface HabitatInput {
   now: number;
   outside?: { sky: OutsideSky; rainEndedAt: number | null } | null; // outside weather (context: shelter only)
   reaction?: { kind: ReactionKind; eventId: number; at: number; seasonal: string | null } | null; // recent care
+  // Its memory of past visits: the tree's location (day and night of past slots; clock window without),
+  // the season through the last weeks, and the petting sessions (play during its visits → boldness only)
+  location?: { latitude: number | null; longitude: number | null };
+  seasonAt?: (t: number) => { id: string; energy: number };
+  interactions?: Interaction[];
 }
 
-export type HabitatChange = { at: number; kind: 'welcoming' | 'left' | 'drey_started' | 'drey_built' | 'drey_gone' };
+// The blended seasonal energy at any time (the behaviour engine's, for past slots and the diary)
+export const seasonEnergyAt = (latitude: number | null, species: SpeciesProfile) => (t: number) => {
+  const s = seasonState(t, latitude);
+  const rule = species.seasons[s.id];
+  const other = s.blend ? species.seasons[s.blend.with] : null;
+  const energy = other ? rule.energy + (other.energy - rule.energy) * s.blend!.amount : rule.energy;
+  return { id: s.id, energy: Math.round(energy * 100) / 100 };
+};
+
+export type HabitatChange = { at: number; kind: 'welcoming' | 'left' | 'drey_started' | 'drey_built' | 'drey_gone' | 'traces' | 'wary_return' | 'settled' };
 
 // ---- Shared by every wanderer (squirrel, dragonfly): one habitat mechanism, different inputs and numbers ----
 // Exponential drift toward 0 or 1 over observed time.
@@ -76,19 +102,22 @@ export const dayKeyOf = (t: number) => {
 // The deterministic visit window of the slot covering `now` (null: no visit in this slot, or not right now).
 // `prefix` keeps each species' slots independent; the same day + slot always rolls the same.
 export function slotWindow(prefix: string, now: number, slotMinutes: number, chance: number, visitMinutes: { min: number; max: number }) {
+  const w = slotPlan(prefix, now, slotMinutes, chance, visitMinutes);
+  return w && now >= w.startedAt && now < w.endsAt ? w : null;
+}
+// The visit planned for the slot covering `t`, wherever `t` falls in it (null: this slot holds none)
+export function slotPlan(prefix: string, t: number, slotMinutes: number, chance: number, visitMinutes: { min: number; max: number }) {
   const slotMs = slotMinutes * MIN;
-  const d = new Date(now);
-  const dayKey = dayKeyOf(now);
+  const d = new Date(t);
+  const dayKey = dayKeyOf(t);
   d.setHours(0, 0, 0, 0);
-  const slot = Math.floor((now - d.getTime()) / slotMs);
+  const slot = Math.floor((t - d.getTime()) / slotMs);
   const roll = (salt: string, n = 1000) => stableVariant(`${prefix}:${dayKey}:${slot}:${salt}`, n) / n;
   if (roll('visit') >= chance) return null;
   const minutes = visitMinutes.min + Math.round(roll('len') * (visitMinutes.max - visitMinutes.min));
   const slotStart = d.getTime() + slot * slotMs;
   const startedAt = slotStart + Math.round(roll('offset') * Math.max(0, slotMs - minutes * MIN));
-  const endsAt = startedAt + minutes * MIN;
-  if (now < startedAt || now >= endsAt) return null;
-  return { id: `${dayKey}:${slot}`, dayKey, slot, startedAt, endsAt, roll };
+  return { id: `${dayKey}:${slot}`, dayKey, slot, slotStart, startedAt, endsAt: startedAt + minutes * MIN, roll };
 }
 
 // Replays the episodes into the habitat value, its latch and the drey. `trace` keeps the trajectory (for
@@ -101,13 +130,22 @@ export function replayHabitat(episodes: BehaviourEpisode[], now: number, trace =
   let value = 0;
   let welcoming = false;
   let drey = 0;
-  let stage: DreyState['stage'] = 'none';
+  let dreyStage: DreyState['stage'] = 'none';
   let builtAt: number | null = null;
   let calmHours = 0;
   let stressHours = 0;
   let lastChangeAt: number | null = null;
+  // The squirrel's trust in the place and its stage (see the header)
+  const T = cfg.trust;
+  let trust = 0;
+  let brokenAt: number | null = null;
+  let rising = false; // the value's last drift was toward 1
+  let traces = false;
+  let confident = false; // past the peeking stage
+  let settled = false;
+  let stage: SquirrelStage = 'none';
   const changes: HabitatChange[] = [];
-  const points: { t: number; value: number; welcoming: boolean }[] = [];
+  const points: { t: number; value: number; welcoming: boolean; trust: number; stage: SquirrelStage }[] = [];
   const sorted = [...episodes].filter((e) => (e.endedAt ?? now) > from && e.startedAt <= now).sort((a, b) => a.startedAt - b.startedAt);
   for (const e of sorted) {
     const d = drift(e.condition);
@@ -128,27 +166,48 @@ export function replayHabitat(episodes: BehaviourEpisode[], now: number, trace =
     const steps = Math.max(1, Math.ceil(hours));
     for (let i = 1; i <= steps; i++) {
       const t = start + (span * i) / steps;
-      if (d) value = driftToward(value, d.toward, hours / steps, d.tauHours);
+      if (d) {
+        value = driftToward(value, d.toward, hours / steps, d.tauHours);
+        rising = d.toward === 1;
+      }
       const was = welcoming;
       welcoming = schmitt(welcoming, value, cfg.enter, cfg.exit);
       if (was !== welcoming) {
         lastChangeAt = t;
         changes.push({ at: t, kind: welcoming ? 'welcoming' : 'left' });
+        if (welcoming && brokenAt !== null) changes.push({ at: t, kind: 'wary_return' });
+        if (!welcoming) {
+          // Trust breaks: it has to be earned again, peeking first
+          trust *= T.breakFactor;
+          brokenAt = t;
+          confident = false;
+          settled = false;
+        }
       }
+      // Trust grows with welcoming time (held time included, like the drey), slower for a while after a
+      // break; without a welcoming place it fades slowly
+      const wary = brokenAt !== null && t - brokenAt < T.waryDays * DAY;
+      trust = welcoming ? driftToward(trust, 1, hours / steps, T.riseDays * 24 * (wary ? T.waryFactor : 1)) : driftToward(trust, 0, hours / steps, T.fallDays * 24);
+      traces = !welcoming && rising && schmitt(traces, value, T.tracesFrom, T.tracesExit);
+      confident = schmitt(confident, trust, T.peekUntil, T.peekExit);
+      settled = schmitt(settled, trust, T.settledFrom, T.settledExit);
+      const before0 = stage;
+      stage = welcoming ? (settled ? 'settled' : confident ? 'visiting' : 'peeking') : traces ? 'traces' : 'none';
+      if (stage !== before0 && (stage === 'traces' || stage === 'settled')) changes.push({ at: t, kind: stage });
       // The drey grows with welcoming time (held time included: a sleeping tree is still a home)
       drey = driftToward(drey, welcoming ? 1 : 0, hours / steps, (welcoming ? D.riseDays : D.fallDays) * 24);
-      const before = stage;
-      if (stage === 'none' && drey >= D.startedEnter) stage = 'started';
-      if (stage === 'started' && drey >= D.builtEnter) stage = 'built';
-      else if (stage === 'built' && drey < D.builtExit) stage = 'started';
-      if (stage === 'started' && drey < D.startedExit) stage = 'none';
-      if (stage !== before) {
-        if (stage === 'built') builtAt = t;
-        if (stage === 'started' && before === 'none') changes.push({ at: t, kind: 'drey_started' });
-        if (stage === 'built') changes.push({ at: t, kind: 'drey_built' });
-        if (stage === 'none' && builtAt !== null) changes.push({ at: t, kind: 'drey_gone' });
+      const before = dreyStage;
+      if (dreyStage === 'none' && drey >= D.startedEnter) dreyStage = 'started';
+      if (dreyStage === 'started' && drey >= D.builtEnter) dreyStage = 'built';
+      else if (dreyStage === 'built' && drey < D.builtExit) dreyStage = 'started';
+      if (dreyStage === 'started' && drey < D.startedExit) dreyStage = 'none';
+      if (dreyStage !== before) {
+        if (dreyStage === 'built') builtAt = t;
+        if (dreyStage === 'started' && before === 'none') changes.push({ at: t, kind: 'drey_started' });
+        if (dreyStage === 'built') changes.push({ at: t, kind: 'drey_built' });
+        if (dreyStage === 'none' && builtAt !== null) changes.push({ at: t, kind: 'drey_gone' });
       }
-      if (trace) points.push({ t, value, welcoming });
+      if (trace) points.push({ t, value, welcoming, trust, stage });
     }
   }
   return {
@@ -157,33 +216,52 @@ export function replayHabitat(episodes: BehaviourEpisode[], now: number, trace =
     calmHours: round1(calmHours),
     stressHours: round1(stressHours),
     lastChangeAt,
-    drey: { value: round2(drey), stage, builtAt: stage === 'built' ? builtAt : null } as DreyState,
+    drey: { value: round2(drey), stage: dreyStage, builtAt: dreyStage === 'built' ? builtAt : null } as DreyState,
+    trust: round2(trust),
+    stage,
+    brokenAt,
     changes,
     points,
   };
 }
 
 const SPOTS: VisitSpot[] = ['left_branch', 'right_branch', 'crown'];
+const SETTLED_SPOTS: VisitSpot[] = [...SPOTS, 'trunk', 'pot_rim']; // at home in the tree, it ventures lower
+const TRACES: SquirrelTraces[] = ['nibbled_leaf', 'tail_at_pot'];
 
-// The visit (if any) whose slot covers `now`. Pure function of the day, the slot and the habitat value.
-function visitAt(value: number, chanceScale: number, season: string, now: number): HabitatVisit | null {
-  const cfg = APP_CONFIG.habitat;
-  const f = clamp((value - cfg.exit) / (1 - cfg.exit), 0, 1);
-  const chance = (cfg.visitChance.min + (cfg.visitChance.max - cfg.visitChance.min) * f) * chanceScale;
-  const w = slotWindow('habitat', now, cfg.slotMinutes, chance, cfg.visitMinutes);
-  if (!w) return null;
-  const { dayKey, slot, startedAt, endsAt } = w;
-  return {
-    kind: 'squirrel',
-    id: w.id,
-    startedAt,
-    endsAt,
-    spot: SPOTS[stableVariant(`habitat:${dayKey}:${slot}:spot`, SPOTS.length)],
-    // Autumn: caching for the cold months
-    carrying: season === 'autumn' ? 'nut' : null,
-    cause: 'slot',
-    action: null,
-  };
+// ---- The squirrel's habits: from its own past visits ----
+export interface SquirrelHabits {
+  usualHour: number | null; // centre of the 2-hour band it comes in most (recency-weighted)
+  favouriteSpot: VisitSpot | null;
+  count: number; // past visits remembered
+}
+const NO_HABITS: SquirrelHabits = { usualHour: null, favouriteSpot: null, count: 0 };
+const hourOf = (t: number) => {
+  const d = new Date(t);
+  return d.getHours() + d.getMinutes() / 60;
+};
+const startOfDay = (t: number) => new Date(t).setHours(0, 0, 0, 0);
+
+// Habits as of `at`, from the habit-free visits before it (oldest first). Its usual hour is the band its
+// visits fell in most: an individual quirk of its history, not a rule.
+export function habitsFrom(visits: { startedAt: number; spot: VisitSpot }[], at: number): SquirrelHabits {
+  const H = APP_CONFIG.habitat.habits;
+  const bands = new Array<number>(12).fill(0);
+  const spots = new Map<VisitSpot, number>();
+  let count = 0;
+  for (const v of visits) {
+    if (v.startedAt >= at) break;
+    const w = Math.exp(-(at - v.startedAt) / (H.recencyDays * DAY));
+    bands[Math.floor(hourOf(v.startedAt) / 2)] += w;
+    spots.set(v.spot, (spots.get(v.spot) ?? 0) + w);
+    count++;
+  }
+  if (count < H.minVisits) return { ...NO_HABITS, count };
+  let best = 0;
+  for (let i = 1; i < bands.length; i++) if (bands[i] > bands[best]) best = i;
+  let fav: VisitSpot | null = null;
+  for (const [s, w] of spots) if (fav === null || w > spots.get(fav)!) fav = s;
+  return { usualHour: best * 2 + 1, favouriteSpot: fav, count };
 }
 
 // Busiest in the morning and late afternoon, quieter at midday; fewer visits at winter rest
@@ -191,6 +269,43 @@ const chanceScaleAt = (now: number, seasonEnergy: number) => {
   const h = new Date(now).getHours();
   return (h < 10 || h >= 16 ? 1.25 : 0.75) * Math.min(1, seasonEnergy);
 };
+
+// The visit planned for the slot covering `t` (wherever `t` falls in it). A pure function of the day, the
+// slot, the habitat value, its stage, its habits and its trust. Without habits, at the visiting stage, it is
+// exactly the plain slot visit.
+function squirrelPlan(t: number, value: number, stage: SquirrelStage, habits: SquirrelHabits, trust: number, season: { id: string; energy: number }): HabitatVisit | null {
+  const cfg = APP_CONFIG.habitat;
+  const H = cfg.habits;
+  const slotMs = cfg.slotMinutes * MIN;
+  const slotStart = t - ((t - startOfDay(t)) % slotMs);
+  const f = clamp((value - cfg.exit) / (1 - cfg.exit), 0, 1);
+  // Its usual hour: visits gather around it
+  const mid = hourOf(slotStart) + cfg.slotMinutes / 120;
+  const habit = habits.usualHour === null ? 1 : Math.abs(mid - habits.usualHour) <= 1 ? H.nearHour : H.otherHours;
+  const chance = (cfg.visitChance.min + (cfg.visitChance.max - cfg.visitChance.min) * f) * chanceScaleAt(slotStart, season.energy) * habit;
+  const len = stage === 'peeking' ? cfg.trust.peekLength : stage === 'settled' ? cfg.trust.settledLength : 1;
+  const w = slotPlan('habitat', t, cfg.slotMinutes, chance, { min: Math.max(2, Math.round(cfg.visitMinutes.min * len)), max: Math.round(cfg.visitMinutes.max * len) });
+  if (!w) return null;
+  const { dayKey, slot } = w;
+  const pool = stage === 'settled' ? SETTLED_SPOTS : SPOTS;
+  const rolled = pool[stableVariant(`habitat:${dayKey}:${slot}:spot`, pool.length)];
+  const fav = !!habits.favouriteSpot && pool.includes(habits.favouriteSpot) && w.roll('fav') < H.favouriteBase + trust * H.favouritePerTrust;
+  return {
+    kind: 'squirrel',
+    id: w.id,
+    startedAt: w.startedAt,
+    endsAt: w.endsAt,
+    spot: fav ? habits.favouriteSpot! : rolled,
+    // Autumn: caching for the cold months
+    carrying: season.id === 'autumn' ? 'nut' : null,
+    cause: 'slot',
+    action: null,
+  };
+}
+function squirrelVisitAt(now: number, value: number, stage: SquirrelStage, habits: SquirrelHabits, trust: number, season: { id: string; energy: number }) {
+  const v = squirrelPlan(now, value, stage, habits, trust, season);
+  return v && now >= v.startedAt && now < v.endsAt ? v : null;
+}
 
 // Who is out right now from the tree's state alone (shared by the live view and the diary)
 function basePresence(welcoming: boolean, value: number, condition: HealthCondition, modifiers: HealthModifier[], isDay: boolean): { presence: 'none' | 'visiting' | 'hiding' | 'night'; why: string } {
@@ -203,9 +318,85 @@ function basePresence(welcoming: boolean, value: number, condition: HealthCondit
   return { presence: 'hiding', why: `${condition.replace(/_/g, ' ')}: tucked into the leaves, waiting it out` };
 }
 
-export function evaluateHabitat({ episodes, condition, modifiers, isDay, season, now, outside = null, reaction = null }: HabitatInput): HabitatState {
+const dayTester = (location?: { latitude: number | null; longitude: number | null }) => (t: number) => sunState(t, location?.latitude ?? null, location?.longitude ?? null, 15).isDay;
+
+// ---- Its life over the last weeks: every slot replayed (the same slots as the live view) ----
+export interface PastVisit {
+  startedAt: number;
+  endsAt: number;
+  spot: VisitSpot;
+  stage: SquirrelStage;
+  presence: 'visiting' | 'hiding';
+}
+export function squirrelLife(
+  episodes: BehaviourEpisode[],
+  now: number,
+  r: ReturnType<typeof replayHabitat>,
+  isDayAt: (t: number) => boolean,
+  seasonAt: (t: number) => { id: string; energy: number }
+) {
   const cfg = APP_CONFIG.habitat;
-  const r = replayHabitat(episodes, now);
+  const slotMs = cfg.slotMinutes * MIN;
+  const sorted = [...episodes].sort((a, b) => a.startedAt - b.startedAt);
+  let ei = 0;
+  const episodeAt = (t: number) => {
+    while (ei + 1 < sorted.length && sorted[ei + 1].startedAt <= t) ei++;
+    const e = sorted[ei];
+    return e && e.startedAt <= t && t < (e.endedAt ?? now) ? e : null;
+  };
+  let pi = 0;
+  const stateAt = (t: number) => {
+    while (pi + 1 < r.points.length && r.points[pi + 1].t <= t) pi++;
+    const p = r.points[pi];
+    return p && p.t <= t ? p : null;
+  };
+  const base: { startedAt: number; spot: VisitSpot }[] = []; // habit-free: what its habits are made of
+  const visits: PastVisit[] = [];
+  let day = -1;
+  let habits = NO_HABITS;
+  for (let t = Math.ceil((now - cfg.replayDays * DAY) / slotMs) * slotMs; t <= now; t += slotMs) {
+    if (startOfDay(t) !== day) {
+      day = startOfDay(t);
+      habits = habitsFrom(base, day); // a day's habits come from the days before it
+    }
+    const s = stateAt(t);
+    const ep = episodeAt(t);
+    if (!s || !ep || !s.welcoming) continue;
+    const p = basePresence(true, s.value, ep.condition, [], isDayAt(t)).presence;
+    if (p === 'none' || p === 'night') continue;
+    const season = seasonAt(t);
+    const b = squirrelPlan(t, s.value, 'visiting', NO_HABITS, 0, season);
+    if (b && b.startedAt <= now) base.push({ startedAt: b.startedAt, spot: b.spot });
+    const v = squirrelPlan(t, s.value, s.stage, habits, s.trust, season);
+    if (v && v.startedAt <= now) visits.push({ startedAt: v.startedAt, endsAt: v.endsAt, spot: v.spot, stage: s.stage, presence: p });
+  }
+  return { visits, habits: day === startOfDay(now) ? habits : habitsFrom(base, startOfDay(now)) };
+}
+
+// Boldness: trust, and play (petting sessions during its visits, recency-weighted). Only how it plays.
+function boldnessOf(trust: number, visits: PastVisit[], interactions: Interaction[], now: number) {
+  const H = APP_CONFIG.habitat.habits;
+  let play = 0;
+  for (const i of interactions) {
+    if (i.kind !== 'pet') continue;
+    if (visits.some((v) => v.presence === 'visiting' && v.stage !== 'peeking' && i.startedAt < v.endsAt && i.endedAt > v.startedAt)) play += Math.exp(-(now - i.endedAt) / (H.recencyDays * DAY));
+  }
+  return round2(clamp(0.5 * trust + (0.5 * play) / (play + H.playSessions), 0, 1));
+}
+
+export function evaluateHabitat({ episodes, condition, modifiers, isDay, season, now, outside = null, reaction = null, location, seasonAt, interactions = [] }: HabitatInput): HabitatState {
+  const cfg = APP_CONFIG.habitat;
+  const r = replayHabitat(episodes, now, true);
+  const life = squirrelLife(episodes, now, r, dayTester(location), seasonAt ?? (() => season));
+  const memory: SquirrelMemory = {
+    trust: r.trust,
+    stage: r.stage,
+    brokenAt: r.brokenAt,
+    usualHour: life.habits.usualHour,
+    favouriteSpot: life.habits.favouriteSpot,
+    boldness: boldnessOf(r.trust, life.visits, interactions, now),
+    pastVisits: life.habits.count,
+  };
   const base = basePresence(r.welcoming, r.value, condition, modifiers, isDay);
   let presence: HabitatState['presence'] = 'none';
   let visit: HabitatVisit | null = null;
@@ -223,7 +414,9 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
     }
   } else if (base.presence !== 'none') {
     presence = base.presence;
-    // Answers to care: a needed watering → drinks at the pot rim; a pruning → inspects the cut
+    const peeking = r.stage === 'peeking';
+    // Answers to care: a needed watering → drinks at the pot rim; a pruning → inspects the cut. Not while
+    // it only peeks: it doesn't trust the place enough yet to come down
     const age = reaction ? now - reaction.at : Infinity;
     const careMin = !reaction
       ? 0
@@ -234,7 +427,7 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
         ? cfg.careVisitMinutes.inspectingOffSeason
         : cfg.careVisitMinutes.inspecting
       : 0;
-    if (presence === 'visiting' && reaction && careMin > 0 && age >= 0 && age < careMin * MIN) {
+    if (presence === 'visiting' && !peeking && reaction && careMin > 0 && age >= 0 && age < careMin * MIN) {
       const drinking = DRINKS_AFTER.includes(reaction.kind);
       visit = {
         kind: 'squirrel',
@@ -248,12 +441,16 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
       };
       why = drinking ? 'came down to drink after the watering' : 'came to inspect the pruning';
     } else {
-      visit = visitAt(r.value, chanceScaleAt(now, season.energy), season.id, now);
+      visit = squirrelVisitAt(now, r.value, r.stage, life.habits, r.trust, season);
+      if (visit && presence === 'visiting' && peeking) {
+        presence = 'peeking';
+        why = r.brokenAt !== null ? 'back, but warily: only peeking from the leaves' : 'new here: only peeking from the leaves';
+      } else if (visit && presence === 'visiting' && r.stage === 'settled') why = 'at home in the tree';
       if (!visit) why += ' (none right now)';
     }
     // Shelter: rain, a storm or snow outside sends it into the leaves (the habitat value never sees weather)
     if (visit && outside && SHELTER_SKIES.includes(outside.sky)) {
-      if (presence === 'visiting') why = `sheltering from the ${outside.sky === 'snow' ? 'snow' : outside.sky === 'thunderstorm' ? 'storm' : 'rain'} outside`;
+      if (presence === 'visiting' || presence === 'peeking') why = `sheltering from the ${outside.sky === 'snow' ? 'snow' : outside.sky === 'thunderstorm' ? 'storm' : 'rain'} outside`;
       presence = 'hiding';
       visit = { ...visit, action: null };
     } else if (visit && presence === 'visiting' && !visit.action && outside?.rainEndedAt != null && now - outside.rainEndedAt < cfg.shakeOffAfterRainMs) {
@@ -261,40 +458,26 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
       why = 'out again after the rain: shaking off';
     }
   }
+  // Not here yet, but signs of it (the same sign all day)
+  const uncertain = condition === 'sensor_uncertain' || modifiers.includes('sensor_uncertain');
+  const traces = r.stage === 'traces' && !uncertain ? TRACES[stableVariant(`habitat:traces:${dayKey}`, TRACES.length)] : null;
+  if (traces) why = `not here yet, but signs of it: ${traces.replace(/_/g, ' ')}`;
 
+  const today = life.visits.filter((v) => v.presence === 'visiting' && v.startedAt >= startOfDay(now) && v.endsAt <= now);
   return {
     value: r.value,
     welcoming: r.welcoming,
     presence: visit ? presence : 'none',
     visit,
+    traces,
+    memory,
     drey: r.drey,
-    visitsToday: r.welcoming ? visitsToday(episodes, r.value, season, now) : { count: 0, firstAt: null },
+    visitsToday: r.welcoming ? { count: today.length, firstAt: today[0]?.startedAt ?? null } : { count: 0, firstAt: null },
     calmHours14d: r.calmHours,
     stressHours14d: r.stressHours,
     lastChangeAt: r.lastChangeAt,
     why,
   };
-}
-
-// Visits earlier today (slot visits while the tree was calm and awake): the same slots the live view uses.
-// The calm episodes stand in for daylight (asleep = night), so no location is needed.
-function visitsToday(episodes: BehaviourEpisode[], value: number, season: { id: string; energy: number }, now: number) {
-  const cfg = APP_CONFIG.habitat;
-  const start = new Date(now).setHours(0, 0, 0, 0);
-  const slotMs = cfg.slotMinutes * MIN;
-  let count = 0;
-  let firstAt: number | null = null;
-  for (let t = start; t + slotMs <= now; t += slotMs) {
-    const ep = episodes.find((e) => e.startedAt <= t && t < (e.endedAt ?? now));
-    if (!ep || !WELCOMING.includes(ep.condition)) continue;
-    let v: HabitatVisit | null = null;
-    for (let m = 0; m < cfg.slotMinutes && !v; m += 2) v = visitAt(value, chanceScaleAt(t + m * MIN, season.energy), season.id, t + m * MIN);
-    if (v && v.endsAt <= now) {
-      count++;
-      firstAt = firstAt ?? v.startedAt;
-    }
-  }
-  return { count, firstAt };
 }
 
 // ---- Diary: what the visitors did, derived from history (nothing stored) ----
@@ -309,53 +492,35 @@ export interface HabitatDiaryInput {
 }
 
 const ABSENCE_DAYS = 7;
+const TRACE_WORDS: Record<SquirrelTraces, string> = { nibbled_leaf: 'a nibbled leaf', tail_at_pot: 'a tail by the pot' };
 
 export function habitatDiary({ episodes, now, days, location, seasonAt, windowsOut }: HabitatDiaryInput): DiaryItem[] {
-  const cfg = APP_CONFIG.habitat;
   const r = replayHabitat(episodes, now, true);
   const since = now - days * DAY;
-  const lookFrom = Math.max(now - cfg.replayDays * DAY, since - (ABSENCE_DAYS + 7) * DAY);
   const sorted = [...episodes].sort((a, b) => a.startedAt - b.startedAt);
   const episodeAt = (t: number) => sorted.find((e) => e.startedAt <= t && t < (e.endedAt ?? now)) ?? null;
-  let pi = 0;
-  const stateAt = (t: number) => {
-    while (pi + 1 < r.points.length && r.points[pi + 1].t <= t) pi++;
-    const p = r.points[pi];
-    return p && p.t <= t ? p : null;
-  };
 
-  // Visits per day, from the same slots the live view uses
-  const slotMs = cfg.slotMinutes * MIN;
-  const visitsByDay = new Map<string, { first: number; count: number }>();
-  const start = Math.ceil(lookFrom / slotMs) * slotMs;
-  for (let t = start; t <= now; t += slotMs) {
-    const s = stateAt(t);
-    const ep = episodeAt(t);
-    if (!s || !ep || !s.welcoming) continue;
-    const isDay = sunState(t, location.latitude, location.longitude, 15).isDay;
-    if (basePresence(s.welcoming, s.value, ep.condition, [], isDay).presence === 'none' || !isDay) continue;
-    if (basePresence(s.welcoming, s.value, ep.condition, [], isDay).presence === 'night') continue;
-    // Any minute of this slot inside its visit counts (visitAt answers for a moment: probe the slot)
-    const season = seasonAt(t);
-    let v: HabitatVisit | null = null;
-    for (let m = 0; m < cfg.slotMinutes && !v; m += 2) v = visitAt(s.value, chanceScaleAt(t + m * MIN, season.energy), season.id, t + m * MIN);
-    if (!v) continue;
+  // Visits per day: the same life the live view replays (stages and habits included)
+  const life = squirrelLife(episodes, now, r, dayTester(location), seasonAt);
+  const visitsByDay = new Map<string, { first: number; count: number; peeks: boolean }>();
+  for (const v of life.visits) {
     windowsOut?.push({ from: v.startedAt, to: v.endsAt });
     const key = dayKeyOf(v.startedAt);
     const d = visitsByDay.get(key);
     if (d) d.count++;
-    else visitsByDay.set(key, { first: v.startedAt, count: 1 });
+    else visitsByDay.set(key, { first: v.startedAt, count: 1, peeks: v.stage === 'peeking' });
   }
 
   const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const items: DiaryItem[] = [];
   let lastVisitDay: number | null = null;
-  for (const { first, count } of [...visitsByDay.values()].sort((a, b) => a.first - b.first)) {
-    const dayStart = new Date(first).setHours(0, 0, 0, 0);
+  for (const { first, count, peeks } of [...visitsByDay.values()].sort((a, b) => a.first - b.first)) {
+    const dayStart = startOfDay(first);
     const away = lastVisitDay !== null ? Math.round((dayStart - lastVisitDay) / DAY) : null;
     if (first >= since) {
       if (away !== null && away >= ABSENCE_DAYS) items.push({ at: first, kind: 'habitat', title: 'The squirrel came back', detail: `after ${away} days away`, habitat: 'returned' });
-      items.push({ at: first, kind: 'habitat', title: 'A squirrel visited', detail: `${count} visit${count > 1 ? 's' : ''} · first at ${hhmm(first)}`, habitat: 'visit' });
+      if (peeks) items.push({ at: first, kind: 'habitat', title: 'A squirrel peeked out from the leaves', detail: `${count} peek${count > 1 ? 's' : ''} · first at ${hhmm(first)}`, habitat: 'peek' });
+      else items.push({ at: first, kind: 'habitat', title: 'A squirrel visited', detail: `${count} visit${count > 1 ? 's' : ''} · first at ${hhmm(first)}`, habitat: 'visit' });
     }
     lastVisitDay = dayStart;
   }
@@ -365,6 +530,9 @@ export function habitatDiary({ episodes, now, days, location, seasonAt, windowsO
       const ep = episodeAt(c.at - 1);
       items.push({ at: c.at, kind: 'habitat', title: 'The squirrels stayed away', detail: ep ? `while ${CONDITION_LABELS[ep.condition].toLowerCase()}` : undefined, habitat: 'left' });
     }
+    if (c.kind === 'traces') items.push({ at: c.at, kind: 'habitat', title: `Signs of a squirrel: ${TRACE_WORDS[TRACES[stableVariant(`habitat:traces:${dayKeyOf(c.at)}`, TRACES.length)]]}`, detail: 'not here yet, but it has found the tree', habitat: 'traces' });
+    if (c.kind === 'wary_return') items.push({ at: c.at, kind: 'habitat', title: 'The squirrel came back, warily', detail: 'peeking first: its trust has to grow again', habitat: 'wary' });
+    if (c.kind === 'settled') items.push({ at: c.at, kind: 'habitat', title: 'The squirrel has made itself at home', detail: 'longer visits, down to the trunk and the pot', habitat: 'settled' });
     if (c.kind === 'drey_built') items.push({ at: c.at, kind: 'habitat', title: 'A squirrel built a drey in the crown', detail: 'after weeks of a welcoming tree', habitat: 'drey_built' });
     if (c.kind === 'drey_gone') items.push({ at: c.at, kind: 'habitat', title: 'The drey was abandoned', habitat: 'drey_gone' });
   }

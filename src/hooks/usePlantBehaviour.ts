@@ -19,7 +19,8 @@ import { ACTIVE_SPECIES } from '../species';
 // A season preview swaps only the perceived season (as on its middle day), the rest stays as perceived.
 // A visitor preview puts the squirrel in the tree on top of whatever is shown (real visits need days of
 // calm history, which a preview doesn't have).
-export type VisitorPreview = Pick<VisitorPresentation, 'mode' | 'spot'> & { action?: VisitorPresentation['action'] };
+// mode 'traces': no squirrel yet, only its signs (a nibbled leaf, a tail by the pot); 'peek': a new squirrel peeking.
+export type VisitorPreview = { mode: VisitorPresentation['mode'] | 'traces'; spot: VisitorPresentation['spot']; action?: VisitorPresentation['action']; traces?: NonNullable<ExpressionState['squirrelTraces']> };
 // A drey preview shows the nest in the crown at a stage (real dreys need weeks of a welcoming tree).
 export type DreyPreview = DreyLook;
 // A canopy preview shows the foliage after some weeks (real changes need weeks of history).
@@ -49,20 +50,24 @@ export function usePlantBehaviour(
 ) {
   return useMemo<{ behaviour: PlantBehaviourState | null; expression: ExpressionState | null }>(() => {
     let r = evaluate(snapshot, display, previewSeason, latitude, previewTwilight);
-    if (previewVisitor && r.expression && r.behaviour) {
+    if (previewVisitor?.mode === 'traces' && r.expression) {
+      r = { behaviour: r.behaviour, expression: { ...r.expression, visitor: null, squirrelTraces: previewVisitor.traces ?? 'nibbled_leaf' } };
+    } else if (previewVisitor && previewVisitor.mode !== 'traces' && r.expression && r.behaviour) {
+      const mode = previewVisitor.mode;
       const carrying = r.behaviour?.season.id === 'autumn' ? 'nut' : null;
-      const play = visitorPlay(r.behaviour.primaryState, previewVisitor.mode, r.behaviour, r.expression.motion);
+      const play = visitorPlay(r.behaviour.primaryState, mode, r.behaviour, r.expression.motion);
       const visitor: VisitorPresentation = {
         kind: 'squirrel',
-        id: `preview:${previewVisitor.mode}:${previewVisitor.spot}:${previewVisitor.action ?? ''}`,
-        ...previewVisitor,
+        id: `preview:${mode}:${previewVisitor.spot}:${previewVisitor.action ?? ''}`,
+        mode,
+        spot: previewVisitor.spot,
         action: previewVisitor.action ?? null,
-        carrying: previewVisitor.mode === 'sleeping' || previewVisitor.action ? null : carrying,
+        carrying: mode === 'sleeping' || previewVisitor.action ? null : carrying,
         play,
       };
       // Asleep means a drey to sleep in
-      const drey = previewVisitor.mode === 'sleeping' ? 'built' : r.expression.drey;
-      r = { behaviour: r.behaviour, expression: { ...r.expression, visitor, drey } };
+      const drey = mode === 'sleeping' ? 'built' : r.expression.drey;
+      r = { behaviour: r.behaviour, expression: { ...r.expression, visitor, drey, squirrelTraces: null } };
     }
     if (previewSloth && r.expression) {
       const grip = previewSloth.pose === 'hanging' ? previewSloth.grip ?? 'arms' : 'four';
@@ -81,7 +86,7 @@ export function usePlantBehaviour(
       const x = r.expression;
       const v = x.visitor;
       const m = meet({
-        squirrel: v ? { id: v.id, spot: v.spot, mode: v.mode, fixed: !!v.action } : null,
+        squirrel: v ? { id: v.id, spot: v.spot, mode: v.mode === 'peek' ? 'hiding' : v.mode, fixed: !!v.action } : null,
         dragonfly: x.dragonfly ? { id: x.dragonfly.id, perch: x.dragonfly.perch === 'on_sloth' ? 'left_tip' : x.dragonfly.perch, perched: x.dragonfly.presence === 'perched' } : null,
         sloth: x.sloth ? { id: x.sloth.id, branch: x.sloth.branch, asleep: x.sloth.pose === 'sleeping' } : null,
       });

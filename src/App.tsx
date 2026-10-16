@@ -52,10 +52,13 @@ export default function App() {
     const m = typeof window !== 'undefined' ? window.location.hash.match(/season=([a-z]+)/) : null;
     return m && (SEASONS as string[]).includes(m[1]) ? (m[1] as Season) : null;
   });
-  // #visitor=visiting or #visitor=hiding:crown puts the squirrel in the tree (presentation only)
+  // #visitor=visiting or #visitor=hiding:crown puts the squirrel in the tree (presentation only);
+  // #visitor=peek (a new squirrel peeking) and #visitor=traces / traces:tail (only its signs)
   const [devVisitor, setDevVisitor] = useState<VisitorPreview | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/visitor=(visiting|hiding|sleeping|drinking|inspecting|shaking)(?::(left_branch|right_branch|crown|trunk|pot_rim))?/) : null;
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/visitor=(visiting|peek|hiding|sleeping|drinking|inspecting|shaking|traces)(?::(left_branch|right_branch|crown|trunk|pot_rim|tail))?/) : null;
     if (!m) return null;
+    if (m[1] === 'traces') return { mode: 'traces', spot: 'left_branch', traces: m[2] === 'tail' ? 'tail_at_pot' : 'nibbled_leaf' };
+    if (m[2] === 'tail') return null;
     const spot = (m[2] ?? 'left_branch') as VisitorPreview['spot'];
     if (m[1] === 'drinking') return { mode: 'visiting', spot: 'pot_rim', action: 'drinking' };
     if (m[1] === 'inspecting') return { mode: 'visiting', spot: 'left_branch', action: 'inspecting' };

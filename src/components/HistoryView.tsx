@@ -148,8 +148,10 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
                   : item.kind === 'habitat'
                   ? item.habitat === 'dragonfly'
                     ? { Icon: Sparkles, color: '#4E9FB8' }
-                    : item.habitat === 'sloth'
+                    : item.habitat === 'sloth' || item.habitat === 'sloth_home'
                     ? { Icon: PawPrint, color: '#8B7B66' }
+                    : item.habitat === 'traces'
+                    ? { Icon: PawPrint, color: '#A08A72' }
                     : item.habitat === 'encounter'
                     ? { Icon: Users, color: '#7E8F5A' }
                     : { Icon: item.habitat === 'drey_built' || item.habitat === 'drey_gone' ? Home : Squirrel, color: item.habitat === 'left' || item.habitat === 'drey_gone' ? '#A08A72' : '#A85A2A' }

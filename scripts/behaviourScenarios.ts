@@ -979,10 +979,13 @@ async function main() {
       }
       const a = plain.state();
       const z = petted.state();
+      // Play only makes it bolder (how it plays): never more visits, other times or another habitat
+      const noBold = (h: typeof a.behaviour.habitat) => JSON.stringify({ ...h, memory: { ...h.memory, boldness: 0 } });
+      const noPlay = (v: typeof a.expression.visitor) => JSON.stringify(v ? { ...v, play: null } : null);
       check(
-        'V13 petting changes nothing in the habitat (drey included) or the visitor',
-        JSON.stringify(a.behaviour.habitat) === JSON.stringify(z.behaviour.habitat) && JSON.stringify(a.expression.visitor) === JSON.stringify(z.expression.visitor),
-        `habitat ${a.behaviour.habitat.value} vs ${z.behaviour.habitat.value}`
+        'V13 petting changes nothing in the habitat (drey, visits, trust, habits included) or the visitor, only its boldness',
+        noBold(a.behaviour.habitat) === noBold(z.behaviour.habitat) && noPlay(a.expression.visitor) === noPlay(z.expression.visitor),
+        `habitat ${a.behaviour.habitat.value} vs ${z.behaviour.habitat.value} · boldness ${a.behaviour.habitat.memory.boldness} vs ${z.behaviour.habitat.memory.boldness}`
       );
     }
 
@@ -1052,6 +1055,177 @@ async function main() {
       check('V20c staying away names what the tree went through', /very dry/i.test(left?.detail ?? ''), left?.detail);
     }
 
+    // ---- The squirrel as an individual: trust in stages, habits, boldness ----
+    {
+      const { squirrelLife } = await import('../src/behaviour/habitat');
+      const { APP_CONFIG } = await import('../src/config/appConfig');
+      const t0 = new Date(2026, 6, 1, 7).getTime();
+      const ORDER = ['none', 'traces', 'peeking', 'visiting', 'settled'];
+      const stages = Array.from({ length: 12 }, (_, i) => replayHabitat(calmDays(i + 1, t0), t0).stage);
+      const firstDay = (st: string) => stages.indexOf(st as never) + 1;
+      check(
+        'V21 trust in stages over calm days: traces → peeking → visiting → settled, never backwards',
+        stages.every((x, i) => i === 0 || ORDER.indexOf(x) >= ORDER.indexOf(stages[i - 1])) && ['traces', 'peeking', 'visiting', 'settled'].every((x) => stages.includes(x as never)),
+        stages.map((x, i) => `${i + 1}d ${x}`).join(' · ')
+      );
+      // Live: signs before the first visits; the first visits are peeks, and a peeking squirrel doesn't
+      // come down for care yet
+      const scan = (days: number, want: 'traces' | 'visit', condition: C = 'comfortable') => {
+        const d0 = new Date(2026, 6, 1).getTime() + days * 24 * HOUR;
+        for (let t = d0 + 7 * HOUR; t < d0 + 19 * HOUR; t += 2 * MIN) {
+          const eps = [...calmDays(days, d0 + 7 * HOUR), ep('comfortable', d0 + 7 * HOUR, (t - d0 - 7 * HOUR) / HOUR, 0, true)];
+          const h = evaluateHabitat({ episodes: eps, condition, modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: t });
+          if (want === 'visit' ? h.visit : h.traces) return { t, eps, h };
+        }
+        return null;
+      };
+      const tr = scan(firstDay('traces'), 'traces');
+      const pk = scan(firstDay('peeking'), 'visit');
+      const peekCare = pk && evaluateHabitat({ episodes: pk.eps, condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: pk.t, reaction: { kind: 'watering_relief', eventId: 7, at: pk.t - 2 * MIN, seasonal: null } });
+      check(
+        'V21b live: first only its traces (nobody there), then peeks from the leaves; a peeking squirrel does not come down to drink',
+        !!tr && tr.h.traces !== null && tr.h.visit === null && !!pk && pk.h.presence === 'peeking' && peekCare?.visit?.cause !== 'care',
+        `${tr?.h.traces} / ${pk?.h.presence} ${pk?.h.why} / care ${peekCare?.visit?.cause ?? 'none'}`
+      );
+
+      // Broken trust: settled, then a day of drought; back it only peeks, and settling takes longer
+      const firstSettled = firstDay('settled');
+      const story = (n: number) => [...calmDays(14, t0), ep('very_dry', t0, 24), ...calmDays(n, t0 + 24 * HOUR + n * 24 * HOUR)];
+      const after = (n: number) => replayHabitat(story(n), t0 + 24 * HOUR + n * 24 * HOUR);
+      const back = Array.from({ length: 16 }, (_, i) => after(i + 1));
+      const firstBack = back.find((x) => x.welcoming);
+      const settledAgain = back.findIndex((x) => x.stage === 'settled') + 1;
+      check(
+        'V22 broken trust: after a drought it comes back warily (peeking first), and settles later than the first time',
+        !!firstBack && firstBack.stage === 'peeking' && firstBack.brokenAt !== null && (settledAgain === 0 || settledAgain > firstSettled),
+        `first settled after ${firstSettled} days · back: ${back.map((x) => x.stage).join(',')}`
+      );
+      const diary = habitatDiary({ episodes: story(16), now: t0 + 17 * 24 * HOUR, days: 30, location: { latitude: null, longitude: null }, seasonAt: () => ({ id: 'summer', energy: 1 }) });
+      const tags = new Set(diary.map((i) => i.habitat));
+      check('V22b diary: its traces, first peeks, settling in and the wary return', tags.has('traces') && tags.has('peek') && tags.has('settled') && tags.has('wary'), [...tags].join(', '));
+
+      // Habits: visits gather around its usual hour and its favourite spot (against the habit-free life)
+      const end = new Date(2026, 6, 20, 7).getTime();
+      const eps = calmDays(16, end);
+      const daytime = (t: number) => new Date(t).getHours() >= 7 && new Date(t).getHours() < 21;
+      const lifeOf = () => squirrelLife(eps, end, replayHabitat(eps, end, true), daytime, () => ({ id: 'summer', energy: 1 }));
+      const withHabits = lifeOf();
+      const H = APP_CONFIG.habitat.habits as any;
+      const saved = { ...H };
+      Object.assign(H, { nearHour: 1, otherHours: 1, favouriteBase: 0, favouritePerTrust: 0 });
+      const plainLife = lifeOf();
+      Object.assign(H, saved);
+      const { usualHour, favouriteSpot } = withHabits.habits;
+      const recent = (l: typeof withHabits) => l.visits.filter((v) => v.startedAt >= end - 6 * 24 * HOUR);
+      const hourOf = (t: number) => new Date(t).getHours() + new Date(t).getMinutes() / 60;
+      const share = (l: typeof withHabits, f: (v: (typeof l.visits)[number]) => boolean) => recent(l).filter(f).length / Math.max(1, recent(l).length);
+      const near = (l: typeof withHabits) => share(l, (v) => Math.abs(hourOf(v.startedAt) - (usualHour ?? -9)) <= 1.25);
+      const fav = (l: typeof withHabits) => share(l, (v) => v.spot === favouriteSpot);
+      check(
+        'V23 habits from its own past visits: more visits around its usual hour and on its favourite spot; deterministic',
+        usualHour !== null && favouriteSpot !== null && near(withHabits) > near(plainLife) && fav(withHabits) > fav(plainLife) && JSON.stringify(lifeOf()) === JSON.stringify(withHabits),
+        `usual ${usualHour}h, ${favouriteSpot} · near ${near(plainLife).toFixed(2)} → ${near(withHabits).toFixed(2)} · favourite ${fav(plainLife).toFixed(2)} → ${fav(withHabits).toFixed(2)}`
+      );
+
+      // Boldness: play during its visits makes it bolder, and changes nothing else
+      const now = end + 6 * HOUR;
+      const live = [...eps, ep('comfortable', end, 6, 0, true)];
+      const lifeNow = squirrelLife(live, now, replayHabitat(live, now, true), daytime, () => ({ id: 'summer', energy: 1 }));
+      const pets = lifeNow.visits.filter((v) => v.presence === 'visiting' && v.stage !== 'peeking').slice(-8).map((v, i) => ({ id: i + 1, kind: 'pet' as const, startedAt: v.startedAt + MIN, endedAt: v.startedAt + 2 * MIN, count: 8, metadata: {} }));
+      const ask = (interactions: typeof pets) => evaluateHabitat({ episodes: live, condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now, interactions });
+      const shy = ask([]);
+      const bold = ask(pets);
+      const noBold = (h: typeof shy) => JSON.stringify({ ...h, memory: { ...h.memory, boldness: 0 } });
+      check('V24 play during its visits makes it bolder, and changes nothing else (visits, trust, habits)', pets.length > 0 && bold.memory.boldness > shy.memory.boldness && noBold(bold) === noBold(shy), `${pets.length} play sessions · boldness ${shy.memory.boldness} → ${bold.memory.boldness}`);
+      const { visitorPlay } = await import('../src/expression/ExpressionEngine');
+      const motion = { swaySpeed: 1, swayAmount: 1, flutter: 1, blinkEveryMs: 4000 };
+      const asB = (b: number) => visitorPlay('comfortable', 'visiting', { habitat: { memory: { boldness: b } }, afterglow: false, concern: null } as any, motion);
+      check('V24b a bold squirrel hops sooner and hides less; a peeking one only ducks', asB(0.9).hopEveryMs < asB(0.2).hopEveryMs && asB(0.9).hideChance < asB(0.2).hideChance && visitorPlay('comfortable', 'peek', {} as any, motion).kind === 'shy');
+    }
+
+  }
+
+  console.log('\n— Visitors with a memory: the sloth\'s loyalty, the dragonfly\'s territory, restarts —');
+  {
+    const { slothMemory, slothLife, withLoyalty, NO_SLOTH_MEMORY } = await import('../src/behaviour/sloth');
+    const { evaluateDragonfly, territoryOf } = await import('../src/behaviour/dragonfly');
+    const { replayAir } = await import('../src/behaviour/wanderer');
+    const { dayKeyOf } = await import('../src/behaviour/habitat');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    const DAY = 24 * 60 * MIN;
+    const cad = 3 * MIN;
+    const smp = (t: number, temp = 26, hum = 70, light = 50) => ({ t, soil: 60, soilRaw: null, temp, hum, light, radiation: null, lightRaw: null, isDay: true, lightExpected: true });
+    const air = (from: number, minutes: number, temp = 26, hum = 70) => Array.from({ length: minutes }, (_, i) => smp(from + i * MIN, temp, hum));
+
+    // Loyalty from its days: a week with it makes it loyal with a home branch; days away fade it
+    const d0 = new Date(2026, 6, 1).getTime();
+    const week = Array.from({ length: 7 }, (_, i) => ({ day: d0 + i * DAY, minutes: 200, spots: { left_branch: 150, right_branch: 50 } }));
+    const loyal = slothMemory(week, d0 + 7 * DAY);
+    const faded = slothMemory(week, d0 + 14 * DAY);
+    check('SL8 a week of long days makes the sloth loyal, with a home branch; a week away fades it', loyal.loyalty > 0.6 && loyal.homeBranch === 'left_branch' && faded.loyalty < loyal.loyalty / 2 && slothMemory([], d0).loyalty === 0, `loyal ${loyal.loyalty} (${loyal.homeBranch}) · a week later ${faded.loyalty}`);
+    check('SL8b no loyalty: exactly the plain sloth', withLoyalty(NO_SLOTH_MEMORY) === withLoyalty(null));
+
+    // Slow to give up: through a 90-min cool spell a loyal sloth stays, a new one leaves
+    const t0 = new Date(2026, 6, 8, 9).getTime();
+    const spell = [...air(t0, 4 * 60), ...air(t0 + 240 * MIN, 90, 18)];
+    const stays = replayAir(withLoyalty(loyal), spell, [], ACTIVE_SPECIES, cad, t0 + 330 * MIN);
+    const leaves = replayAir(withLoyalty(NO_SLOTH_MEMORY), spell, [], ACTIVE_SPECIES, cad, t0 + 330 * MIN);
+    check('SL8c through a 90-min cool spell a loyal sloth holds on; a new one leaves', stays.active && !leaves.active, `loyal ${stays.value} / new ${leaves.value}`);
+
+    // Its days, each with the loyalty of the days before: it comes to hang on its home branch
+    const days = Array.from({ length: 10 }, (_, k) => air(d0 + k * DAY + 8 * 60 * MIN, 12 * 60)).flat();
+    const life = slothLife(days, [], [], ACTIVE_SPECIES, cad, d0 + 10 * DAY, 10);
+    const late = life.days.slice(-3);
+    const home = life.memory.homeBranch!;
+    const onHome = late.reduce((a, d) => a + (d.spots[home] ?? 0), 0) / Math.max(1, late.reduce((a, d) => a + d.minutes, 0));
+    const longer = late.reduce((a, d) => a + d.minutes / d.count, 0) / late.length > life.days[0].minutes / life.days[0].count;
+    check('SL8d after a week its visits are mostly on its home branch, and longer', life.memory.loyalty > 0.6 && onHome > 0.7 && longer, `loyalty ${life.memory.loyalty}, ${Math.round(onHome * 100)}% of the last days on the ${home.replace('_', ' ')}`);
+
+    // The dragonfly: a territory for the day, no memory across days
+    const perches = (k: number) => {
+      const from = new Date(2026, 6, 1 + k, 9).getTime();
+      const samples = air(from, 9 * 60, 26, 50);
+      const seen: string[] = [];
+      for (let m = 60; m < 9 * 60; m += 2) {
+        const v = evaluateDragonfly({ samples: samples.filter((x) => x.t <= from + m * MIN), outsideToday: [], species: ACTIVE_SPECIES, cadenceMs: cad, condition: 'comfortable', modifiers: [], isDay: true, insideTemp: 26, now: from + m * MIN });
+        if (v.visit && seen[seen.length - 1] !== v.visit.id) seen.push(v.visit.id, v.visit.perch);
+      }
+      const visits = seen.filter((_, i) => i % 2 === 1);
+      return { home: territoryOf(dayKeyOf(from)), share: visits.filter((p) => p === territoryOf(dayKeyOf(from))).length / Math.max(1, visits.length), n: visits.length };
+    };
+    const tdays = Array.from({ length: 10 }, (_, k) => perches(k));
+    check(
+      'DF8 the dragonfly holds a tip as its own for the day (most visits start there); another day, maybe another tip',
+      tdays.every((d) => d.n > 0 && d.share >= 0.5) && new Set(tdays.map((d) => d.home)).size > 1,
+      tdays.map((d) => `${d.home} ${Math.round(d.share * 100)}%/${d.n}`).join(' · ')
+    );
+
+    // Restart: the memories are derived, so a restart changes nothing
+    {
+      type Ep = Parameters<typeof import('../src/behaviour/habitat').replayHabitat>[0][number];
+      const seed = (x: Bench) => {
+        for (let t = x.clock - 9 * DAY; t < x.clock; t += DAY) {
+          for (const [c, s, h] of [['comfortable', t, 14], ['sleeping', t + 14 * 60 * MIN, 10]] as [Ep['condition'], number, number][]) {
+            const row = x.db.insertEpisode({ startedAt: s, condition: c, modifiers: [], peakSeverity: 'none', engineVersion: 't' });
+            x.db.closeEpisode(row.id, s + h * 60 * MIN);
+          }
+        }
+      };
+      const a = new Bench();
+      const b = new Bench();
+      seed(a);
+      seed(b);
+      await a.boot();
+      await b.boot();
+      await a.run(20, () => day());
+      await b.run(10, () => day());
+      b.collector.stop();
+      await b.boot();
+      await b.run(10, () => day());
+      const ma = a.state().behaviour.habitat;
+      const mb = b.state().behaviour.habitat;
+      check('V25 a restart keeps the squirrel\'s trust, stage and habits and the sloth\'s loyalty (all derived)', JSON.stringify(ma.memory) === JSON.stringify(mb.memory) && JSON.stringify(ma.sloth?.memory) === JSON.stringify(mb.sloth?.memory), `${ma.memory.stage} trust ${ma.memory.trust} usual ${ma.memory.usualHour}h · sloth ${ma.sloth?.memory.loyalty}`);
+    }
   }
 
   finish();

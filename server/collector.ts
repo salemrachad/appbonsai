@@ -1,6 +1,7 @@
 import type { CollectorStatus, LivingSnapshot } from '../src/api/types';
 import { evaluateBehaviour } from '../src/behaviour/BehaviourEngine';
-import type { PlantBehaviourState } from '../src/behaviour/behaviourTypes';
+import type { PlantBehaviourState, SlothMemory } from '../src/behaviour/behaviourTypes';
+import { slothLife } from '../src/behaviour/sloth';
 import { decideSpeech, INITIAL_MESSAGE_MEMORY, MessageMemory } from '../src/behaviour/speech';
 import { APP_CONFIG } from '../src/config/appConfig';
 import { expressBehaviour } from '../src/expression/ExpressionEngine';
@@ -183,6 +184,25 @@ export class LivingCollector {
 
   private location() {
     return { latitude: this.settings.latitude ?? null, longitude: this.settings.longitude ?? null };
+  }
+
+  // The sloth's loyalty (art): derived from the stored readings of its last days, as of today's start. Kept
+  // in memory for the day (a new day, source, location or calibration derives it again); never stored.
+  private slothCache: { key: string; memory: SlothMemory } | null = null;
+  private slothMemory(now: number, cadenceMs: number): SlothMemory {
+    const today = new Date(now).setHours(0, 0, 0, 0);
+    const loc = this.location();
+    const key = JSON.stringify([today, this.source(), loc, this.calibration]);
+    if (this.slothCache?.key === key) return this.slothCache.memory;
+    const days = APP_CONFIG.habitat.sloth.loyalty.days;
+    const from = today - days * DAY;
+    const samples = this.db.telemetrySince(this.source(), from - 6 * HOUR, today).flatMap((r) => {
+      const t = fromRecord(r, this.calibration);
+      return t ? [toSample(t, ACTIVE_SPECIES, loc)] : [];
+    });
+    const { memory } = slothLife(samples, this.db.outsideWeatherSince(from - 6 * HOUR), this.db.episodesSince(from), ACTIVE_SPECIES, cadenceMs, today, days);
+    this.slothCache = { key, memory };
+    return memory;
   }
 
   // ---- continuity across restarts ----
@@ -466,7 +486,17 @@ export class LivingCollector {
     const episodes = this.db.episodesSince(now - 30 * DAY);
     // Attention goes only into relationship memory (never perception or health)
     const interactions = this.db.interactionsSince(now - 30 * DAY);
-    const behaviour = evaluateBehaviour({ health, perception, episodes, events, interactions, species: ACTIVE_SPECIES, now });
+    const behaviour = evaluateBehaviour({
+      health,
+      perception,
+      episodes,
+      events,
+      interactions,
+      species: ACTIVE_SPECIES,
+      now,
+      location: this.location(),
+      wanderers: { sloth: this.slothMemory(now, perception.history.cadenceMs) },
+    });
     // When to speak or stay quiet; persisted so refreshes and restarts don't replay lines
     const speech = decideSpeech({ behaviour, severity: health.severity, memory: this.messageMemory, now });
     if (speech.memory !== this.messageMemory) {

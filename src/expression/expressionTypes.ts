@@ -200,7 +200,7 @@ export interface TouchResponse {
 export interface VisitorPresentation {
   kind: 'squirrel';
   id: string; // stable per visit: the avatar replays the arrival only when it changes
-  mode: 'visiting' | 'hiding' | 'sleeping'; // sleeping: curled in its drey at night
+  mode: 'visiting' | 'peek' | 'hiding' | 'sleeping'; // peek: a new (or wary) squirrel only peeks from the leaves; sleeping: curled in its drey
   spot: 'left_branch' | 'right_branch' | 'crown' | 'trunk' | 'pot_rim';
   carrying: 'nut' | null;
   // What it's doing on this visit: drinking at the pot rim after a watering, inspecting a pruning,
@@ -265,6 +265,7 @@ export interface ExpressionState {
   reactionStrength: number; // 0-1, from responsiveness: how visibly touch and care register
   touch: TouchResponse; // how a stroke registers right now
   visitor: VisitorPresentation | null;
+  squirrelTraces: 'nibbled_leaf' | 'tail_at_pot' | null; // signs of a squirrel that isn't here yet (its first days)
   dragonfly: DragonflyPresentation | null;
   sloth: SlothPresentation | null;
   encounters: ('squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth')[]; // visitors meeting right now (art)

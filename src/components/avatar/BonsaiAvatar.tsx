@@ -6,7 +6,7 @@ import { FoliageDefs, PadBranchlets, PadLeaves, PADS, paletteFor } from './Folia
 import { PetSession, usePetting } from './usePetting';
 import { Dragonfly, dragonflyAt, useDragonflyFlight } from './Dragonfly';
 import { Sloth, slothAt, slothRiderAt } from './Sloth';
-import { Drey, useVisitorPlay, Visitor, visitorAt } from './Visitor';
+import { Drey, SquirrelTraces, useVisitorPlay, Visitor, visitorAt } from './Visitor';
 
 interface BonsaiAvatarProps {
   expression: ExpressionState | null;
@@ -366,6 +366,8 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
           <path d="M 308,429 L 304,439 L 320,439 L 315,429 Z" fill="#2E1D13" />
         </g>
 
+        {/* A squirrel's tail now and then over the back of the pot (its traces, before it visits) */}
+        <SquirrelTraces traces={expression?.squirrelTraces ?? null} layer="behind_pot" />
         {/* Pot & soil */}
         <g id="bonsai-pot">
           <path d="M 120,380 C 120,380 130,418 142,420 C 160,422 280,422 298,420 C 310,418 320,380 320,380 Z" fill="url(#potGradient)" />
@@ -476,6 +478,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
 
             <BodyDetails effects={look.effects} shielding={gesture === 'shield'} shaking={gesture === 'shake_off'} />
             <Visitor visitor={visitor} pose={visitorPose} layer="front" watchAt={watchAt} />
+            <SquirrelTraces traces={expression?.squirrelTraces ?? null} layer="front" />
             <Sloth sloth={expression?.sloth ?? null} strokeAt={petting.strokeAt} lookToward={squirrelAt?.x ?? null}>
               {/* Encounter: a dragonfly resting on the sloth rides along with it */}
               <Dragonfly dragonfly={dragonfly} flight={flight} rider={riderSpot} strokeAt={petting.strokeAt} onSloth />

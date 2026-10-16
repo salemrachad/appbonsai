@@ -4,11 +4,10 @@ import { STRESS_CONDITIONS } from '../../src/health/statePriority';
 import { dragonflyDiary } from '../../src/behaviour/dragonfly';
 import { slothDiary } from '../../src/behaviour/sloth';
 import { encounterDiary, type Window } from '../../src/behaviour/encounters';
-import { habitatDiary } from '../../src/behaviour/habitat';
+import { habitatDiary, seasonEnergyAt } from '../../src/behaviour/habitat';
 import { toSample } from '../../src/perception/PerceptionEngine';
 import { fromRecord } from '../collector';
 import { buildDiary } from '../../src/history/diary';
-import { seasonState } from '../../src/perception/season';
 import { ACTIVE_SPECIES } from '../../src/species';
 import type { DailySummary } from '../../src/history/historyTypes';
 import type { LivingCollector } from '../collector';
@@ -23,14 +22,6 @@ const localDate = (t: number) => {
 };
 const clampNum = (v: unknown, lo: number, hi: number, dflt: number) => Math.min(hi, Math.max(lo, Number(v) || dflt));
 
-// The same blended seasonal energy the behaviour engine uses (fewer visits at winter rest)
-const seasonEnergyAt = (latitude: number | null) => (t: number) => {
-  const s = seasonState(t, latitude);
-  const rule = ACTIVE_SPECIES.seasons[s.id];
-  const other = s.blend ? ACTIVE_SPECIES.seasons[s.blend.with] : null;
-  const energy = other ? rule.energy + (other.energy - rule.energy) * s.blend!.amount : rule.energy;
-  return { id: s.id, energy: Math.round(energy * 100) / 100 };
-};
 
 // GET /api/history?hours=24 (raw rows) · /hourly?hours=24 · /daily?days=7 · /diary?days=3 · /episodes?days=30 · /weather?hours=24
 export function historyRoutes(db: AppDatabase, collector: LivingCollector): Router {
@@ -103,17 +94,22 @@ export function historyRoutes(db: AppDatabase, collector: LivingCollector): Rout
     const location = { latitude: settings.latitude ?? null, longitude: settings.longitude ?? null };
     // The squirrel's story, derived from the same episodes the habitat replays (nothing stored)
     const windows: { squirrel: Window[]; dragonfly: Window[]; sloth: Window[] } = { squirrel: [], dragonfly: [], sloth: [] };
-    const visitors = habitatDiary({ episodes: db.episodesSince(now - APP_CONFIG.habitat.replayDays * DAY), now, days, location, seasonAt: seasonEnergyAt(location.latitude), windowsOut: windows.squirrel });
+    const visitors = habitatDiary({ episodes: db.episodesSince(now - APP_CONFIG.habitat.replayDays * DAY), now, days, location, seasonAt: seasonEnergyAt(location.latitude, ACTIVE_SPECIES), windowsOut: windows.squirrel });
     // The dragonfly's days: the stored readings as samples, through the same replay as the live view
     const cal = collector.getCalibration();
-    const samples = db.telemetrySince(source(), since - 6 * HOUR).flatMap((row) => {
-      const t = fromRecord(row, cal);
-      return t ? [toSample(t, ACTIVE_SPECIES, location)] : [];
-    });
+    const toSamples = (rows: ReturnType<typeof db.telemetrySince>) =>
+      rows.flatMap((row) => {
+        const t = fromRecord(row, cal);
+        return t ? [toSample(t, ACTIVE_SPECIES, location)] : [];
+      });
+    const samples = toSamples(db.telemetrySince(source(), since - 6 * HOUR));
     const cadenceMs = Math.max(APP_CONFIG.dataQuality.minStaleMs, collector.pollMs() * APP_CONFIG.dataQuality.staleAfterPolls);
     const outside = db.outsideWeatherSince(since - 6 * HOUR);
     const dragonflies = dragonflyDiary(samples, outside, db.episodesSince(since), ACTIVE_SPECIES, cadenceMs, now, days, windows.dragonfly);
-    const sloths = slothDiary(samples, outside, db.episodesSince(since), ACTIVE_SPECIES, cadenceMs, now, days, windows.sloth);
+    // The sloth remembers its last days (loyalty): its diary replays from that far back, like the live view
+    const slothFrom = now - Math.max(days, APP_CONFIG.habitat.sloth.loyalty.days) * DAY;
+    const slothSamples = slothFrom < since ? [...toSamples(db.telemetrySince(source(), slothFrom - 6 * HOUR, since - 6 * HOUR - 1)), ...samples] : samples;
+    const sloths = slothDiary(slothSamples, db.outsideWeatherSince(slothFrom - 6 * HOUR), db.episodesSince(slothFrom), ACTIVE_SPECIES, cadenceMs, now, days, windows.sloth);
     // Who shared the tree: where those visits overlapped
     const encounters = encounterDiary(windows, since, now);
     res.json([...buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs, db.outsideWeatherSince(since)), ...visitors, ...dragonflies, ...sloths, ...encounters].sort((a, b) => b.at - a.at));

@@ -18,6 +18,7 @@ import type {
   PlantBehaviourState,
   ReactionKind,
   RecoveryStage,
+  SlothMemory,
   TimeOfDay,
 } from './behaviourTypes';
 import { evaluateCanopy } from './canopy';
@@ -25,7 +26,7 @@ import { evaluateDragonfly } from './dragonfly';
 import { evaluateSloth } from './sloth';
 import { applyEncounters } from './encounters';
 import { evaluateVoice } from './voice';
-import { evaluateHabitat } from './habitat';
+import { evaluateHabitat, seasonEnergyAt } from './habitat';
 import { computeRelationship } from './relationship';
 
 const HOUR = 3600 * 1000;
@@ -44,6 +45,10 @@ export interface BehaviourInput {
   interactions?: Interaction[]; // attention (petting sessions): relationship memory only, never mood/energy
   species: SpeciesProfile;
   now: number;
+  // The visitors' memory (art): the tree's location (day and night of past squirrel visits), and the
+  // sloth's loyalty from the last days of readings (the collector derives it; perception has only 24 h)
+  location?: { latitude: number | null; longitude: number | null };
+  wanderers?: { sloth?: SlothMemory };
 }
 
 const CARE_REACTION: Partial<Record<PlantEvent['type'], ReactionKind>> = {
@@ -268,7 +273,7 @@ const isStressEpisode = (e: BehaviourEpisode) => seriousStress(e.condition) || e
 
 // "Given what is happening, what happened recently, and how the human has cared for the tree,
 // how should the companion behave?" Deterministic: history, duration, context, relationship.
-export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now }: BehaviourInput): PlantBehaviourState {
+export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers }: BehaviourInput): PlantBehaviourState {
   const reasons: string[] = [];
   const condition = health.condition;
 
@@ -443,6 +448,9 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     now,
     outside: perception.outside ? { sky: perception.outside.sky, rainEndedAt: perception.outside.rainEndedAt ?? null } : null,
     reaction: reaction ? { kind: reaction.kind, eventId: reaction.eventId, at: reaction.at, seasonal: reaction.seasonal } : null,
+    location,
+    seasonAt: seasonEnergyAt(location?.latitude ?? null, species),
+    interactions,
   });
   // ---- The dragonfly: the same habitat mechanism, reading the air of the last hours ----
   habitat.dragonfly = evaluateDragonfly({
@@ -468,6 +476,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     isDay: perception.sun.isDay,
     insideTemp: perception.readings.temperature,
     now,
+    memory: wanderers?.sloth,
   });
   if (habitat.sloth.active) reasons.push(`Sloth ${habitat.sloth.value}: ${habitat.sloth.why}`);
   // ---- Encounters: visitors in the tree together arrange themselves (art; nothing above reads it) ----
@@ -480,7 +489,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   const voice = evaluateVoice({ health, perception, species, intent: messageIntent, timeOfDay: tod, season, relationship, habitat, canopy, now });
   if (voice.budget > 0) reasons.push(`Voice: ${voice.why}`);
   if (canopy.fullness < 0.985) reasons.push(`Canopy: ${canopy.reasons.join('; ')}`);
-  if (habitat.welcoming || habitat.value > 0) reasons.push(`Habitat ${habitat.value}${habitat.welcoming ? ' (welcoming)' : ''}: ${habitat.presence === 'none' ? habitat.why : `squirrel ${habitat.presence}`}`);
+  if (habitat.welcoming || habitat.value > 0) reasons.push(`Habitat ${habitat.value}${habitat.welcoming ? ' (welcoming)' : ''}: ${habitat.presence === 'none' ? habitat.why : `squirrel ${habitat.presence}`} · trust ${habitat.memory.trust} (${habitat.memory.stage})`);
 
   return {
     primaryState: condition,
