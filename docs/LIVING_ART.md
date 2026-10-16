@@ -217,6 +217,37 @@ real, felt answer, it is remembered, and it changes nothing about the tree's sta
   - `npm run test:behaviour` H1–H3: habituation settles above its floor and recovers after a rest.
   - `npm run test:collector` A1–A5, M2: session merging, refusals, no care events, migration.
 
+### Canopy: the last weeks [Implemented, V1]
+
+The tree's look has three timescales:
+- **Now:** the state's look (thirsty grey-green, wilting, frost…).
+- **The year:** calm states wear the season (fresh tips in spring, glossy summer, a few yellowing leaves in
+  autumn, deep winter green). Ficus is evergreen, so it stays subtle.
+- **The last weeks:** how full the canopy is.
+
+A real ficus answers a sustained stress by dropping leaves, often drops some after being moved, and refills
+over weeks, slowly in winter. This tree's own history is exactly that: green-leaf drop, then new shoots after
+moving to a brighter spot.
+
+- **An interpretation, not a measurement** (evidence class *inference*, PROTOTYPE numbers in `ficus.ts`
+  `canopy`). The app can't count leaves; it reads the stored episodes and care events
+  (`behaviour/canopy.ts`). Nothing is stored, and health, vitality, mood and the habitat never read it.
+- **Rules:**
+  - A stress costs leaves only past a grace period (critical 2 h, moderate 6 h, mild 24 h). A passing
+    thirst leaves no gap.
+  - Two days very dry ≈ a quarter of the canopy.
+  - A move → a small dip over the next days.
+  - Calm, recovering and asleep time refill it with a time constant of ~12 days, scaled by the growth phase
+    (spring 1.4×, winter 0.3×).
+  - Unobserved time and gaps hold it.
+  - It never goes below 60%: the app can't know the real tree is bare.
+- **Drawn:** missing leaves at the rim first, more of the pad's branchlets showing between the leaves (no shading), lighter
+  highlights; while it refills, small fresh tips. The state and season looks stay on top.
+- **Preview:** Developer → Canopy, or `#canopy=0.7` / `#canopy=refilling`. Tested:
+  `npm run test:behaviour` C1–C8.
+- **Limitation:** the current season's growth phase is used for the whole window. **Open:** calibrate
+  against photos of the real tree, and possibly let the caretaker note leaf drop.
+
 ### Outside weather [Implemented, V1]
 
 The tree lives in a greenhouse. Outside it still rains, fogs, storms and freezes, and that is part of the
@@ -291,13 +322,37 @@ trust a place, quick to leave it.
 - **No reward loop.** Continuous stroking settles the play toward the touch habituation floor, and a rest
   recovers it. Petting never brings more visits or changes the habitat (V13).
 - **Reduced motion:** no hopping; the squirrel stays where it is.
+- **The drey: weeks of care made visible.** The same replay (30 days of episodes) builds a second slow value:
+  - It rises while the habitat is welcoming, sleeping time included (τ 10 days). A few twigs appear after
+    about a week; the nest is **built** after about 12 days.
+  - It falls while the habitat is not welcoming (τ 3 days), with hysteresis on both stages.
+  - A one-day drought thins it, a week of trouble takes it apart.
+  - With a built drey the squirrel **sleeps in it at night**, only its tail draped over the edge, breathing
+    in the tree's slow night rhythm. A stroke only makes the tail twitch; it never wakes up to play.
+  - Without a drey, nights stay empty. With no trustworthy data, nobody is shown.
+- **Shelter from the outside weather (context).** Rain, a downpour, a storm or snow outside sends a visiting
+  squirrel into the leaves to peek, so play is shy. Within 30 min after the rain it comes out and shakes off
+  (`outside.rainEndedAt`). Fog needs nothing extra: the fog layer veils it. **The habitat value, the latch
+  and the drey never see the weather** (V17).
+- **Answers to care (diffraction, never care itself).** On a calm, welcoming tree:
+  - A *needed* watering (relief, thanks, gentle acknowledgement) brings it to the pot rim to drink for
+    10 min.
+  - A pruning brings it to inspect the cut (8 min; 3 min out of season).
+  - One care visit per event (`care:<id>`). Watering on wet soil gets no answer: more water is never
+    rewarded. A stressed tree, or a place that isn't welcoming yet, gets none either.
+- **Remembered in the diary.** `habitatDiary()` replays the same history:
+  - "A squirrel visited" (once a day, with the count and the first time)
+  - "The squirrel came back" (after 7+ days away)
+  - "The squirrels stayed away" (naming what the tree went through)
+  - "A squirrel built a drey in the crown" / "The drey was abandoned"
+  - Nothing is stored for it.
 - **Boundaries:** the habitat is computed last in `evaluateBehaviour`, and health, mood, energy, speech and
   touch never read it. It is nonverbal: no lines.
 - **Previews:** Developer → Test Tree State → Squirrel, or `#visitor=visiting:crown` / `#visitor=hiding`.
   The Behaviour Debug panel shows the value, the latch, the calm and stress hours, and why nobody is
   visiting.
-- **Tested:** `npm run test:behaviour` V1–V13 (V11–V13: play by state, the tail in the tree's rhythm, petting
-  changes nothing).
+- **Tested:** `npm run test:behaviour` V1–V20 (V11–V13 play; V14–V16 the drey; V17 shelter; V18–V19 care
+  answers; V20 the diary).
 - **Open:** whether the thriving butterfly should join this system (arriving after a while, not on the latch
   minute), and other visitors (dawn birds; real ants once a pest observation can be logged).
 

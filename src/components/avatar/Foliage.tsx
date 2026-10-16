@@ -110,10 +110,13 @@ interface LeafSpec {
   r: number; // 0-1 per-leaf random for variations
   rim: boolean;
   delay: number;
+  gap: number; // 0-1: above the canopy's fullness this leaf is missing (rim leaves go first)
 }
 
 function leavesFor(pad: PadShape): LeafSpec[] {
   const rand = rng(pad.seed);
+  // A separate stream for the gaps, so the leaves themselves never move
+  const gapRand = rng(pad.seed * 7919 + 13);
   const out: LeafSpec[] = [];
   for (let i = 0; i < pad.count; i++) {
     const rim = i < pad.count * 0.68;
@@ -132,6 +135,8 @@ function leavesFor(pad: PadShape): LeafSpec[] {
       r: rand(),
       rim,
       delay: -rand() * 6,
+      // Loss shows at the rim first: rim leaves lean high, inner ones low (≈ 1 - fullness of all go)
+      gap: rim ? Math.pow(gapRand(), 0.75) : Math.pow(gapRand(), 1.4),
     });
   }
   return out;
@@ -147,7 +152,8 @@ export const PadLeaves: React.FC<{
   droop: number;
   effects: AvatarEffect[];
   seasonal: AvatarPresentation['seasonalLeaves'];
-}> = ({ pad, foliage, palette: p, droop, effects, seasonal }) => {
+  canopy?: AvatarPresentation['canopy'];
+}> = ({ pad, foliage, palette: p, droop, effects, seasonal, canopy = { fullness: 1, refilling: 0 } }) => {
   const leaves = useMemo(() => leavesFor(pad), [pad]);
   const curl = foliage === 'curled' ? 0.45 : foliage === 'parched' || foliage === 'scorched' ? 0.7 : 1;
   // How many leaves show the season: a share of the pad, growing and fading with the yearly cycle
@@ -157,11 +163,27 @@ export const PadLeaves: React.FC<{
   return (
     <g>
       {leaves.map((l, i) => {
+        // The last weeks: leaves above the canopy's fullness are missing; a share of the gap is coming back
+        // as small fresh tips while it refills
+        const missing = l.gap > canopy.fullness;
+        const tip = missing && canopy.fullness < 1 && (l.gap - canopy.fullness) / (1 - canopy.fullness) < canopy.refilling * 0.6;
+        if (missing && !tip) return null;
         // Wilting turns each leaf toward the ground; perky (negative droop) lifts it
         const tilt = norm(90 - l.angle) * Math.max(-0.25, droop) * 0.38;
         let fill = p.leaf[l.shade];
         let scale = l.size;
         let cls = 'leaf-quiver';
+        if (tip) {
+          return (
+            <g key={i} transform={`translate(${l.x.toFixed(1)} ${l.y.toFixed(1)}) rotate(${l.angle.toFixed(1)})`}>
+              <g style={{ transform: `rotate(${tilt.toFixed(1)}deg) scale(${(l.size * 0.62).toFixed(2)})`, transition: 'transform 2.5s ease-in-out' }}>
+                <g className="leaf-quiver leaf-fresh" style={{ animationDelay: `${l.delay.toFixed(2)}s` }}>
+                  <path d="M 0,0 Q 5,-4.6 12,0 Q 5,4.6 0,0 Z" fill="#CDEB9A" />
+                </g>
+              </g>
+            </g>
+          );
+        }
         if (l.r < yellowShare) fill = l.r < yellowShare / 2 ? '#D9A93F' : '#E2C35A';
         if ((foliage === 'parched' || foliage === 'scorched') && l.r > 0.82) fill = '#93643A';
         if (l.rim && l.r > 1 - freshShare) {
@@ -182,6 +204,63 @@ export const PadLeaves: React.FC<{
           </g>
         );
       })}
+    </g>
+  );
+};
+
+// A thinner canopy (the last weeks): with fewer leaves, more of the pad's branchlets show between them.
+// Thin bark-coloured twigs fan up from where the branch enters the pad, with small forks. Stable shapes;
+// how many show follows the fullness. No shading: just the branches you'd see through a sparser tree.
+const MAX_BRANCHLETS: Record<PadShape['id'], number> = { left: 5, right: 6, top: 8 };
+const BRANCH_ENTRIES: Record<PadShape['id'], { x: number; y: number }[]> = {
+  left: [{ x: 145, y: 212 }],
+  right: [{ x: 302, y: 204 }],
+  top: [{ x: 188, y: 116 }, { x: 222, y: 122 }, { x: 252, y: 114 }],
+};
+export const PadBranchlets: React.FC<{ pad: PadShape; fullness: number; palette: Palette }> = ({ pad, fullness }) => {
+  const twigs = useMemo(() => {
+    const rand = rng(pad.seed * 104729 + 7);
+    // Where the tree's branches enter the pad (the crown has three, each side pad one)
+    const entries = BRANCH_ENTRIES[pad.id];
+    return Array.from({ length: MAX_BRANCHLETS[pad.id] }, (_, i) => {
+
+      // Spread evenly over the upper arc, with a little jitter
+      const n = MAX_BRANCHLETS[pad.id];
+      const a = ((-165 + (150 * (i + 0.5)) / n + (rand() - 0.5) * 16) * Math.PI) / 180;
+      const k = 0.5 + rand() * 0.32;
+      const ex = pad.cx + Math.cos(a) * pad.rx * k;
+      const ey = pad.cy + Math.sin(a) * pad.ry * k;
+      // Each twig grows from the branch entry nearest its tip, so they fan out without crossing
+      const { x: bx, y: by } = entries.reduce((best, e) => (Math.abs(e.x - ex) < Math.abs(best.x - ex) ? e : best), entries[0]);
+      const mx = (bx + ex) / 2 + (rand() - 0.5) * pad.rx * 0.18;
+      const my = (by + ey) / 2 + (rand() - 0.5) * pad.ry * 0.12;
+      // One or two small forks off the outer half
+      const forks = Array.from({ length: 1 + Math.round(rand()) }, () => {
+        const t = 0.55 + rand() * 0.3;
+        const fx = (1 - t) * (1 - t) * bx + 2 * (1 - t) * t * mx + t * t * ex;
+        const fy = (1 - t) * (1 - t) * by + 2 * (1 - t) * t * my + t * t * ey;
+        const fa = a + (rand() < 0.5 ? -1 : 1) * (0.45 + rand() * 0.35);
+        const len = pad.rx * (0.12 + rand() * 0.1);
+        return { x1: fx, y1: fy, x2: fx + Math.cos(fa) * len, y2: fy + Math.sin(fa) * len };
+      });
+      // The order they show in as the canopy thins (stable)
+      return { bx, by, mx, my, ex, ey, forks, order: rand() };
+    }).sort((x, y) => x.order - y.order);
+  }, [pad]);
+  const n = Math.round(Math.max(0, Math.min(1, (1 - fullness) / 0.4)) * twigs.length);
+  if (n === 0) return null;
+  const f = (v: number) => v.toFixed(1);
+  return (
+    <g pointerEvents="none" fill="none" strokeLinecap="round">
+      {twigs.slice(0, n).map((t, i) => (
+        <g key={i}>
+          <path d={`M ${f(t.bx)},${f(t.by)} Q ${f(t.mx)},${f(t.my)} ${f(t.ex)},${f(t.ey)}`} stroke="#5E5243" strokeWidth="2.2" />
+          <path d={`M ${f(t.bx)},${f(t.by)} Q ${f(t.mx)},${f(t.my)} ${f(t.ex)},${f(t.ey)}`} stroke="#8C7D6D" strokeWidth="0.7" opacity="0.6" />
+          {t.forks.map((k, j) => (
+            <path key={j} d={`M ${f(k.x1)},${f(k.y1)} L ${f(k.x2)},${f(k.y2)}`} stroke="#5E5243" strokeWidth="1.3" />
+          ))}
+        </g>
+      ))}
     </g>
   );
 };

@@ -104,12 +104,13 @@ export interface DailySummary {
 // A line in the plant diary.
 export interface DiaryItem {
   at: number;
-  kind: 'episode_start' | 'episode_gap' | 'event' | 'weather'; // weather: outside, context only
+  kind: 'episode_start' | 'episode_gap' | 'event' | 'weather' | 'habitat'; // weather: outside, context only; habitat: the squirrel
   title: string;
   detail?: string;
   condition?: HealthCondition;
   eventType?: PlantEventType;
   weather?: WeatherSpellKind;
+  habitat?: 'visit' | 'returned' | 'left' | 'drey_built' | 'drey_gone';
 }
 
 // A notable stretch of outside weather (the tree is in a greenhouse: context, never the tree's state).

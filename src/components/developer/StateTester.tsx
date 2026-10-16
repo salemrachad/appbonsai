@@ -1,7 +1,7 @@
 import React from 'react';
 import { RotateCcw, Wrench } from 'lucide-react';
 import { DEV_PRESETS } from '../../health/developerOverrides';
-import type { VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
+import type { CanopyPreview, DreyPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
 import { SEASONS, type Season } from '../../perception/season';
 
 interface StateTesterProps {
@@ -11,6 +11,10 @@ interface StateTesterProps {
   onSelectSeason: (season: Season | null) => void;
   activeVisitor: VisitorPreview | null;
   onSelectVisitor: (v: VisitorPreview | null) => void;
+  activeCanopy: CanopyPreview | null;
+  onSelectCanopy: (c: CanopyPreview | null) => void;
+  activeDrey: DreyPreview | null;
+  onSelectDrey: (d: DreyPreview | null) => void;
   activeWeather: WeatherPreview | null;
   onSelectWeather: (w: WeatherPreview | null) => void;
 }
@@ -34,7 +38,7 @@ const chip = (active: boolean) =>
 const SEASON_EMOJI: Record<Season, string> = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' };
 
 // Preview any health state. Presentation only: telemetry, the database, care events and episodes are untouched.
-export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSelectPreset, activeSeason, onSelectSeason, activeVisitor, onSelectVisitor, activeWeather, onSelectWeather }) => (
+export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSelectPreset, activeSeason, onSelectSeason, activeVisitor, onSelectVisitor, activeDrey, onSelectDrey, activeCanopy, onSelectCanopy, activeWeather, onSelectWeather }) => (
   <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -109,17 +113,56 @@ export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSele
         <button
           key={mode}
           onClick={() => onSelectVisitor({ mode, spot: activeVisitor?.spot ?? 'left_branch' })}
-          className={chip(activeVisitor?.mode === mode)}
+          className={chip(activeVisitor?.mode === mode && !activeVisitor.action)}
         >
           {mode === 'visiting' ? '🐿️ Visiting' : '🍃 Hiding'}
         </button>
       ))}
-      {activeVisitor &&
+      <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: 'pot_rim', action: 'drinking' })} className={chip(activeVisitor?.action === 'drinking')}>
+        💧 Drinking
+      </button>
+      <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: 'left_branch', action: 'inspecting' })} className={chip(activeVisitor?.action === 'inspecting')}>
+        ✂️ Inspecting
+      </button>
+      <button onClick={() => onSelectVisitor({ mode: 'visiting', spot: activeVisitor?.spot ?? 'right_branch', action: 'shake_off' })} className={chip(activeVisitor?.action === 'shake_off')}>
+        🌦️ Shaking off
+      </button>
+      <button onClick={() => onSelectVisitor({ mode: 'sleeping', spot: 'crown' })} className={chip(activeVisitor?.mode === 'sleeping')}>
+        🌙 Asleep
+      </button>
+      {activeVisitor && activeVisitor.mode !== 'sleeping' && !activeVisitor.action &&
         (Object.keys(SPOT_LABEL) as VisitorPreview['spot'][]).map((spot) => (
           <button key={spot} onClick={() => onSelectVisitor({ ...activeVisitor, spot })} className={chip(activeVisitor.spot === spot)}>
             {SPOT_LABEL[spot]}
           </button>
         ))}
+    </div>
+
+    {/* The canopy: how full the foliage is after the last weeks */}
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Canopy</span>
+      <button onClick={() => onSelectCanopy(null)} className={chip(!activeCanopy)}>Live</button>
+      {[
+        { label: 'Full', c: { fullness: 1, refilling: 0 } },
+        { label: 'A little thin', c: { fullness: 0.82, refilling: 0 } },
+        { label: 'Thin', c: { fullness: 0.64, refilling: 0 } },
+        { label: '🌱 Refilling', c: { fullness: 0.72, refilling: 0.8 } },
+      ].map(({ label, c }) => (
+        <button key={label} onClick={() => onSelectCanopy(c)} className={chip(activeCanopy?.fullness === c.fullness && activeCanopy.refilling === c.refilling)}>
+          {label}
+        </button>
+      ))}
+    </div>
+
+    {/* The drey: weeks of a welcoming tree, as a nest in the crown */}
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Drey</span>
+      <button onClick={() => onSelectDrey(null)} className={chip(!activeDrey)}>Live</button>
+      {(['none', 'started', 'built'] as const).map((d) => (
+        <button key={d} onClick={() => onSelectDrey(d)} className={chip(activeDrey === d)}>
+          {d === 'none' ? 'None' : d === 'started' ? 'A few twigs' : 'Built'}
+        </button>
+      ))}
     </div>
 
     {/* Outside weather: only the background layer changes, never the tree */}

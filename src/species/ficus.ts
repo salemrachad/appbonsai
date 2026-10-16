@@ -57,6 +57,23 @@ export const FICUS: SpeciesProfile = {
     leafDrop: { peakDay: 310, halfWidthDays: 40 },
   },
 
+  // INFERENCE / PROTOTYPE: ficus drops leaves after a sustained stress (drought, cold, low light) and after
+  // being moved, then refills over weeks, slowly in winter. Two days very dry ≈ a quarter of the canopy;
+  // three calm summer weeks mostly refill it. To be checked against photos of the real tree.
+  canopy: {
+    windowDays: 30,
+    floor: 0.6,
+    graceHours: { mild: 24, moderate: 6, critical: 2 },
+    thinPerHour: { mild: 0.0006, moderate: 0.002, critical: 0.0055 },
+    regrowDays: 12,
+    growthFactor: { flush: 1.4, active: 1, slowing: 0.6, resting: 0.3 },
+    moveDip: 0.08,
+    moveDipDays: 5,
+    trendDays: 3,
+    refillLookbackDays: 10,
+    refillVisibility: 4,
+  },
+
   // Hysteresis: enter at one value after a while, leave at a different value after a while.
   // A few minutes past a threshold never changes the tree's state on its own.
   latches: {

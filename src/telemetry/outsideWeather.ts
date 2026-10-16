@@ -25,6 +25,23 @@ export interface OutsideObservation {
 export interface OutsideWeather extends OutsideObservation {
   windy: boolean;
   ageMs: number;
+  rainEndedAt: number | null; // the first dry observation after rain, today (null: no rain, or still raining)
+}
+
+const WET: OutsideSky[] = ['drizzle', 'rain', 'heavy_rain', 'thunderstorm', 'snow'];
+
+// When the last wet spell (rain, storm, snow) ended: the first dry observation after a wet one.
+export function rainEndedAt(observations: OutsideObservation[], now: number): number | null {
+  let wetSeen = false;
+  let endedAt: number | null = null;
+  for (const o of [...observations].filter((x) => x.at <= now).sort((a, b) => a.at - b.at)) {
+    const wet = WET.includes(o.sky);
+    if (wet) {
+      wetSeen = true;
+      endedAt = null;
+    } else if (wetSeen && endedAt === null) endedAt = o.at;
+  }
+  return endedAt;
 }
 
 const WINDY_GUSTS_KMH = 40;
@@ -44,11 +61,11 @@ export function skyFromCode(code: number): OutsideSky {
   return 'overcast';
 }
 
-export function outsideNow(o: OutsideObservation | null, now: number): OutsideWeather | null {
+export function outsideNow(o: OutsideObservation | null, now: number, today: OutsideObservation[] = []): OutsideWeather | null {
   if (!o) return null;
   const ageMs = now - o.at;
   if (ageMs > OUTSIDE_STALE_MS || ageMs < -5 * 60 * 1000) return null;
-  return { ...o, windy: (o.gusts ?? 0) >= WINDY_GUSTS_KMH, ageMs };
+  return { ...o, windy: (o.gusts ?? 0) >= WINDY_GUSTS_KMH, ageMs, rainEndedAt: rainEndedAt(today, now) };
 }
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);

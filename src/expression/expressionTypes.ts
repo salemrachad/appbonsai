@@ -118,6 +118,8 @@ export interface AvatarPresentation {
   foliageBlend: { tone: Foliage; amount: number } | null;
   // Where the tree is in its year (0-1 each): share of fresh leaves, yellowing leaves, leaves letting go
   seasonalLeaves: { newGrowth: number; yellowing: number; leafDrop: number };
+  // The last weeks: how full the canopy is (0.6-1) and how much of the gap is coming back as fresh tips
+  canopy: { fullness: number; refilling: number };
   soil: 'moist' | 'dry' | 'wet' | 'frozen';
   gaze: Gaze;
   gesture: { kind: Gesture; everyMs: number } | null;
@@ -198,16 +200,22 @@ export interface TouchResponse {
 export interface VisitorPresentation {
   kind: 'squirrel';
   id: string; // stable per visit: the avatar replays the arrival only when it changes
-  mode: 'visiting' | 'hiding';
+  mode: 'visiting' | 'hiding' | 'sleeping'; // sleeping: curled in its drey at night
   spot: 'left_branch' | 'right_branch' | 'crown' | 'trunk' | 'pot_rim';
   carrying: 'nut' | null;
+  // What it's doing on this visit: drinking at the pot rim after a watering, inspecting a pruning,
+  // shaking off after the rain outside (null: just visiting)
+  action: 'drinking' | 'inspecting' | 'shake_off' | null;
   play: VisitorPlay; // how it answers petting, decided from the tree's state
 }
+
+// The drey (nest) in the crown: weeks of a welcoming tree made visible. Drawn even when nobody is home.
+export type DreyLook = 'none' | 'started' | 'built';
 
 // Petting while the squirrel visits: it plays around the tree. Decided by the Expression Engine from the
 // tree's state (a stressed tree doesn't play); the avatar only animates it. Attention, never stored.
 export interface VisitorPlay {
-  kind: 'playful' | 'gentle' | 'shy'; // thriving / comfortable / hiding through a stress
+  kind: 'playful' | 'gentle' | 'shy' | 'asleep'; // thriving / comfortable / hiding through a stress / asleep in the drey (only a tail twitch)
   hopEveryMs: number; // 0 = doesn't hop (shy: ducks and re-peeks)
   hideChance: number; // 0-1 per hop: dives behind a pad instead
   returnMs: number; // back out after hiding
@@ -229,6 +237,7 @@ export interface ExpressionState {
   reactionStrength: number; // 0-1, from responsiveness: how visibly touch and care register
   touch: TouchResponse; // how a stroke registers right now
   visitor: VisitorPresentation | null;
+  drey: DreyLook;
   atmosphere: {
     theme: 'day' | 'night';
     phase: string;

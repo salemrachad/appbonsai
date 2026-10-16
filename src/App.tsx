@@ -6,7 +6,7 @@ import { DEV_PRESETS } from './health/developerOverrides';
 import type { DailySummary } from './history/historyTypes';
 import { importBrowserHistoryOnce } from './history/legacyBrowserHistory';
 import { useLivingState } from './hooks/useLivingState';
-import { usePlantBehaviour, type VisitorPreview, type WeatherPreview } from './hooks/usePlantBehaviour';
+import { usePlantBehaviour, type CanopyPreview, type DreyPreview, type VisitorPreview, type WeatherPreview } from './hooks/usePlantBehaviour';
 import { OUTSIDE_SKIES } from './telemetry/outsideWeather';
 import { usePlantHealth } from './hooks/usePlantHealth';
 import { DEFAULT_SETTINGS, loadSettings, TreeSettings } from './settings/settings';
@@ -17,7 +17,6 @@ import type { PetSession } from './components/avatar/usePetting';
 import { DetailView } from './components/DetailView';
 import { SceneBackdrop } from './components/scene/SceneBackdrop';
 import { SeasonChip } from './components/scene/SeasonChip';
-import { WeatherChip } from './components/scene/WeatherChip';
 import { BackendBadge } from './components/developer/BackendBadge';
 import { SensorDiagnostics } from './components/sensors/SensorDiagnostics';
 import { Toast, ToastMessage } from './components/Toast';
@@ -55,8 +54,25 @@ export default function App() {
   });
   // #visitor=visiting or #visitor=hiding:crown puts the squirrel in the tree (presentation only)
   const [devVisitor, setDevVisitor] = useState<VisitorPreview | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/visitor=(visiting|hiding)(?::(left_branch|right_branch|crown|trunk|pot_rim))?/) : null;
-    return m ? { mode: m[1] as VisitorPreview['mode'], spot: (m[2] ?? 'left_branch') as VisitorPreview['spot'] } : null;
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/visitor=(visiting|hiding|sleeping|drinking|inspecting|shaking)(?::(left_branch|right_branch|crown|trunk|pot_rim))?/) : null;
+    if (!m) return null;
+    const spot = (m[2] ?? 'left_branch') as VisitorPreview['spot'];
+    if (m[1] === 'drinking') return { mode: 'visiting', spot: 'pot_rim', action: 'drinking' };
+    if (m[1] === 'inspecting') return { mode: 'visiting', spot: 'left_branch', action: 'inspecting' };
+    if (m[1] === 'shaking') return { mode: 'visiting', spot, action: 'shake_off' };
+    if (m[1] === 'sleeping') return { mode: 'sleeping', spot: 'crown' };
+    return { mode: m[1] as VisitorPreview['mode'], spot };
+  });
+  // #canopy=0.7 (fullness) or #canopy=refilling shows the foliage after some weeks (presentation only)
+  const [devCanopy, setDevCanopy] = useState<CanopyPreview | null>(() => {
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/canopy=(refilling|0?\.\d+|1)/) : null;
+    if (!m) return null;
+    return m[1] === 'refilling' ? { fullness: 0.72, refilling: 0.8 } : { fullness: Math.max(0.6, Math.min(1, Number(m[1]))), refilling: 0 };
+  });
+  // #drey=started or #drey=built shows the nest in the crown (presentation only)
+  const [devDrey, setDevDrey] = useState<DreyPreview | null>(() => {
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/drey=(none|started|built)/) : null;
+    return m ? (m[1] as DreyPreview) : null;
   });
   // #weather=rain previews the outside weather layer (presentation only)
   const [devWeather, setDevWeather] = useState<WeatherPreview | null>(() => {
@@ -145,7 +161,7 @@ export default function App() {
   }, [serverOffline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { live, display } = usePlantHealth(snapshot?.health ?? null, devPresetId);
-  const { behaviour, expression } = usePlantBehaviour(snapshot, display, devSeason, settings.latitude, devVisitor, devWeather);
+  const { behaviour, expression } = usePlantBehaviour(snapshot, display, devSeason, settings.latitude, devVisitor, devWeather, devDrey, devCanopy);
   const perception = snapshot?.perception ?? null;
   const reading = perception?.lastReading ?? null;
 
@@ -199,7 +215,7 @@ export default function App() {
   // ---- Header status ----
   const collector = snapshot?.status.collector;
   const sensorDown = !!perception && !perception.telemetry;
-  const previewing = !!devPresetId || !!devSeason || !!devVisitor || !!devWeather;
+  const previewing = !!devPresetId || !!devSeason || !!devVisitor || !!devWeather || !!devDrey || !!devCanopy;
   // Petting is attention, not care: one record per session, and none during a developer preview
   // (previews never write to the server)
   const recordPetSession = useCallback(
@@ -267,7 +283,6 @@ export default function App() {
           </span>
           {BACKEND.devBuild && <BackendBadge remote={BACKEND.remote} mode={backendMode} offline={serverOffline} />}
           {perception?.season && <SeasonChip season={devSeason ? midSeasonState(devSeason, settings.latitude) : perception.season} />}
-          <WeatherChip weather={atmosphere?.weather ?? null} />
         </div>
 
         <div className="flex items-center gap-2">
@@ -302,15 +317,20 @@ export default function App() {
         health={display}
         expression={expression}
         offlineMessage={offlineMessage}
-        devPresetLabel={[devPreset?.label, devSeason && `${devSeason[0].toUpperCase()}${devSeason.slice(1)} season`, devVisitor && `Squirrel ${devVisitor.mode}`, devWeather && `Outside: ${devWeather.replace('_', ' ')}`].filter(Boolean).join(' · ') || null}
+        devPresetLabel={[devPreset?.label, devSeason && `${devSeason[0].toUpperCase()}${devSeason.slice(1)} season`, devVisitor && `Squirrel ${devVisitor.action ?? devVisitor.mode}`, devDrey && `Drey ${devDrey}`, devCanopy && `Canopy ${Math.round(devCanopy.fullness * 100)}%${devCanopy.refilling ? ' refilling' : ''}`, devWeather && `Outside: ${devWeather.replace('_', ' ')}`].filter(Boolean).join(' · ') || null}
         onReturnToLive={() => {
           setDevSeason(null);
           setDevVisitor(null);
           setDevWeather(null);
+          setDevDrey(null);
+          setDevCanopy(null);
           selectDevPreset(null);
         }}
         onOpenDetails={() => setShowDetail(true)}
         onPetSession={recordPetSession}
+        outside={perception?.outside ?? null}
+        // Inside vs outside only with the real sensor (in weather mode the 'inside' values ARE the outside estimate)
+        inside={perception?.source === 'esp32_sensor' ? { temperature: perception.readings.temperature, humidity: perception.readings.humidity } : { temperature: null, humidity: null }}
       />
 
       {showDiagnostics && (
@@ -351,6 +371,16 @@ export default function App() {
                 onSelectDevVisitor={(v) => {
                   setDevVisitor(v);
                   notify(v ? `Squirrel ${v.mode} (${v.spot.replace('_', ' ')})` : 'Back to real visitors');
+                }}
+                devCanopy={devCanopy}
+                onSelectDevCanopy={(c) => {
+                  setDevCanopy(c);
+                  notify(c ? `Canopy ${Math.round(c.fullness * 100)}%${c.refilling ? ', refilling' : ''}` : 'Back to the real canopy');
+                }}
+                devDrey={devDrey}
+                onSelectDevDrey={(d) => {
+                  setDevDrey(d);
+                  notify(d ? `Drey: ${d}` : 'Back to the real drey');
                 }}
                 devWeather={devWeather}
                 onSelectDevWeather={(w) => {

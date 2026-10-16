@@ -86,6 +86,22 @@ export interface SpeciesProfile {
     leafDrop: SeasonalCurve; // a few of them let go
   };
 
+  // The canopy over weeks (INFERENCE / PROTOTYPE): leaf loss after a long stress or a move, refilling at
+  // the pace of the season. Drawn by the avatar only; never part of health. See behaviour/canopy.ts.
+  canopy: {
+    windowDays: number; // episodes replayed
+    floor: number; // never thinner than this (the app can't know the real tree is bare)
+    graceHours: { mild: number; moderate: number; critical: number }; // a stress this short costs no leaves
+    thinPerHour: { mild: number; moderate: number; critical: number }; // fullness lost per observed hour past the grace
+    regrowDays: number; // time constant back toward full, in the active growing season
+    growthFactor: Record<SeasonRule['growth'], number>; // regrowth speed by growth phase
+    moveDip: number; // fullness lost after a move…
+    moveDipDays: number; // …spread over this many days
+    trendDays: number; // trend compares with this many days ago
+    refillLookbackDays: number; // fresh tips show the rise since the lowest point within this window
+    refillVisibility: number; // rise × this = share of the gap shown as fresh tips
+  };
+
   // Hysteresis: how conditions are entered and left.
   latches: Record<LatchId, LatchRule>;
 

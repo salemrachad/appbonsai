@@ -1,11 +1,13 @@
 import React from 'react';
 import { BonsaiAvatar } from '../components/avatar/BonsaiAvatar';
+import { OutsidePanel } from '../components/scene/OutsidePanel';
 import { WeatherForeground } from '../components/scene/WeatherForeground';
 import type { PetSession } from '../components/avatar/usePetting';
 import { SensorCardGrid } from '../components/sensors/SensorCard';
 import { VitalityGauge } from '../components/VitalityGauge';
 import type { ExpressionState } from '../expression/expressionTypes';
 import { PlantHealthState } from '../health/healthTypes';
+import type { OutsideWeather } from '../telemetry/outsideWeather';
 
 interface HomeProps {
   health: PlantHealthState | null; // for the sensor cards and the vitality number only
@@ -15,10 +17,12 @@ interface HomeProps {
   onReturnToLive: () => void;
   onOpenDetails: () => void;
   onPetSession?: (s: PetSession) => void; // attention: one report per petting session
+  outside?: OutsideWeather | null; // outside weather numbers (context; the look comes from the expression)
+  inside?: { temperature: number | null; humidity: number | null }; // what the sensors measure inside
 }
 
 // The companion screen: shows what the engines concluded, never recalculates it.
-export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession }) => {
+export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null } }) => {
   const msg = expression?.message;
 
   return (
@@ -29,7 +33,10 @@ export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, 
         <WeatherForeground weather={expression?.atmosphere.weather} />
       </div>
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-5">
+        {/* The world outside the greenhouse, next to what the sensors measure inside (context only) */}
+        <OutsidePanel weather={expression?.atmosphere.weather ?? null} outside={outside} inside={inside} />
+
         <div className="flex items-center gap-6 min-h-[150px]">
           <div className="shrink-0">
             <VitalityGauge

@@ -37,6 +37,7 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
         <Row label="Recent event" value={lastEvent ? `${lastEvent.type.replace('_', ' ')} ${ago(lastEvent.timestamp)}` : '–'} />
         <Row label="Time of day" value={b.timeOfDay} />
         <Row label="Outside (context, never health)" value={x.atmosphere.weather ? x.atmosphere.weather.label : 'unknown / stale'} />
+        <Row label="Canopy (last weeks, drawn only)" value={b.canopy ? `${Math.round(b.canopy.fullness * 100)}% · ${b.canopy.trend}${b.canopy.refilling ? ` · fresh tips ${Math.round(b.canopy.refilling * 100)}%` : ''} — ${b.canopy.reasons.join('; ')}` : '–'} />
       </Section>
 
       <Section title="Behaviour">

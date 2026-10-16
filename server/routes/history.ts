@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { APP_CONFIG } from '../../src/config/appConfig';
 import { STRESS_CONDITIONS } from '../../src/health/statePriority';
+import { habitatDiary } from '../../src/behaviour/habitat';
 import { buildDiary } from '../../src/history/diary';
+import { seasonState } from '../../src/perception/season';
+import { ACTIVE_SPECIES } from '../../src/species';
 import type { DailySummary } from '../../src/history/historyTypes';
 import type { LivingCollector } from '../collector';
 import type { AppDatabase } from '../database';
@@ -14,6 +17,15 @@ const localDate = (t: number) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const clampNum = (v: unknown, lo: number, hi: number, dflt: number) => Math.min(hi, Math.max(lo, Number(v) || dflt));
+
+// The same blended seasonal energy the behaviour engine uses (fewer visits at winter rest)
+const seasonEnergyAt = (latitude: number | null) => (t: number) => {
+  const s = seasonState(t, latitude);
+  const rule = ACTIVE_SPECIES.seasons[s.id];
+  const other = s.blend ? ACTIVE_SPECIES.seasons[s.blend.with] : null;
+  const energy = other ? rule.energy + (other.energy - rule.energy) * s.blend!.amount : rule.energy;
+  return { id: s.id, energy: Math.round(energy * 100) / 100 };
+};
 
 // GET /api/history?hours=24 (raw rows) · /hourly?hours=24 · /daily?days=7 · /diary?days=3 · /episodes?days=30 · /weather?hours=24
 export function historyRoutes(db: AppDatabase, collector: LivingCollector): Router {
@@ -81,7 +93,12 @@ export function historyRoutes(db: AppDatabase, collector: LivingCollector): Rout
   r.get('/diary', (req, res) => {
     const days = clampNum(req.query.days, 1, 365, 3);
     const since = Date.now() - days * DAY;
-    res.json(buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs, db.outsideWeatherSince(since)));
+    const now = Date.now();
+    const { settings } = collector.getSettings();
+    const location = { latitude: settings.latitude ?? null, longitude: settings.longitude ?? null };
+    // The squirrel's story, derived from the same episodes the habitat replays (nothing stored)
+    const visitors = habitatDiary({ episodes: db.episodesSince(now - APP_CONFIG.habitat.replayDays * DAY), now, days, location, seasonAt: seasonEnergyAt(location.latitude) });
+    res.json([...buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs, db.outsideWeatherSince(since)), ...visitors].sort((a, b) => b.at - a.at));
   });
 
   // Outside weather observations (context only; the tree's own readings are /api/history)

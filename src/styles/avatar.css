@@ -233,6 +233,43 @@
   45%, 100% { transform: translateY(0); }
 }
 .visitor-peek-once { animation: visitor-peek-once 1.4s ease-out both; }
+/* What it came for: lapping at the wet soil, sniffing a pruning, shaking off the rain */
+@keyframes visitor-lap { 0%, 100% { transform: translateY(0); } 50% { transform: translate(1px, 2px); } }
+.visitor-drinking .visitor-head { animation: visitor-lap 0.9s ease-in-out infinite; }
+@keyframes visitor-ripple-out { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(2); opacity: 0; } }
+.visitor-ripple { transform-box: fill-box; transform-origin: center; animation: visitor-ripple-out 1.8s ease-out infinite; }
+@keyframes visitor-sniff {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  66%, 78%, 90% { transform: rotate(-6deg) translateX(1px); }
+  72%, 84% { transform: rotate(2deg); }
+}
+.visitor-inspecting .visitor-head { animation: visitor-sniff 2.2s ease-in-out infinite; }
+@keyframes visitor-shake {
+  0%, 100% { transform: rotate(0deg); }
+  10%, 30%, 50%, 70% { transform: rotate(-9deg); }
+  20%, 40%, 60%, 80% { transform: rotate(9deg); }
+}
+.visitor-shaking { animation: visitor-shake 1s ease-in-out 1.1s 1 both; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes visitor-flick {
+  0% { opacity: 0; transform: translate(0, 0); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--flick-x, 0) * 12px), 10px); }
+}
+.visitor-flick { opacity: 0; animation: visitor-flick 0.8s ease-out 1.2s 1 both; }
+/* Asleep in the drey: the tail breathes slowly in the tree's night rhythm, twitches at a stroke */
+@keyframes drey-breathe {
+  0%, 100% { transform: rotate(0deg) scaleY(1); }
+  50% { transform: rotate(calc(var(--wag-amp, 0.2) * 6deg)) scaleY(1.03); }
+}
+.drey-tail { animation: drey-breathe calc(4.5s / var(--wag-tempo, 0.4)) ease-in-out infinite; }
+@keyframes drey-twitch {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-12deg); }
+  55% { transform: rotate(7deg); }
+}
+.drey-twitch { animation: drey-twitch 0.7s ease-in-out 1, drey-breathe calc(4.5s / var(--wag-tempo, 0.4)) ease-in-out 0.7s infinite; }
+@keyframes drey-zzz { 0%, 60% { opacity: 0; transform: translateY(0); } 75% { opacity: 0.8; } 100% { opacity: 0; transform: translate(-3px, -8px); } }
+.drey-zzz { animation: drey-zzz 6s ease-out infinite; }
 @keyframes visitor-nibble {
   0%, 55%, 100% { transform: rotate(0deg); }
   60%, 70%, 80% { transform: rotate(7deg); }
@@ -245,7 +282,8 @@
   .animate-leaf-fall, .animate-drip, .animate-drip-fast, .animate-ripple, .animate-breath, .animate-firefly,
   .animate-butterfly-path, .animate-butterfly-wings, .animate-sun-throb, .animate-pollen, .animate-chatter, .animate-pant-mouth,
   .animate-eye-swirl path, .animate-cloud-bob, .animate-sweat-fly-left, .animate-sweat-fly-right,
-  .visitor-arrive, .visitor-peek, .visitor-tail, .visitor-head, .visitor-hop, .visitor-dive, .visitor-peek-once {
+  .visitor-arrive, .visitor-peek, .visitor-tail, .visitor-head, .visitor-hop, .visitor-dive, .visitor-peek-once,
+  .visitor-ripple, .visitor-shaking, .visitor-flick, .drey-tail, .drey-twitch, .drey-zzz {
     animation: none !important;
   }
 }

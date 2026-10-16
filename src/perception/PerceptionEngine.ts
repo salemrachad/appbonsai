@@ -150,6 +150,6 @@ export function perceive(input: PerceptionInput): PerceptionState {
     },
     light,
     quality,
-    outside: outsideNow(input.outside ?? null, now),
+    outside: outsideNow(input.outside ?? null, now, input.outsideToday ?? []),
   };
 }

@@ -4,7 +4,7 @@ import { decideSpeech, INITIAL_MESSAGE_MEMORY, SpeechDecision } from '../behavio
 import type { HealthCondition, HealthModifier, PlantHealthState, QualitativeState } from '../health/healthTypes';
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { Season } from '../perception/season';
-import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gesture, SceneId, TouchKind, TouchResponse, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
+import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gesture, SceneId, TouchKind, TouchResponse, DreyLook, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
 import { APP_CONFIG } from '../config/appConfig';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 
@@ -19,6 +19,7 @@ const BASE: Look = {
   foliage: 'lush',
   foliageBlend: null,
   seasonalLeaves: { newGrowth: 0, yellowing: 0, leafDrop: 0 },
+  canopy: { fullness: 1, refilling: 0 },
   soil: 'moist',
   gaze: 'around',
   gesture: { kind: 'look_around', everyMs: 14000 },
@@ -254,7 +255,11 @@ function touchResponse(condition: HealthCondition, modifiers: HealthModifier[], 
 // wags in the tree's rhythm (the tree's sway). Evidence class "art"; attention only, nothing is stored.
 export function visitorPlay(condition: HealthCondition, mode: VisitorPresentation['mode'], b: PlantBehaviourState, motion: ExpressionState['motion']): VisitorPlay {
   const cfg = APP_CONFIG.habitat.play;
-  const kind: VisitorPlay['kind'] = mode === 'hiding' ? 'shy' : condition === 'thriving' && !b.afterglow ? 'playful' : 'gentle';
+  if (mode === 'sleeping') {
+    // Asleep in the drey: a stroke only makes the tail twitch, in the tree's slow night rhythm
+    return { kind: 'asleep', hopEveryMs: 0, hideChance: 0, returnMs: cfg.returnMs, lingerMs: cfg.lingerMs, wag: { tempo: r2(motion.swaySpeed * 0.6), amount: r2(motion.swayAmount * 0.3) } };
+  }
+  const kind: Exclude<VisitorPlay['kind'], 'asleep'> = mode === 'hiding' ? 'shy' : condition === 'thriving' && !b.afterglow ? 'playful' : 'gentle';
   const t = cfg[kind];
   // An afterglow or a watched reading: a little more careful
   const careful = kind === 'gentle' && (b.afterglow || !!b.concern);
@@ -441,12 +446,21 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
   if (r?.kind === 'watering_relief' || r?.kind === 'watering_gentle_ack') scene = 'renewal';
   const night = DARK_SCENES.includes(scene);
   const calmScene = scene === 'calm' || scene === 'golden' || scene === 'night' || scene === 'renewal';
-  const avatar: AvatarPresentation = { ...look, effects: [...effects] };
+  const avatar: AvatarPresentation = { ...look, effects: [...effects], canopy: { fullness: b.canopy?.fullness ?? 1, refilling: b.canopy?.refilling ?? 0 } };
   const h = b.habitat;
   const visitor: VisitorPresentation | null =
     h?.visit && h.presence !== 'none'
-      ? { kind: h.visit.kind, id: h.visit.id, mode: h.presence, spot: h.visit.spot, carrying: h.visit.carrying, play: visitorPlay(condition, h.presence, b, motion) }
+      ? {
+          kind: h.visit.kind,
+          id: h.visit.id,
+          mode: h.presence,
+          spot: h.visit.spot,
+          carrying: h.visit.carrying,
+          action: h.visit.action ?? null,
+          play: visitorPlay(condition, h.presence, b, motion),
+        }
       : null;
+  const drey: DreyLook = h?.drey?.stage ?? 'none';
   return {
     avatar,
     leafDroop,
@@ -454,6 +468,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     reactionStrength: b.responsiveness,
     touch: touchResponse(condition, modifiers, b),
     visitor,
+    drey,
     atmosphere: {
       theme: night ? 'night' : 'day',
       phase: perception.sun.phase,
@@ -478,12 +493,12 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
       onceStatus: s.onceStatus,
     },
     intensity: b.expressionIntensity,
-    layers: { epidermal: describeBody(avatar, b, leafDroop, motion, visitor), wording: rendered.text, diffraction },
+    layers: { epidermal: describeBody(avatar, b, leafDroop, motion, visitor, drey), wording: rendered.text, diffraction },
   };
 }
 
 // Plain-language description of the body language, for the developer panel.
-function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: number, m: ExpressionState['motion'], v: VisitorPresentation | null): string[] {
+function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: number, m: ExpressionState['motion'], v: VisitorPresentation | null, drey: DreyLook): string[] {
   const mood = b.mood;
   const eyes: Record<AvatarPresentation['eyes'], string> = {
     happy: 'soft open eyes', joy: 'smiling closed eyes', closed: 'eyes closed (asleep)', drowsy: 'half-closed drowsy eyes',
@@ -509,9 +524,25 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
   if (a.sweat) out.push('sweating');
   if (a.soil === 'wet') out.push('dark soaked soil');
   if (a.effects.length) out.push(`effects: ${a.effects.join(', ')}`);
+  if (a.canopy.fullness < 0.985) {
+    const thin = a.canopy.fullness < 0.75 ? 'canopy thin' : 'canopy a little thin';
+    out.push(`${thin} after a hard stretch${a.canopy.refilling > 0.05 ? ', refilling with fresh tips' : ''} (${Math.round(a.canopy.fullness * 100)}%)`);
+  }
+  if (drey !== 'none') out.push(drey === 'built' ? 'a drey tucked into the crown' : 'a few twigs of a drey in the crown');
   if (v) {
-    out.push(`a squirrel ${v.mode === 'visiting' ? 'visiting' : 'hiding'} on the ${v.spot.replace('_', ' ')}${v.carrying ? ' with a nut' : ''}`);
-    out.push(v.play.kind === 'shy' ? 'petting: it ducks and peeks again (tail flicking)' : `petting: it plays around the tree (${v.play.kind}), tail in the tree's rhythm`);
+    const doing = { drinking: 'drinking at the pot rim after the watering', inspecting: 'inspecting the pruning', shake_off: 'shaking off after the rain' } as const;
+    out.push(
+      v.mode === 'sleeping'
+        ? 'a squirrel asleep in its drey'
+        : `a squirrel ${v.mode === 'visiting' ? 'visiting' : 'hiding'} ${v.action ? doing[v.action] : `on the ${v.spot.replace('_', ' ')}`}${v.carrying ? ' with a nut' : ''}`
+    );
+    out.push(
+      v.play.kind === 'asleep'
+        ? 'petting: only a sleepy tail twitch'
+        : v.play.kind === 'shy'
+        ? 'petting: it ducks and peeks again (tail flicking)'
+        : `petting: it plays around the tree (${v.play.kind}), tail in the tree's rhythm`
+    );
   }
   return out;
 }

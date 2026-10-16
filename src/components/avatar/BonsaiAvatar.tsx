@@ -2,9 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { AvatarPresentation, ExpressionState, Gaze, Gesture } from '../../expression/expressionTypes';
 import { AvatarEffects, BodyDetails, ForegroundEffects, Lanterns, SoilEffects } from './AvatarEffects';
 import { AvatarFace } from './AvatarFace';
-import { FoliageDefs, PadLeaves, PADS, paletteFor } from './Foliage';
+import { FoliageDefs, PadBranchlets, PadLeaves, PADS, paletteFor } from './Foliage';
 import { PetSession, usePetting } from './usePetting';
-import { useVisitorPlay, Visitor } from './Visitor';
+import { Drey, useVisitorPlay, Visitor } from './Visitor';
 
 interface BonsaiAvatarProps {
   expression: ExpressionState | null;
@@ -34,6 +34,7 @@ const RESTING: AvatarPresentation = {
   foliage: 'lush',
   foliageBlend: null,
   seasonalLeaves: { newGrowth: 0, yellowing: 0, leafDrop: 0 },
+  canopy: { fullness: 1, refilling: 0 },
   soil: 'moist',
   gaze: 'center',
   gesture: null,
@@ -230,6 +231,9 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
     '--flutter-amp': motion.flutter,
   } as React.CSSProperties;
   const palette = paletteFor(look.foliage, look.foliageBlend);
+  // A thin canopy (the last weeks) looks lighter: the soft pad highlights fade a little
+  const fullness = look.canopy?.fullness ?? 1;
+  const hiOpacity = fullness < 0.8 ? Math.round((0.55 + ((fullness - 0.6) / 0.2) * 0.45) * 100) / 100 : 1;
   const sprouting = look.effects.includes('sprout');
   const animation = tapReaction ? (strength >= 0.7 ? 'transition-transform duration-300 scale-105 -rotate-1' : 'transition-transform duration-500 scale-[1.02]') : look.animation;
   const soilFill = { dry: 'url(#soilGradientDry)', wet: 'url(#soilGradientWet)', frozen: 'url(#soilGradientFrozen)', moist: 'url(#soilGradientMoist)' }[look.soil];
@@ -400,11 +404,14 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
               <g className="canopy-droop" style={droop.left}>
                 <g ref={petting.padRef(0)}>
                 <g className="animate-branch-left">
-                  <ellipse cx="105" cy="195" rx="55" ry="32" fill={palette.shadow} opacity="0.8" />
-                  <path d="M 60,195 C 50,175 75,150 105,155 C 125,145 155,160 160,180 C 170,200 150,225 125,225 C 90,230 65,215 60,195 Z" fill="url(#canopyFill)" />
-                  <ellipse cx="95" cy="175" rx="26" ry="14" fill="url(#canopyHi)" className="animate-leaf-flutter-1" />
-                  <ellipse cx="130" cy="188" rx="22" ry="12" fill="url(#canopyHi)" className="animate-leaf-flutter-2" />
-                  <PadLeaves pad={PADS[0]} foliage={look.foliage} palette={palette} droop={droopValue} effects={look.effects} seasonal={look.seasonalLeaves} />
+                  <g>
+                    <ellipse cx="105" cy="195" rx="55" ry="32" fill={palette.shadow} opacity="0.8" />
+                    <path d="M 60,195 C 50,175 75,150 105,155 C 125,145 155,160 160,180 C 170,200 150,225 125,225 C 90,230 65,215 60,195 Z" fill="url(#canopyFill)" />
+                    <ellipse cx="95" cy="175" rx="26" ry="14" fill="url(#canopyHi)" opacity={hiOpacity} className="animate-leaf-flutter-1" />
+                    <ellipse cx="130" cy="188" rx="22" ry="12" fill="url(#canopyHi)" opacity={hiOpacity} className="animate-leaf-flutter-2" />
+                  </g>
+                  <PadBranchlets pad={PADS[0]} fullness={fullness} palette={palette} />
+                  <PadLeaves pad={PADS[0]} foliage={look.foliage} palette={palette} droop={droopValue} effects={look.effects} seasonal={look.seasonalLeaves} canopy={look.canopy} />
                 </g>
                 </g>
               </g>
@@ -413,11 +420,14 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
                 <g ref={petting.padRef(1)}>
                 <g className={gesture === 'fan' ? 'gesture-fan-pad' : ''} style={{ transformOrigin: '270px 225px', transformBox: 'view-box' }}>
                   <g className="animate-branch-right">
-                    <ellipse cx="335" cy="170" rx="60" ry="34" fill={palette.shadow} opacity="0.8" />
-                    <path d="M 285,170 C 275,145 310,125 340,132 C 365,125 395,145 395,170 C 400,195 375,215 345,212 C 310,215 290,195 285,170 Z" fill="url(#canopyFill)" />
-                    <ellipse cx="330" cy="155" rx="28" ry="15" fill="url(#canopyHi)" className="animate-leaf-flutter-2" />
-                    <ellipse cx="365" cy="170" rx="22" ry="12" fill="url(#canopyHi)" className="animate-leaf-flutter-3" />
-                    <PadLeaves pad={PADS[1]} foliage={look.foliage} palette={palette} droop={droopValue} effects={look.effects} seasonal={look.seasonalLeaves} />
+                    <g>
+                      <ellipse cx="335" cy="170" rx="60" ry="34" fill={palette.shadow} opacity="0.8" />
+                      <path d="M 285,170 C 275,145 310,125 340,132 C 365,125 395,145 395,170 C 400,195 375,215 345,212 C 310,215 290,195 285,170 Z" fill="url(#canopyFill)" />
+                      <ellipse cx="330" cy="155" rx="28" ry="15" fill="url(#canopyHi)" opacity={hiOpacity} className="animate-leaf-flutter-2" />
+                      <ellipse cx="365" cy="170" rx="22" ry="12" fill="url(#canopyHi)" opacity={hiOpacity} className="animate-leaf-flutter-3" />
+                    </g>
+                    <PadBranchlets pad={PADS[1]} fullness={fullness} palette={palette} />
+                  <PadLeaves pad={PADS[1]} foliage={look.foliage} palette={palette} droop={droopValue} effects={look.effects} seasonal={look.seasonalLeaves} canopy={look.canopy} />
                   </g>
                 </g>
                 </g>
@@ -426,12 +436,17 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
               <g className="canopy-droop" style={droop.top}>
                 <g ref={petting.padRef(2)}>
                 <g className="animate-branch-left" style={{ transformOrigin: '220px 100px' }}>
-                  <ellipse cx="220" cy="85" rx="85" ry="46" fill={palette.shadow} opacity="0.75" />
-                  <path d="M 140,85 C 135,50 180,25 220,28 C 260,25 305,50 300,85 C 305,115 270,135 220,132 C 170,135 135,115 140,85 Z" fill="url(#canopyFill)" />
-                  <ellipse cx="185" cy="65" rx="36" ry="20" fill="url(#canopyHi)" className="animate-leaf-flutter-1" />
-                  <ellipse cx="255" cy="68" rx="34" ry="18" fill="url(#canopyHi)" className="animate-leaf-flutter-2" />
-                  <ellipse cx="220" cy="50" rx="38" ry="20" fill="url(#canopyHi)" className="animate-leaf-flutter-3" />
-                  <PadLeaves pad={PADS[2]} foliage={look.foliage} palette={palette} droop={droopValue} effects={look.effects} seasonal={look.seasonalLeaves} />
+                  <g>
+                    <ellipse cx="220" cy="85" rx="85" ry="46" fill={palette.shadow} opacity="0.75" />
+                    <path d="M 140,85 C 135,50 180,25 220,28 C 260,25 305,50 300,85 C 305,115 270,135 220,132 C 170,135 135,115 140,85 Z" fill="url(#canopyFill)" />
+                    <ellipse cx="185" cy="65" rx="36" ry="20" fill="url(#canopyHi)" opacity={hiOpacity} className="animate-leaf-flutter-1" />
+                    <ellipse cx="255" cy="68" rx="34" ry="18" fill="url(#canopyHi)" opacity={hiOpacity} className="animate-leaf-flutter-2" />
+                    <ellipse cx="220" cy="50" rx="38" ry="20" fill="url(#canopyHi)" opacity={hiOpacity} className="animate-leaf-flutter-3" />
+                  </g>
+                  <PadBranchlets pad={PADS[2]} fullness={fullness} palette={palette} />
+                  <PadLeaves pad={PADS[2]} foliage={look.foliage} palette={palette} droop={droopValue} effects={look.effects} seasonal={look.seasonalLeaves} canopy={look.canopy} />
+                  {/* The drey: weeks of a welcoming tree, tucked into the crown (sways with it) */}
+                  <Drey stage={expression?.drey ?? 'none'} visitor={visitor} pose={visitorPose} leaf={palette.leaf[1]} />
                   {/* Young crown leaf: sprouts when thriving or recovering */}
                   <g className={sprouting ? 'animate-sprout' : ''} style={{ transformOrigin: '220px 22px' }}>
                     <path d="M 215,22 Q 220,8 225,22 Q 220,28 215,22 Z" fill={sprouting ? '#D4FFB2' : palette.leaf[0]} />
@@ -449,7 +464,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
         </g>
 
         <Lanterns effects={look.effects} />
-        <ForegroundEffects effects={look.effects} palette={palette} seasonal={look.seasonalLeaves} />
+        <ForegroundEffects effects={look.effects} palette={palette} seasonal={look.seasonalLeaves} canopy={look.canopy} />
         <circle ref={petting.glowRef} cx="220" cy="120" r="34" fill="url(#petHandGlow)" opacity="0" pointerEvents="none" style={{ mixBlendMode: 'screen' }} />
       </svg>
 

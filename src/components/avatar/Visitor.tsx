@@ -45,12 +45,17 @@ const PEEK_OUT_MS = 1400;
 
 export type VisitorPose =
   | { at: 'perch'; spot: Spot; hop: number } // hop: counts moves (0 = just arrived), replays the hop arc
-  | { at: 'hide'; pad: Pad; phase: 'dive' | 'hidden' | 'peek_out' | 'peek' }; // peek = the shy loop
+  | { at: 'hide'; pad: Pad; phase: 'dive' | 'hidden' | 'peek_out' | 'peek' } // peek = the shy loop
+  | { at: 'drey'; twitch: number }; // asleep in the drey (drawn by <Drey>); twitch replays a tail twitch
 
 const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const basePose = (v: VisitorPresentation): VisitorPose =>
-  v.mode === 'hiding' ? { at: 'hide', pad: HIDE_FOR[v.spot], phase: 'peek' } : { at: 'perch', spot: v.spot, hop: 0 };
+  v.mode === 'sleeping'
+    ? { at: 'drey', twitch: 0 }
+    : v.mode === 'hiding'
+    ? { at: 'hide', pad: HIDE_FOR[v.spot], phase: 'peek' }
+    : { at: 'perch', spot: v.spot, hop: 0 };
 
 // The play: one per avatar, driven by petting strokes. Never stored, never sent.
 export function useVisitorPlay(visitor: VisitorPresentation | null, strokeAt: number | null, habituation: TouchResponse['habituation'] | null): VisitorPose | null {
@@ -123,6 +128,11 @@ export function useVisitorPlay(visitor: VisitorPresentation | null, strokeAt: nu
     const p = play.current;
     if (p.lastStroke && strokeAt - p.lastStroke > 60_000) p.level = 1; // a long rest: fresh again
     p.lastStroke = strokeAt;
+    if (cur.at === 'drey') {
+      // Asleep: a stroke only makes the tail twitch; it never wakes up to play
+      setPose({ at: 'drey', twitch: strokeAt });
+      return;
+    }
     if (playOf(vis).kind === 'shy') {
       // A stressed tree doesn't play: the squirrel ducks, and peeks again after a while
       if (cur.at === 'hide' && cur.phase === 'peek') dive(cur.pad, null);
@@ -181,7 +191,7 @@ interface VisitorProps {
 }
 
 export const Visitor: React.FC<VisitorProps> = ({ visitor, pose, layer }) => {
-  if (!visitor || !pose) return null;
+  if (!visitor || !pose || pose.at === 'drey') return null;
   if (layer !== (pose.at === 'hide' ? 'behind' : 'front')) return null;
   // The tail wags in the tree's rhythm (tempo and amplitude from the tree's sway, decided upstream)
   const { wag: w } = playOf(visitor);
@@ -201,16 +211,103 @@ export const Visitor: React.FC<VisitorProps> = ({ visitor, pose, layer }) => {
   }
 
   const at = PERCH[pose.spot];
+  // What it came for, shown where it arrived (once it plays and hops on, it's just a squirrel again)
+  const action = pose.hop === 0 && pose.spot === visitor.spot ? visitor.action ?? null : null;
+  const actionClass = action === 'drinking' ? 'visitor-drinking' : action === 'inspecting' ? 'visitor-inspecting' : action === 'shake_off' ? 'visitor-shaking' : 'visitor-idle';
+  // Drinking leans forward over the wet soil; inspecting leans toward the cut
+  const tilt = action === 'drinking' ? 'rotate(24)' : action === 'inspecting' ? 'rotate(10)' : undefined;
   // The position glides between spots (CSS transition); the inner group replays the hop arc or the arrival
   return (
     <g pointerEvents="none" aria-hidden className="visitor-move" style={{ ...wag, transform: `translate(${at.x}px, ${at.y}px)` }}>
       <g transform={`rotate(${at.rot ?? 0}) scale(${at.dir} 1)`}>
         <g key={`${visitor.id}:${pose.hop}`} className={pose.hop === 0 ? 'visitor-arrive' : 'visitor-hop'}>
-          <g className="visitor-idle visitor-wag">
-            <Squirrel carrying={carrying} />
+          <g className={`${actionClass} visitor-wag`}>
+            <g transform={tilt}>
+              <Squirrel carrying={carrying && !action} />
+            </g>
+            {action === 'drinking' && (
+              // Little ripples where it laps at the wet soil
+              <g fill="none" stroke="#9CC3E0" strokeWidth="0.9">
+                <ellipse cx="17" cy="-1" rx="3" ry="1" className="visitor-ripple" />
+                <ellipse cx="17" cy="-1" rx="3" ry="1" className="visitor-ripple" style={{ animationDelay: '0.9s' }} />
+              </g>
+            )}
+            {action === 'shake_off' && (
+              // Drops flicked off the fur
+              <g fill="#8FC1E6">
+                {[
+                  [-14, -26, -1],
+                  [14, -24, 1],
+                  [-10, -10, -1],
+                  [12, -8, 1],
+                  [0, -34, 0],
+                ].map(([x, y, d], i) => (
+                  <circle key={i} cx={x} cy={y} r="1.3" className="visitor-flick" style={{ '--flick-x': d, animationDelay: `${0.15 + i * 0.07}s` } as React.CSSProperties} />
+                ))}
+              </g>
+            )}
           </g>
         </g>
       </g>
+    </g>
+  );
+};
+
+// The drey: a nest of twigs and leaves tucked into the right side of the crown. Weeks of a welcoming tree
+// made visible (stage from upstream). Drawn inside the crown pad so it sways with it. When the squirrel
+// sleeps there, only its tail drapes over the edge, breathing slowly; a stroke makes it twitch.
+const DREY = { x: 276, y: 104 };
+export const Drey: React.FC<{ stage: 'none' | 'started' | 'built'; visitor: VisitorPresentation | null; pose: VisitorPose | null; leaf: string }> = ({ stage, visitor, pose, leaf }) => {
+  if (stage === 'none') return null;
+  const { x, y } = DREY;
+  const twig = { stroke: '#6B4A2E', strokeWidth: 1.6, strokeLinecap: 'round' as const, fill: 'none' };
+  const grow = `translate(${x} ${y}) scale(1.25) translate(${-x} ${-y})`;
+  if (stage === 'started') {
+    // A few twigs wedged into the fork, a leaf caught in them: the beginnings of a nest
+    const t = { ...twig, stroke: '#8E6842', strokeWidth: 2.4 };
+    return (
+      <g pointerEvents="none" aria-hidden transform={grow}>
+        <ellipse cx={x} cy={y + 3} rx="13" ry="4" fill="#5C3F24" opacity="0.35" />
+        <path d={`M ${x - 14},${y + 4} L ${x + 10},${y - 3}`} {...t} />
+        <path d={`M ${x - 10},${y - 2} L ${x + 13},${y + 5}`} {...t} stroke="#7A5634" />
+        <path d={`M ${x - 6},${y + 7} L ${x + 9},${y + 1}`} {...t} strokeWidth={1.8} />
+        <path d={`M ${x - 3},${y - 5} L ${x + 4},${y + 8}`} {...t} strokeWidth={1.6} stroke="#A07A50" />
+        <ellipse cx={x + 6} cy={y - 4} rx="4.2" ry="2" fill={leaf} transform={`rotate(-25 ${x + 6} ${y - 4})`} />
+      </g>
+    );
+  }
+  const asleep = !!visitor && visitor.mode === 'sleeping' && pose?.at === 'drey';
+  const w = visitor ? visitor.play?.wag : null;
+  return (
+    <g pointerEvents="none" aria-hidden transform={grow}>
+      {/* The ball of twigs and leaves */}
+      <ellipse cx={x} cy={y} rx="18" ry="12.5" fill="#7A5634" />
+      <ellipse cx={x + 2} cy={y + 3} rx="15" ry="8" fill="#664628" />
+      <path d={`M ${x - 17},${y - 2} Q ${x},${y - 14} ${x + 17},${y - 3}`} {...twig} stroke="#8C6640" />
+      <path d={`M ${x - 15},${y + 5} Q ${x - 2},${y - 6} ${x + 16},${y + 4}`} {...twig} stroke="#5C3F24" />
+      <path d={`M ${x - 12},${y - 8} L ${x + 9},${y + 9}`} {...twig} stroke="#8C6640" strokeWidth={1.2} />
+      <path d={`M ${x + 11},${y - 9} L ${x - 6},${y + 10}`} {...twig} stroke="#5C3F24" strokeWidth={1.2} />
+      <path d={`M ${x + 15},${y - 6} L ${x + 22},${y - 11}`} {...twig} strokeWidth={1.1} />
+      {/* The entrance */}
+      <ellipse cx={x - 6} cy={y + 1} rx="5.5" ry="4.2" fill="#2E1E12" />
+      {/* Leaves woven in, in the tree's own colour */}
+      <ellipse cx={x + 6} cy={y - 9} rx="5" ry="2.4" fill={leaf} transform={`rotate(-20 ${x + 6} ${y - 9})`} />
+      <ellipse cx={x + 13} cy={y + 1} rx="4.4" ry="2.1" fill={leaf} transform={`rotate(35 ${x + 13} ${y + 1})`} />
+      <ellipse cx={x - 12} cy={y - 7} rx="4.2" ry="2" fill={leaf} transform={`rotate(25 ${x - 12} ${y - 7})`} />
+      {asleep && (
+        // Asleep inside: the bushy tail drapes out of the entrance
+        <g style={{ '--wag-tempo': w?.tempo ?? 0.4, '--wag-amp': w?.amount ?? 0.2 } as React.CSSProperties}>
+          <g key={pose?.at === 'drey' ? pose.twitch : 0} className={pose?.at === 'drey' && pose.twitch ? 'drey-tail drey-twitch' : 'drey-tail'} style={{ transformBox: 'fill-box', transformOrigin: '20% 5%' }}>
+            <path
+              d={`M ${x - 9},${y + 3} C ${x - 14},${y + 10} ${x - 18},${y + 20} ${x - 13},${y + 27} C ${x - 9},${y + 32} ${x - 2},${y + 28} ${x - 5},${y + 22} C ${x - 7},${y + 17} ${x - 3},${y + 10} ${x - 3},${y + 4} Z`}
+              fill="#A85A2A"
+            />
+            <path d={`M ${x - 12},${y + 25} C ${x - 10},${y + 29} ${x - 5},${y + 28} ${x - 6},${y + 24}`} fill="#D08A4E" opacity="0.8" />
+          </g>
+          {/* Sleeping: a little "z" now and then */}
+          <text x={x - 16} y={y - 8} fontSize="7" fill="#8A6B4A" className="drey-zzz" fontFamily="serif">z</text>
+        </g>
+      )}
     </g>
   );
 };

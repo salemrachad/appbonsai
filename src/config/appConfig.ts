@@ -79,6 +79,13 @@ export const APP_CONFIG = {
     slotMinutes: 30, // the day is cut into slots; each may hold one visit
     visitChance: { min: 0.15, max: 0.45 }, // chance a daytime slot holds a visit, from just welcoming → fully
     visitMinutes: { min: 4, max: 12 },
+    replayDays: 30, // episodes replayed for the drey and the diary (the habitat value forgets within days)
+    // The drey: welcoming time builds it (~2 weeks to full), time not welcoming takes it apart (days)
+    drey: { riseDays: 10, fallDays: 3, startedEnter: 0.25, startedExit: 0.15, builtEnter: 0.6, builtExit: 0.45 },
+    // Answers to care: a calm, welcoming tree's squirrel comes to drink after a needed watering, or inspects
+    // a pruning. At most one per care event; watering on wet soil gets no answer.
+    careVisitMinutes: { drinking: 10, inspecting: 8, inspectingOffSeason: 3 },
+    shakeOffAfterRainMs: 30 * 60 * 1000, // first visit within this long after rain stops: it shakes off
     // Petting while the squirrel visits: it plays around the tree (UI only, never stored). How playful comes
     // from the tree's state (ExpressionEngine visitorPlay); these are the tunings per kind.
     play: {

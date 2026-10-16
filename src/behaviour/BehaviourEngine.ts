@@ -20,6 +20,7 @@ import type {
   RecoveryStage,
   TimeOfDay,
 } from './behaviourTypes';
+import { evaluateCanopy } from './canopy';
 import { evaluateHabitat } from './habitat';
 import { computeRelationship } from './relationship';
 
@@ -402,7 +403,19 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (health.modifiers.includes('sensor_uncertain')) reasons.push("Data overlay: biological state held while it can't be observed");
 
   // ---- Habitat (visitors): computed last, from episodes only; nothing above may depend on it ----
-  const habitat = evaluateHabitat({ episodes, condition, modifiers: health.modifiers, isDay: perception.sun.isDay, season: { id: season.id, energy: season.energy }, now });
+  const habitat = evaluateHabitat({
+    episodes,
+    condition,
+    modifiers: health.modifiers,
+    isDay: perception.sun.isDay,
+    season: { id: season.id, energy: season.energy },
+    now,
+    outside: perception.outside ? { sky: perception.outside.sky, rainEndedAt: perception.outside.rainEndedAt ?? null } : null,
+    reaction: reaction ? { kind: reaction.kind, eventId: reaction.eventId, at: reaction.at, seasonal: reaction.seasonal } : null,
+  });
+  // ---- Canopy over the last weeks (drawn only) ----
+  const canopy = evaluateCanopy({ episodes, events, growth: season.growth, species, now });
+  if (canopy.fullness < 0.985) reasons.push(`Canopy: ${canopy.reasons.join('; ')}`);
   if (habitat.welcoming || habitat.value > 0) reasons.push(`Habitat ${habitat.value}${habitat.welcoming ? ' (welcoming)' : ''}: ${habitat.presence === 'none' ? habitat.why : `squirrel ${habitat.presence}`}`);
 
   return {
@@ -427,6 +440,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     concern,
     relationship,
     habitat,
+    canopy,
     reasons,
     evaluatedAt: now,
   };

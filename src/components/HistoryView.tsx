@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake } from 'lucide-react';
+import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Squirrel, Home } from 'lucide-react';
 import type { HealthCondition } from '../health/healthTypes';
 import type { DailySummary, DiaryItem, PlantEventType, WeatherSpellKind } from '../history/historyTypes';
 
@@ -145,6 +145,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
                   ? EVENT_ICON[item.eventType]
                   : item.kind === 'weather' && item.weather
                   ? { Icon: WEATHER_ICON[item.weather], color: '#7C8FA3' }
+                  : item.kind === 'habitat'
+                  ? { Icon: item.habitat === 'drey_built' || item.habitat === 'drey_gone' ? Home : Squirrel, color: item.habitat === 'left' || item.habitat === 'drey_gone' ? '#A08A72' : '#A85A2A' }
                   : conditionIcon(item.condition);
               return (
                 <div key={`${item.at}-${i}`} className={`flex items-start gap-3 py-1.5 ${item.kind === 'episode_gap' ? 'opacity-50' : ''}`}>

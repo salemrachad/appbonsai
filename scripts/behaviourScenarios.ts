@@ -362,7 +362,7 @@ async function main() {
     const strip = (s: typeof dry) => JSON.stringify({ health: { ...s.health, metrics: s.health.metrics.map(({ guide, ...m }) => m) }, mood: s.behaviour.mood, energy: s.behaviour.energy, intent: s.behaviour.messageIntent, habitat: s.behaviour.habitat, avatar: s.expression.avatar, droop: s.expression.leafDroop, scene: s.expression.atmosphere.scene });
     check('O1 outside weather never changes the tree beyond explaining light (health, mood, look, scene, habitat)', strip(dry) === strip(storm), `${dry.health.condition} vs ${storm.health.condition}`);
     check('O2 the weather layer carries it instead', dry.expression.atmosphere.weather === null && storm.expression.atmosphere.weather?.sky === 'thunderstorm' && storm.expression.atmosphere.weather.windy);
-    const looks = OUTSIDE_SKIES.map((sky) => weatherLook({ at: 0, ageMs: 0, sky, code: 0, temperature: 10, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true, windy: false }));
+    const looks = OUTSIDE_SKIES.map((sky) => weatherLook({ at: 0, ageMs: 0, sky, code: 0, temperature: 10, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true, windy: false, rainEndedAt: null }));
     check('O3 every sky has a look and a label', looks.every((l) => l && l.label.length > 0 && l.intensity >= 0 && l.intensity <= 1), looks.map((l) => l?.label).join(' | '));
     check('O3b WMO codes map sensibly', skyFromCode(0) === 'clear' && skyFromCode(45) === 'fog' && skyFromCode(61) === 'rain' && skyFromCode(65) === 'heavy_rain' && skyFromCode(73) === 'snow' && skyFromCode(95) === 'thunderstorm');
 
@@ -409,9 +409,53 @@ async function main() {
     check('O6 diary: one line per spell (rain 14:00–14:30, frost)', spells.length === 2 && spells.some((s) => s.weather === 'rain') && spells.some((s) => s.weather === 'frost' && /-3/.test(s.detail ?? '')), spells.map((s) => `${s.title} ${s.detail}`).join(' | '));
   }
 
+  console.log('\n— Canopy (the last weeks, drawn only) —');
+  {
+    const { evaluateCanopy } = await import('../src/behaviour/canopy');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    type Ep = import('../src/history/historyTypes').BehaviourEpisode;
+    type C = Ep['condition'];
+    const H = 60 * MIN;
+    let n = 0;
+    const ep = (condition: C, startedAt: number, hours: number): Ep => ({
+      id: ++n, startedAt, endedAt: startedAt + hours * H, lastSeenAt: startedAt + hours * H, unobservedMs: 0, condition, modifiers: [], peakSeverity: 'none', engineVersion: 't',
+    });
+    // Ordinary days: awake comfortable, asleep at night
+    const calm = (from: number, days: number) => {
+      const out: Ep[] = [];
+      for (let d = 0; d < days; d++) out.push(ep('comfortable', from + d * 24 * H, 14), ep('sleeping', from + d * 24 * H + 14 * H, 10));
+      return out;
+    };
+    const t0 = new Date(2026, 4, 1, 7).getTime();
+    const canopy = (episodes: Ep[], now: number, growth: 'flush' | 'active' | 'slowing' | 'resting' = 'active', events: import('../src/history/historyTypes').PlantEvent[] = []) =>
+      evaluateCanopy({ episodes, events, growth, species: ACTIVE_SPECIES, now });
+
+    const full = canopy(calm(t0, 30), t0 + 30 * 24 * H);
+    check('C1 a calm month: full canopy', full.fullness === 1 && full.refilling === 0, JSON.stringify(full));
+    const passing = canopy([...calm(t0, 10), ep('thirsty', t0 + 10 * 24 * H, 3), ...calm(t0 + 10 * 24 * H + 3 * H, 1)], t0 + 11 * 24 * H + 3 * H);
+    check('C2 a passing thirst (3 h) costs no leaves', passing.fullness === 1, `${passing.fullness}`);
+    const dryEnd = t0 + 10 * 24 * H + 48 * H;
+    const drought = [...calm(t0, 10), ep('very_dry', t0 + 10 * 24 * H, 48)];
+    const thin = canopy(drought, dryEnd);
+    const nextDay = canopy([...drought, ...calm(dryEnd, 1)], dryEnd + 24 * H);
+    check('C3 two days very dry: visibly thinner, still thin the next calm day', thin.fullness <= 0.8 && thin.fullness >= 0.7 && nextDay.fullness < 0.85 && thin.trend === 'thinning', `${thin.fullness} → next day ${nextDay.fullness} (${nextDay.trend})`);
+    const summer = canopy([...drought, ...calm(dryEnd, 21)], dryEnd + 21 * 24 * H, 'active');
+    const winter = canopy([...drought, ...calm(dryEnd, 21)], dryEnd + 21 * 24 * H, 'resting');
+    check('C4 three calm summer weeks: mostly refilled', summer.fullness >= 0.93, `${summer.fullness}`);
+    check('C5 the same gap in winter refills much more slowly', winter.fullness < summer.fullness - 0.05, `winter ${winter.fullness} vs summer ${summer.fullness}`);
+    const mid = canopy([...drought, ...calm(dryEnd, 6)], dryEnd + 6 * 24 * H);
+    check('C5b while refilling, fresh tips show', mid.trend === 'refilling' && mid.refilling > 0.2, `${mid.fullness}, tips ${mid.refilling}`);
+    const ordeal = canopy([...calm(t0, 5), ep('very_dry', t0 + 5 * 24 * H, 24 * 10)], t0 + 15 * 24 * H);
+    check('C6 never below the floor, however long the ordeal', ordeal.fullness === ACTIVE_SPECIES.canopy.floor, `${ordeal.fullness}`);
+    const moveAt = t0 + 10 * 24 * H;
+    const moved = canopy(calm(t0, 13), t0 + 13 * 24 * H, 'active', [{ id: 1, timestamp: moveAt, type: 'moved_location', note: null, metadata: {} }]);
+    check('C7 a move: a small dip', moved.fullness < 1 && moved.fullness > 0.9, `${moved.fullness}`);
+    check('C8 deterministic', JSON.stringify(canopy(drought, dryEnd)) === JSON.stringify(thin));
+  }
+
   console.log('\n— Habitat (visitors) —');
   {
-    const { evaluateHabitat, replayHabitat } = await import('../src/behaviour/habitat');
+    const { evaluateHabitat, replayHabitat, habitatDiary } = await import('../src/behaviour/habitat');
     type Ep = import('../src/history/historyTypes').BehaviourEpisode;
     type C = Ep['condition'];
     const HOUR = 60 * MIN;
@@ -537,11 +581,78 @@ async function main() {
       const a = plain.state();
       const z = petted.state();
       check(
-        'V13 petting changes nothing in the habitat or the visitor',
+        'V13 petting changes nothing in the habitat (drey included) or the visitor',
         JSON.stringify(a.behaviour.habitat) === JSON.stringify(z.behaviour.habitat) && JSON.stringify(a.expression.visitor) === JSON.stringify(z.expression.visitor),
         `habitat ${a.behaviour.habitat.value} vs ${z.behaviour.habitat.value}`
       );
     }
+
+    // ---- The drey: weeks of a welcoming tree, made visible ----
+    {
+      const t0 = new Date(2026, 5, 30, 7).getTime();
+      const drey = (days: number) => replayHabitat(calmDays(days, t0), t0).drey;
+      const d4 = drey(4);
+      const d9 = drey(9);
+      const d18 = drey(18);
+      check('V14 the drey takes weeks: none after 4 calm days, a few twigs after ~9, built after ~18', d4.stage === 'none' && d9.stage === 'started' && d18.stage === 'built', `4d ${d4.value} ${d4.stage} · 9d ${d9.value} ${d9.stage} · 18d ${d18.value} ${d18.stage}`);
+      const hard = (hours: number) => {
+        const eps = [...calmDays(18, t0), ep('very_dry', t0, hours)];
+        return replayHabitat(eps, t0 + hours * HOUR).drey;
+      };
+      const h1 = hard(24);
+      const h7 = hard(24 * 7);
+      check('V15 a long stress thins it, a sustained one empties it (days, not hours)', h1.stage === 'built' && h1.value < d18.value && h7.stage === 'none', `1 day ${h1.value} ${h1.stage} · 7 days ${h7.value} ${h7.stage}`);
+      const night = new Date(2026, 5, 30, 1).getTime();
+      const asleep = evaluateHabitat({ episodes: [...calmDays(18, night - 2 * HOUR), ep('sleeping', night - 2 * HOUR, 2, 0, true)], condition: 'sleeping', modifiers: [], isDay: false, season: { id: 'summer', energy: 1 }, now: night });
+      const noDrey = evaluateHabitat({ episodes: [...calmDays(4, night - 2 * HOUR), ep('sleeping', night - 2 * HOUR, 2, 0, true)], condition: 'sleeping', modifiers: [], isDay: false, season: { id: 'summer', energy: 1 }, now: night });
+      const unsure = evaluateHabitat({ episodes: [...calmDays(18, night - 2 * HOUR), ep('sleeping', night - 2 * HOUR, 2, 0, true)], condition: 'sleeping', modifiers: ['sensor_uncertain'], isDay: false, season: { id: 'summer', energy: 1 }, now: night });
+      check('V16 at night: asleep in a built drey; no drey → nobody; no trustworthy data → nobody', asleep.presence === 'sleeping' && asleep.visit?.cause === 'drey' && noDrey.presence === 'none' && unsure.presence === 'none', `${asleep.presence} / ${noDrey.presence} / ${unsure.presence}`);
+    }
+
+    // ---- Shelter from the outside weather (context: the habitat never sees it) ----
+    if (v) {
+      const at = v.t;
+      const dry = habitat(life(at), at);
+      const wet = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'rain', rainEndedAt: null } });
+      check('V17 rain outside: it shelters in the leaves; the habitat value and drey are identical', dry.presence === 'visiting' && wet.presence === 'hiding' && wet.value === dry.value && wet.welcoming === dry.welcoming && JSON.stringify(wet.drey) === JSON.stringify(dry.drey), wet.why);
+      const after = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'overcast', rainEndedAt: at - 10 * MIN } });
+      check('V17b just after the rain: out again, shaking off', after.presence === 'visiting' && after.visit?.action === 'shake_off', after.why);
+    }
+
+    // ---- Answers to care ----
+    {
+      const at = new Date(2026, 5, 22, 13, 7).getTime();
+      const eps = life(at);
+      const care = (kind: Parameters<typeof evaluateHabitat>[0]['reaction'] extends infer R ? R extends { kind: infer K } ? K : never : never, ageMin: number, condition: C = 'comfortable', seasonal: string | null = null, episodes = eps) =>
+        evaluateHabitat({ episodes, condition, modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, reaction: { kind, eventId: 42, at: at - ageMin * MIN, seasonal } });
+      const drink = care('watering_relief', 3);
+      check('V18 after a needed watering on a calm, welcoming tree: it comes down to drink (one visit per event)', drink.visit?.cause === 'care' && drink.visit.action === 'drinking' && drink.visit.spot === 'pot_rim' && drink.visit.id === 'care:42', drink.why);
+      check('V18b watering on wet soil gets no answer (more water is never rewarded)', care('watering_enough', 3).visit?.cause !== 'care');
+      check('V18c the answer passes: 20 min later it is an ordinary day again', care('watering_relief', 20).visit?.cause !== 'care');
+      const prune = care('care_pruning', 5);
+      check('V19 after a pruning it inspects the cut; off-season only briefly', prune.visit?.action === 'inspecting' && care('care_pruning', 5, 'comfortable', 'resting_prune').visit?.cause !== 'care', prune.why);
+      check('V19b a stressed tree or a place that is not welcoming yet: no answer', care('watering_relief', 3, 'thirsty').visit?.cause !== 'care' && care('watering_relief', 3, 'comfortable', null, calmDays(1, at)).visit === null);
+    }
+
+    // ---- The diary ----
+    {
+      const end = new Date(2026, 6, 20, 20).getTime();
+      // Three calm weeks, a week of drought, then calm again
+      const story = [...calmDays(21, end - 14 * 24 * HOUR), ep('very_dry', end - 14 * 24 * HOUR, 24 * 7), ...calmDays(7, end)];
+      const diary = (now = end) =>
+        habitatDiary({ episodes: story.filter((e) => e.startedAt < now), now, days: 30, location: { latitude: 33.97, longitude: 35.73 }, seasonAt: () => ({ id: 'summer', energy: 1 }) });
+      const items = diary();
+      const kinds = new Set(items.map((i) => i.habitat));
+      check(
+        'V20 diary: visits, staying away during the drought, coming back, the drey built and abandoned',
+        kinds.has('visit') && kinds.has('left') && kinds.has('returned') && kinds.has('drey_built') && kinds.has('drey_gone'),
+        [...kinds].join(', ')
+      );
+      check('V20b the diary is deterministic', JSON.stringify(diary()) === JSON.stringify(items));
+      const left = items.find((i) => i.habitat === 'left');
+      check('V20c staying away names what the tree went through', /very dry/i.test(left?.detail ?? ''), left?.detail);
+    }
+
   }
 
   finish();

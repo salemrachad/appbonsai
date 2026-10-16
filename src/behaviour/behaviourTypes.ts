@@ -133,21 +133,38 @@ export interface RelationshipContext {
 export type VisitSpot = 'left_branch' | 'right_branch' | 'crown' | 'trunk' | 'pot_rim'; // visits start on the first three; play uses all
 export interface HabitatVisit {
   kind: 'squirrel';
-  id: string; // day:slot, stable across refreshes
+  id: string; // day:slot (or care:<event id>, drey:<day>), stable across refreshes
   startedAt: number;
   endsAt: number;
   spot: VisitSpot;
   carrying: 'nut' | null; // autumn caching
+  cause: 'slot' | 'care' | 'drey'; // a visit of the day, an answer to care, or asleep in its drey
+  action: 'drinking' | 'inspecting' | 'shake_off' | null; // after a watering, after a pruning, after rain
+}
+// The drey: weeks of a welcoming tree become a nest in the crown (art: accumulated care made visible)
+export interface DreyState {
+  value: number; // 0-1, rises over ~2 weeks of welcoming time, falls over days when not welcoming
+  stage: 'none' | 'started' | 'built'; // with hysteresis
+  builtAt: number | null; // when it last became built
 }
 export interface HabitatState {
   value: number; // 0-1: how welcoming the tree has been (slow to rise, quick to fall)
   welcoming: boolean; // latch (enter/exit) on value: do visitors come at all
-  presence: 'none' | 'visiting' | 'hiding'; // right now: out on a branch, or tucked into the leaves
+  presence: 'none' | 'visiting' | 'hiding' | 'sleeping'; // right now: out on a branch, tucked into the leaves, asleep in the drey
   visit: HabitatVisit | null;
+  drey: DreyState;
   calmHours14d: number; // observed hours that raised it
   stressHours14d: number; // observed hours that lowered it
   lastChangeAt: number | null; // when the latch last flipped
   why: string; // developer panel
+}
+
+// The canopy over the last weeks (inference, drawn only): never read by health, mood or the habitat
+export interface CanopyState {
+  fullness: number; // 0.6-1: share of the foliage showing
+  refilling: number; // 0-1: share of the gap coming back as fresh tips
+  trend: 'thinning' | 'refilling' | 'steady';
+  reasons: string[]; // developer panel
 }
 
 export interface Concern {
@@ -191,6 +208,7 @@ export interface PlantBehaviourState {
   concern: Concern | null;
   relationship: RelationshipContext;
   habitat: HabitatState; // visitors: expressive only, nothing above reads it
+  canopy: CanopyState; // the foliage over the last weeks: expressive only, nothing above reads it
   reasons: string[]; // why the engine chose this behaviour (developer panel)
   evaluatedAt: number;
 }
