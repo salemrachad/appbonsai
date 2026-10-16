@@ -40,13 +40,15 @@ const fmtTime = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-dig
 
 // Stored row → the telemetry shape the engines read. Raw values are interpreted with the CURRENT
 // calibration (so a new calibration applies to recent history too); the stored row is never changed.
-export function fromRecord(r: TelemetryRecord, cal: SensorCalibration = NO_CALIBRATION): PlantTelemetry | null {
+// withTime = false leaves updatedAt (display only) empty: history and replays don't show it, and
+// formatting a time per row was a large share of a replay. stamp() fills it in for the readings shown.
+export function fromRecord(r: TelemetryRecord, cal: SensorCalibration = NO_CALIBRATION, withTime = true): PlantTelemetry | null {
   if (r.soilMoisture === null) return null;
   const esp = r.source === 'esp32_sensor';
   return {
     timestamp: r.timestamp,
     source: r.source,
-    updatedAt: fmtTime(r.timestamp),
+    updatedAt: withTime ? fmtTime(r.timestamp) : '',
     soilMoisture: esp && cal.soil && r.soilRaw !== null ? soilPercentFromRaw(r.soilRaw, cal.soil) : r.soilMoisture,
     soilRaw: r.soilRaw,
     apiSoilMoisture: r.apiSoilMoisture,
@@ -60,6 +62,8 @@ export function fromRecord(r: TelemetryRecord, cal: SensorCalibration = NO_CALIB
     wifiRssi: r.wifiRssi,
   };
 }
+
+const stamp = (t: PlantTelemetry | null): PlantTelemetry | null => (t && !t.updatedAt ? { ...t, updatedAt: fmtTime(t.timestamp) } : t);
 
 const toLive = (t: PlantTelemetry): LiveReading => ({
   t: t.timestamp,
@@ -78,6 +82,14 @@ export interface CollectorOptions {
   autoSchedule?: boolean; // false: only poll when pollNow() is called (tests)
   log?: (msg: string) => void;
 }
+
+// What perception reads from the database, loaded once for a whole replay
+interface PerceiveContext {
+  skies: OutsideObservation[]; // outside observations from the replay's first day on (ascending)
+  soilBreaks: number[];
+}
+
+const dayStartOf = (t: number) => new Date(t).setHours(0, 0, 0, 0);
 
 interface SavedMemory {
   engineVersion: string;
@@ -198,7 +210,7 @@ export class LivingCollector {
     const days = APP_CONFIG.habitat.sloth.loyalty.days;
     const from = today - days * DAY;
     const samples = this.db.telemetrySince(this.source(), from - 6 * HOUR, today).flatMap((r) => {
-      const t = fromRecord(r, this.calibration);
+      const t = fromRecord(r, this.calibration, false);
       return t ? [toSample(t, ACTIVE_SPECIES, loc)] : [];
     });
     const { memory } = slothLife(samples, this.db.outsideWeatherSince(from - 6 * HOUR), this.db.episodesSince(from), ACTIVE_SPECIES, cadenceMs, today, days);
@@ -232,12 +244,12 @@ export class LivingCollector {
   private loadRecent(now: number) {
     const rows = this.db.telemetrySince(this.source(), now - DAY, now);
     const ts = rows.flatMap((r) => {
-      const t = fromRecord(r, this.calibration);
+      const t = fromRecord(r, this.calibration, false);
       return t ? [t] : [];
     });
     this.recent = ts.map((t) => toSample(t, ACTIVE_SPECIES, this.location()));
-    this.latest = ts[ts.length - 1] ?? null;
-    this.previous = ts[ts.length - 2] ?? null;
+    this.latest = stamp(ts[ts.length - 1] ?? null);
+    this.previous = stamp(ts[ts.length - 2] ?? null);
     this.liveReadings = ts.slice(-APP_CONFIG.diagnostics.liveReadingsKept).map(toLive);
   }
 
@@ -250,29 +262,34 @@ export class LivingCollector {
     this.previous = null;
     this.replayRows(rows, this.db.eventsSince(now - 30 * DAY));
     this.liveReadings = rows.slice(-APP_CONFIG.diagnostics.liveReadingsKept).flatMap((r) => {
-      const t = fromRecord(r, this.calibration);
+      const t = fromRecord(r, this.calibration, false);
       return t ? [toLive(t)] : [];
     });
     this.log(`[collector] replayed ${rows.length} readings from the last ${APP_CONFIG.history.replayHours}h`);
   }
 
+  // The database doesn't change during a replay: today's skies and the soil breaks are read once, not per row
   private replayRows(rows: TelemetryRecord[], events: PlantEvent[]) {
+    if (!rows.length) return;
+    const context: PerceiveContext = { skies: this.db.outsideWeatherSince(dayStartOf(rows[0].timestamp) - HOUR), soilBreaks: this.soilBreaks() };
     for (const row of rows) {
-      const t = fromRecord(row, this.calibration);
+      const t = fromRecord(row, this.calibration, false);
       if (!t) continue;
       this.previous = this.latest;
       this.latest = t;
       this.recent.push(toSample(t, ACTIVE_SPECIES, this.location()));
-      const perception = this.perceiveAt(t.timestamp, events);
+      const perception = this.perceiveAt(t.timestamp, events, null, null, context);
       this.memory = evaluatePlantHealth({ perception, species: ACTIVE_SPECIES, memory: this.memory, tempUnit: this.settings.temperatureUnit }).memory;
     }
+    this.latest = stamp(this.latest);
+    this.previous = stamp(this.previous);
   }
 
   private restoreDetector(now: number) {
     const window = this.db
       .telemetrySince('esp32_sensor', now - APP_CONFIG.watering.riseWindowMs, now)
       .flatMap((r) => {
-        const t = fromRecord(r, this.calibration);
+        const t = fromRecord(r, this.calibration, false);
         return t ? [{ t: t.timestamp, soil: t.soilMoisture, raw: t.soilRaw ?? null }] : [];
       });
     const lastSensorWatering = this.db
@@ -293,14 +310,14 @@ export class LivingCollector {
     this.wateringSessionEventId = lastSensorWatering?.id ?? null;
   }
 
-  private perceiveAt(now: number, events: PlantEvent[], deviceError: string | null = null, outside: OutsideObservation | null = null): PerceptionState {
-    const dayStart = new Date(now);
-    dayStart.setHours(0, 0, 0, 0);
+  private perceiveAt(now: number, events: PlantEvent[], deviceError: string | null = null, outside: OutsideObservation | null = null, context?: PerceiveContext): PerceptionState {
+    const since = dayStartOf(now) - HOUR;
+    const skies = context ? context.skies.filter((o) => o.at >= since) : this.db.outsideWeatherSince(since);
     return perceive({
       outside,
-      soilBreaks: this.soilBreaks(),
+      soilBreaks: context?.soilBreaks ?? this.soilBreaks(),
       // Today's skies: a grey day explains dim light (also on replay, from the stored observations)
-      outsideToday: this.db.outsideWeatherSince(dayStart.getTime() - 3600_000).filter((o) => o.at <= now + 15 * 60_000),
+      outsideToday: skies.filter((o) => o.at <= now + 15 * 60_000),
       latest: this.latest,
       previous: this.previous,
       recent: this.recent,

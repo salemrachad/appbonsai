@@ -99,7 +99,7 @@ export function historyRoutes(db: AppDatabase, collector: LivingCollector): Rout
     const cal = collector.getCalibration();
     const toSamples = (rows: ReturnType<typeof db.telemetrySince>) =>
       rows.flatMap((row) => {
-        const t = fromRecord(row, cal);
+        const t = fromRecord(row, cal, false);
         return t ? [toSample(t, ACTIVE_SPECIES, location)] : [];
       });
     const samples = toSamples(db.telemetrySince(source(), since - 6 * HOUR));
