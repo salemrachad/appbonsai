@@ -119,9 +119,10 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   check('HN1 an 86 % night: just sleeping (normal for a greenhouse night)', n1.h.condition === 'sleeping' && !n1.h.modifiers.includes('high_humidity'), show(n1));
   const n2 = night(90);
   check(
-    'HN2 a 90 % night for hours: sleeping, with high humidity (mist and beads on the leaves)',
-    n2.h.condition === 'sleeping' && n2.h.modifiers.includes('high_humidity') && n2.x.avatar.effects.includes('mist') && n2.x.avatar.effects.includes('condensation'),
-    `${show(n2)} · ${n2.x.avatar.effects.join(',')}`
+    'HN2 a 90 % night for hours: sleeping, with high humidity: a dewy night look (dew, low mist, heavier and slower)',
+    n2.h.condition === 'sleeping' && n2.h.modifiers.includes('high_humidity') && ['dew', 'night_mist', 'condensation'].every((e) => n2.x.avatar.effects.includes(e as never)) && !n2.x.avatar.effects.includes('mist') &&
+      n2.x.leafDroop > n1.x.leafDroop && n2.x.motion.swayAmount < n1.x.motion.swayAmount && !n1.x.avatar.effects.includes('dew'),
+    `${show(n2)} · ${n2.x.avatar.effects.join(',')} · droop ${n1.x.leafDroop} → ${n2.x.leafDroop} · sway ${n1.x.motion.swayAmount} → ${n2.x.motion.swayAmount}`
   );
   const n3 = new Sim().run(at(9), 5 * 60, () => ({ soil: 60, hum: 86 }));
   check('HN3 by day 86 % for hours is still high humidity', n3.h.condition === 'high_humidity' || n3.h.modifiers.includes('high_humidity'), show(n3));

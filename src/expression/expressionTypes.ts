@@ -99,6 +99,8 @@ export type AvatarEffect =
   | 'breath_vapor' // breath clouds in the cold
   | 'cracks' // cracked dry soil
   | 'condensation' // beads of water on the leaves
+  | 'dew' // a humid night: larger beads glinting on the leaves, now and then a drop falls
+  | 'night_mist' // a humid night: a soft mist bank drifting low around the pot
   | 'sweat_drops'
   | 'fireflies'
   | 'gloom_cloud'

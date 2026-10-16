@@ -231,6 +231,37 @@ export const ForegroundEffects: React.FC<{ effects: AvatarEffect[]; palette: Pal
         </g>
       )}
 
+      {has('night_mist') && (
+        // A humid night: a soft mist bank lying low around the pot and the stand, drifting slowly
+        <g pointerEvents="none" aria-hidden>
+          <defs>
+            <filter id="nightMistBlur" x="-20%" y="-100%" width="140%" height="300%">
+              <feGaussianBlur stdDeviation="7" />
+            </filter>
+          </defs>
+          <g filter="url(#nightMistBlur)" fill="#D3DEE8">
+            <ellipse cx="220" cy="404" rx="200" ry="17" opacity="0.55" className="night-mist-1" />
+            <ellipse cx="140" cy="372" rx="105" ry="11" opacity="0.4" className="night-mist-2" />
+            <ellipse cx="315" cy="360" rx="85" ry="9" opacity="0.32" className="night-mist-1" style={{ animationDelay: '-9s' }} />
+            <ellipse cx="225" cy="62" rx="130" ry="9" opacity="0.2" className="night-mist-2" style={{ animationDelay: '-5s' }} />
+          </g>
+        </g>
+      )}
+
+      {has('dew') && (
+        // Now and then a drop of dew lets go of a leaf and falls
+        <g fill="#CFE7F7">
+          {PAD_UNDERSIDES.filter((_, i) => i % 3 === 1).slice(0, 3).map((p, i) => (
+            <path
+              key={i}
+              d={`M ${p.x},${p.y} C ${p.x},${p.y} ${p.x + 2},${p.y + 3.4} ${p.x + 2},${p.y + 4.6} C ${p.x + 2},${p.y + 5.8} ${p.x + 1},${p.y + 6.6} ${p.x},${p.y + 6.6} C ${p.x - 1},${p.y + 6.6} ${p.x - 2},${p.y + 5.8} ${p.x - 2},${p.y + 4.6} C ${p.x - 2},${p.y + 3.4} ${p.x},${p.y} ${p.x},${p.y} Z`}
+              className="dew-fall"
+              style={{ animationDelay: `${i * 3.7}s`, transformOrigin: `${p.x}px ${p.y}px` }}
+            />
+          ))}
+        </g>
+      )}
+
       {has('breath_vapor') && (
         <g fill="#FFFFFF">
           {[0, 1.1, 2.2].map((d, i) => (

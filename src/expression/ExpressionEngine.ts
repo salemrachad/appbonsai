@@ -395,6 +395,16 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
   if (b.concern?.metric === 'soil') look.soil = /Wet|Waterlogged/.test(b.concern.status) ? 'wet' : 'dry';
   // Sparkles only right after reaching thriving: no constant glitter
   if (condition === 'thriving' && b.episode.minutes < 60 && b.energy > 0.7) effects.add('sparkles');
+  // A humid night (asleep in near-saturated air): dew glinting on the leaves, mist low around the pot.
+  // The daytime humid haze behind the tree would be lost in the dark.
+  const asleep = condition === 'sleeping' || modifiers.includes('sleeping');
+  const dewyNight = asleep && (condition === 'high_humidity' || modifiers.includes('high_humidity'));
+  if (dewyNight) {
+    effects.delete('mist');
+    effects.add('condensation');
+    effects.add('dew');
+    effects.add('night_mist');
+  }
 
   // Care reaction
   const r = b.reaction;
@@ -431,6 +441,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
   if (b.afterglow) leafDroop = Math.max(leafDroop, 0.08);
   if (condition === 'thriving') leafDroop = -0.15;
   if (condition === 'sleeping') leafDroop = Math.max(leafDroop, 0.12); // relaxed, resting
+  if (dewyNight) leafDroop = Math.max(leafDroop, 0.2); // heavy with dew
   for (const m of modifiers) leafDroop = Math.max(leafDroop, (DROOP[m] ?? 0) * 0.5);
   if (r?.kind === 'watering_relief') leafDroop *= 0.6;
   leafDroop = r2(clamp(leafDroop, -0.2, 1));
@@ -445,6 +456,11 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     flutter: r2(sleeping ? 0.1 : 0.2 + 0.9 * e),
     blinkEveryMs: look.eyes === 'closed' ? null : Math.round(2600 + (1 - e) * 5000),
   };
+  // Damp, heavy air: a slower, smaller sway
+  if (dewyNight) {
+    motion.swaySpeed = r2(motion.swaySpeed * 0.8);
+    motion.swayAmount = r2(motion.swayAmount * 0.75);
+  }
   // Pruned recently: gentler movement for a few days
   if (b.care.calm > 0) {
     motion.swayAmount = r2(motion.swayAmount * (1 - 0.25 * b.care.calm));

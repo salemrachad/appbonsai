@@ -160,6 +160,8 @@ export const PadLeaves: React.FC<{
   const yellowShare = effects.includes('yellow_leaves') ? 0.11 : 0.13 * seasonal.yellowing;
   const freshShare = effects.includes('new_leaves') ? 0.28 : 0.32 * seasonal.newGrowth;
   const beads = effects.includes('condensation') || foliage === 'dewy';
+  // A humid night: larger dew beads on more leaves, each glinting at its own pace
+  const dew = effects.includes('dew');
   return (
     <g>
       {leaves.map((l, i) => {
@@ -198,7 +200,15 @@ export const PadLeaves: React.FC<{
                 <path d="M 0,0 Q 5,-4.6 12,0 Q 5,4.6 0,0 Z" fill={fill} stroke={p.edge ?? 'none'} strokeWidth={p.edge ? 0.9 : 0} style={{ transition: 'fill 2s ease' }} />
                 <path d="M 1.5,0 L 10,0" stroke={p.shadow} strokeWidth="0.6" opacity="0.35" />
                 {p.gloss && l.r > 0.6 && <path d="M 3,-1.6 Q 6,-3 9,-1.4" stroke="#FFFFFF" strokeWidth="0.8" opacity="0.45" fill="none" strokeLinecap="round" />}
-                {beads && l.r < 0.3 && <circle cx="7" cy="1" r="1.1" fill="#EAF6FF" opacity="0.9" />}
+                {dew && l.r < 0.55 ? (
+                  // A dew bead catching the light, glinting at its own pace
+                  <g className="dew-glint" style={{ animationDelay: `${((l.r * 37) % 6).toFixed(2)}s`, transformBox: 'fill-box', transformOrigin: 'center' }}>
+                    <circle cx="8" cy="1.5" r="1.8" fill="#EAF6FF" opacity="0.95" />
+                    <circle cx="7.4" cy="0.9" r="0.6" fill="#FFFFFF" />
+                  </g>
+                ) : (
+                  beads && l.r < 0.3 && <circle cx="7" cy="1" r="1.1" fill="#EAF6FF" opacity="0.9" />
+                )}
               </g>
             </g>
           </g>

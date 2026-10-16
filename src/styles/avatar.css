@@ -150,6 +150,19 @@
 }
 .animate-drip { animation: drip 3.2s ease-in infinite; }
 .animate-drip-fast { animation: drip 0.9s ease-in infinite; }
+/* A humid night: dew glinting on the leaves, a drop letting go now and then, mist drifting low */
+@keyframes dew-glint { 0%, 70%, 100% { opacity: 0.75; transform: scale(1); } 80% { opacity: 1; transform: scale(1.35); } 88% { opacity: 0.9; transform: scale(1.05); } }
+.dew-glint { animation: dew-glint 6s ease-in-out infinite; }
+@keyframes dew-fall {
+  0%, 72% { transform: translateY(0) scale(0.6); opacity: 0; }
+  80% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(90px) scale(0.85, 1.25); opacity: 0; }
+}
+.dew-fall { animation: dew-fall 11s ease-in infinite; }
+@keyframes night-mist-a { 0%, 100% { transform: translateX(-16px); } 50% { transform: translateX(16px); } }
+@keyframes night-mist-b { 0%, 100% { transform: translateX(12px); } 50% { transform: translateX(-12px); } }
+.night-mist-1 { animation: night-mist-a 22s ease-in-out infinite; }
+.night-mist-2 { animation: night-mist-b 28s ease-in-out infinite; }
 @keyframes ripple { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
 .animate-ripple { animation: ripple 2.6s ease-out infinite; }
 @keyframes breath {
@@ -354,9 +367,11 @@
   .animate-butterfly-path, .animate-butterfly-wings, .animate-sun-throb, .animate-pollen, .animate-chatter, .animate-pant-mouth,
   .animate-eye-swirl path, .animate-cloud-bob, .animate-sweat-fly-left, .animate-sweat-fly-right,
   .visitor-arrive, .visitor-peek, .visitor-tail, .visitor-head, .visitor-hop, .visitor-dive, .visitor-peek-once,
+  .dew-glint, .dew-fall, .night-mist-1, .night-mist-2,
   .visitor-ripple, .visitor-shaking, .visitor-flick, .traces-tail, .drey-tail, .drey-twitch, .drey-zzz,
   .df-wings-fly, .df-perch, .df-hover, .df-hover-here, .df-fly, .df-dart,
   .sloth-hang, .sloth-climb, .sloth-sleep, .sloth-look, .sloth-blink, .sloth-regrip, .sloth-slowblink {
     animation: none !important;
   }
+  .dew-fall { opacity: 0; } /* a still frame shows no drop in mid-air */
 }
