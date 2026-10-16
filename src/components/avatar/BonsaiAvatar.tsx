@@ -4,6 +4,7 @@ import { AvatarEffects, BodyDetails, ForegroundEffects, Lanterns, SoilEffects } 
 import { AvatarFace } from './AvatarFace';
 import { FoliageDefs, PadLeaves, PADS, paletteFor } from './Foliage';
 import { PetSession, usePetting } from './usePetting';
+import { useVisitorPlay, Visitor } from './Visitor';
 
 interface BonsaiAvatarProps {
   expression: ExpressionState | null;
@@ -177,6 +178,9 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
   const gaze = useGaze(base.gaze, eyesOpen, strength >= 0.35, gesture, svgRef);
   const isWatering = look.effects.includes('rain');
   const petting = usePetting(svgRef, expression?.touch ?? null, onPetSession);
+  // Petting while the squirrel visits is play (attention only); how it plays was decided upstream
+  const visitor = expression?.visitor ?? null;
+  const visitorPose = useVisitorPlay(visitor, petting.strokeAt, expression?.touch.habituation ?? null);
 
   // Petting's acknowledgement is nonverbal: a soft or slow eye-close, nothing said
   useEffect(() => {
@@ -388,6 +392,9 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
               <path d="M 220,140 C 220,105 220,80 220,55" stroke="url(#barkGradient)" strokeWidth="7.5" strokeLinecap="round" fill="none" />
             </g>
 
+            {/* A hiding visitor sits behind the pads, so only its head peeks over the leaves */}
+            <Visitor visitor={visitor} pose={visitorPose} layer="behind" />
+
             {/* Foliage pads: a soft body plus individual leaves */}
             <g id="bonsai-foliage">
               <g className="canopy-droop" style={droop.left}>
@@ -436,6 +443,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
             </g>
 
             <BodyDetails effects={look.effects} shielding={gesture === 'shield'} shaking={gesture === 'shake_off'} />
+            <Visitor visitor={visitor} pose={visitorPose} layer="front" />
           </g>
           </g>
         </g>

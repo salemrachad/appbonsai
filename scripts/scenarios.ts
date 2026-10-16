@@ -11,6 +11,7 @@ import { seasonState } from '../src/perception/season';
 import type { PerceptionSample } from '../src/perception/perceptionTypes';
 import { FICUS } from '../src/species/ficus';
 import { calculateVPD } from '../src/telemetry/telemetryNormalizer';
+import { skyFromCode, type OutsideObservation } from '../src/telemetry/outsideWeather';
 import type { PlantTelemetry } from '../src/telemetry/types';
 
 const LOC = { latitude: 33.97, longitude: 35.73 };
@@ -38,12 +39,13 @@ class Sim {
   episodes: BehaviourEpisode[] = [];
   health!: PlantHealthState;
   transitions = 0;
+  outside: OutsideObservation[] = []; // outside weather observations (a grey sky explains dim light)
   step(now: number, r: R | null) {
     if (r) {
       this.prev = this.latest;
       this.latest = tel(now, r);
     }
-    const p = perceive({ latest: this.latest, previous: this.prev, recent: this.recent, events: this.events.filter((e) => e.timestamp <= now), location: LOC, pollMs: MIN, deviceError: r ? null : 'ETIMEDOUT', species: FICUS, now });
+    const p = perceive({ latest: this.latest, previous: this.prev, recent: this.recent, events: this.events.filter((e) => e.timestamp <= now), location: LOC, pollMs: MIN, deviceError: r ? null : 'ETIMEDOUT', species: FICUS, now, outsideToday: this.outside, outside: this.outside.filter((o) => o.at <= now).pop() ?? null });
     const res = evaluatePlantHealth({ perception: p, species: FICUS, memory: this.memory });
     if (this.health && this.health.condition !== res.state.condition) {
       this.transitions++;
@@ -117,6 +119,28 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   check('D1 1h dim daylight: not too dark yet', early.h.condition !== 'too_dark', show(early));
   const late = s.run(at(11), 4 * 60, () => ({ soil: 60, light: 15 }));
   check('D2 4h+ dim daylight → too_dark', late.h.condition === 'too_dark', show(late));
+}
+
+// D3-D6. A grey sky outside explains dim light (relative to the sky as well as the sun)
+{
+  const grey = (s: Sim, code: number) => {
+    for (let t = at(0); t < at(23, 59); t += 15 * MIN) s.outside.push({ at: t, sky: skyFromCode(code), code, temperature: 12, humidity: 90, precipitation: 1, cloudCover: 100, wind: 10, gusts: 15, isDay: true });
+  };
+  const overcast = new Sim();
+  grey(overcast, 3);
+  const o = overcast.run(at(10), 5 * 60, () => ({ soil: 60, light: 18 }));
+  check('D3 overcast all day, LDR 18%: explained by the sky, not too dark', o.h.condition !== 'too_dark' && !o.h.modifiers.includes('too_dark'), `${show(o)} · ${o.p.light.reasoning.find((x) => x.includes('grey')) ?? ''}`);
+  const light = o.h.metrics.find((m) => m.id === 'light');
+  check('D3b the light card says "Grey day", not "Low"', light?.status === 'Grey day' && light.tone === 'info', `${light?.status} (${light?.tone})`);
+  const clear = new Sim();
+  grey(clear, 0);
+  const c = clear.run(at(10), 5 * 60, () => ({ soil: 60, light: 18 }));
+  check('D4 clear sky, same LDR 18%: too dark (a dim spot, not the weather)', c.h.condition === 'too_dark', show(c));
+  const cave = new Sim();
+  grey(cave, 3);
+  const k = cave.run(at(10), 5 * 60, () => ({ soil: 60, light: 6 }));
+  check('D5 overcast but LDR 6%: still too dark (darker than even a grey sky explains)', k.h.condition === 'too_dark', show(k));
+  check('D6 a grey day scores fairer light than the same reading on a clear day', (o.h.scores.light ?? 0) > (c.h.scores.light ?? 0), `${o.h.scores.light} vs ${c.h.scores.light}`);
 }
 
 // E. High temperature briefly → little/no vitality damage

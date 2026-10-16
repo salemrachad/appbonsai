@@ -1,6 +1,7 @@
 import React from 'react';
 import { RotateCcw, Wrench } from 'lucide-react';
 import { DEV_PRESETS } from '../../health/developerOverrides';
+import type { VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
 import { SEASONS, type Season } from '../../perception/season';
 
 interface StateTesterProps {
@@ -8,12 +9,32 @@ interface StateTesterProps {
   onSelectPreset: (id: string | null) => void;
   activeSeason: Season | null;
   onSelectSeason: (season: Season | null) => void;
+  activeVisitor: VisitorPreview | null;
+  onSelectVisitor: (v: VisitorPreview | null) => void;
+  activeWeather: WeatherPreview | null;
+  onSelectWeather: (w: WeatherPreview | null) => void;
 }
+
+const WEATHER_PREVIEWS: { id: WeatherPreview; label: string }[] = [
+  { id: 'rain', label: '🌧️ Rain' },
+  { id: 'heavy_rain', label: 'Downpour' },
+  { id: 'fog', label: '🌫️ Fog' },
+  { id: 'thunderstorm', label: '⛈️ Storm' },
+  { id: 'snow', label: '🌨️ Snow' },
+  { id: 'overcast', label: '☁️ Overcast' },
+  { id: 'windy', label: '💨 Windy' },
+];
+
+const SPOT_LABEL: Record<VisitorPreview['spot'], string> = { left_branch: 'Left', right_branch: 'Right', crown: 'Crown', trunk: 'Trunk', pot_rim: 'Pot' };
+const chip = (active: boolean) =>
+  `py-1 px-2 rounded-lg border text-[11px] font-medium sans cursor-pointer ${
+    active ? 'bg-[#4A6741] text-white border-[#334A2C]' : 'bg-white text-[#2D332A] border-[#D8D2C9] hover:border-[#4A6741]'
+  }`;
 
 const SEASON_EMOJI: Record<Season, string> = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' };
 
 // Preview any health state. Presentation only: telemetry, the database, care events and episodes are untouched.
-export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSelectPreset, activeSeason, onSelectSeason }) => (
+export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSelectPreset, activeSeason, onSelectSeason, activeVisitor, onSelectVisitor, activeWeather, onSelectWeather }) => (
   <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
@@ -78,6 +99,38 @@ export const StateTester: React.FC<StateTesterProps> = ({ activePresetId, onSele
           </button>
         );
       })}
+    </div>
+
+    {/* Real visits need days of calm history; this shows the squirrel now */}
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Squirrel</span>
+      <button onClick={() => onSelectVisitor(null)} className={chip(!activeVisitor)}>Live</button>
+      {(['visiting', 'hiding'] as const).map((mode) => (
+        <button
+          key={mode}
+          onClick={() => onSelectVisitor({ mode, spot: activeVisitor?.spot ?? 'left_branch' })}
+          className={chip(activeVisitor?.mode === mode)}
+        >
+          {mode === 'visiting' ? '🐿️ Visiting' : '🍃 Hiding'}
+        </button>
+      ))}
+      {activeVisitor &&
+        (Object.keys(SPOT_LABEL) as VisitorPreview['spot'][]).map((spot) => (
+          <button key={spot} onClick={() => onSelectVisitor({ ...activeVisitor, spot })} className={chip(activeVisitor.spot === spot)}>
+            {SPOT_LABEL[spot]}
+          </button>
+        ))}
+    </div>
+
+    {/* Outside weather: only the background layer changes, never the tree */}
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="sans text-[10px] font-bold uppercase tracking-wider text-[#2D332A]/55 mr-1">Outside</span>
+      <button onClick={() => onSelectWeather(null)} className={chip(!activeWeather)}>Live</button>
+      {WEATHER_PREVIEWS.map((w) => (
+        <button key={w.id} onClick={() => onSelectWeather(w.id)} className={chip(activeWeather === w.id)}>
+          {w.label}
+        </button>
+      ))}
     </div>
 
     <p className="text-[11px] sans text-[#2D332A]/55 px-1">

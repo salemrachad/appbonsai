@@ -360,13 +360,110 @@
   50% { opacity: 1; }
 }
 
+/* ---- Outside weather (atmosphere.weather): its own layer over the state scene, behind the tree ---- */
+.weather-layer {
+  position: absolute;
+  inset: 0;
+  animation: weather-in 2s ease both;
+  /* Particles follow the weather's own strength, not the tree scene's */
+  --scene-intensity: max(0.75, var(--weather-intensity, 0.5));
+}
+.weather-layer .p-rain { width: 2.5px; border-radius: 2px; }
+/* Rain catches the light on dark scenes */
+.night .weather-layer .p-rain,
+.night .weather-front .p-drop { filter: brightness(2) saturate(0.7); }
+
+/* ---- In front of the tree: the weather passes over it (never takes the pointer) ---- */
+.weather-front {
+  position: absolute;
+  inset: -4% -8%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+  animation: weather-in 2s ease both;
+  --scene-intensity: max(0.8, var(--weather-intensity, 0.5));
+}
+.p-drop {
+  width: 3px;
+  height: var(--size);
+  border-radius: 3px;
+  background: linear-gradient(180deg, transparent, var(--c) 60%, rgba(255, 255, 255, 0.85));
+  animation-name: rain-fall;
+  transform: rotate(12deg);
+}
+.p-splash {
+  height: calc(var(--size) * 0.3);
+  border-radius: 50%;
+  border: 1.5px solid var(--c);
+  animation-name: ripple-out;
+  animation-timing-function: ease-out;
+}
+.weather-front .p-snow { box-shadow: 0 0 0 1px rgba(110, 130, 155, 0.3), 0 0 6px rgba(255, 255, 255, 0.95); filter: none; }
+/* Fog: a veil over the plant and soft banks drifting across it */
+.wf-veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(250, 251, 252, 0.35), rgba(245, 247, 249, 0.6));
+  opacity: calc(0.55 + 0.45 * var(--weather-intensity, 0.8));
+}
+.night .wf-veil { background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(170, 180, 200, 0.18), rgba(150, 160, 185, 0.35)); }
+.wf-bank {
+  position: absolute;
+  left: -60%;
+  width: 90%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 70%);
+  filter: blur(18px);
+  animation: fog-pass linear infinite;
+}
+.night .wf-bank { background: radial-gradient(ellipse at center, rgba(185, 195, 215, 0.45), rgba(185, 195, 215, 0) 70%); }
+@keyframes fog-pass {
+  0% { transform: translateX(0); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateX(190%); opacity: 0; }
+}
+/* Flakes need an edge to show on the light paper; on dark scenes they glow */
+.weather-layer .p-snow { box-shadow: 0 0 0 1px rgba(110, 130, 155, 0.35), 0 0 4px rgba(255, 255, 255, 0.9); filter: none; }
+@keyframes weather-in { from { opacity: 0; } to { opacity: 1; } }
+.weather-tint { position: absolute; inset: 0; opacity: calc(0.4 + 0.6 * var(--weather-intensity, 0.5)); }
+.weather-overcast .weather-tint { background: linear-gradient(180deg, rgba(120, 128, 140, 0.22), transparent 65%); }
+.weather-drizzle .weather-tint { background: linear-gradient(180deg, rgba(95, 110, 130, 0.22), rgba(95, 110, 130, 0.05) 80%); }
+.weather-rain .weather-tint { background: linear-gradient(180deg, rgba(80, 95, 115, 0.38), rgba(80, 95, 115, 0.12) 80%); }
+.weather-heavy_rain .weather-tint { background: linear-gradient(180deg, rgba(60, 72, 92, 0.5), rgba(60, 72, 92, 0.18) 80%); }
+.weather-thunderstorm .weather-tint { background: linear-gradient(180deg, rgba(50, 45, 65, 0.4), rgba(50, 45, 65, 0.1) 75%); }
+.weather-fog .weather-tint { background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(240, 243, 246, 0.45)); }
+.night .weather-fog .weather-tint { background: linear-gradient(180deg, rgba(160, 170, 190, 0.3), rgba(140, 150, 170, 0.2)); }
+.weather-snow .weather-tint { background: linear-gradient(180deg, rgba(170, 186, 208, 0.6), rgba(200, 212, 228, 0.4) 55%, rgba(235, 241, 248, 0.4)); }
+.night .weather-snow .weather-tint { background: linear-gradient(180deg, rgba(150, 165, 195, 0.18), rgba(170, 185, 210, 0.12)); }
+/* Far flakes: soft and faint, they only give the snowfall depth */
+.p-snowfar { background: var(--c); border-radius: 50%; animation-name: fall-sway; filter: blur(0.9px); opacity: 0.7; }
+/* A soft blanket of snow settling along the ground behind the tree */
+.weather-snow-ground {
+  position: absolute;
+  left: -5%;
+  right: -5%;
+  bottom: -2%;
+  height: 16%;
+  border-radius: 50% 50% 0 0 / 30% 30% 0 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(240, 245, 250, 0.85));
+  filter: blur(6px);
+  opacity: calc(0.5 + 0.5 * var(--weather-intensity, 0.7));
+}
+.night .weather-snow-ground { background: linear-gradient(180deg, rgba(200, 210, 230, 0.25), rgba(190, 200, 225, 0.4)); }
+.weather-partly_cloudy .weather-tint { background: none; }
+.weather-lightning { animation-duration: 9s; }
+
 @media (prefers-reduced-motion: reduce) {
   .particle,
   .scene-sun,
   .scene-lightning,
   .scene-scanlines,
   .scene-scanlines::after,
-  .scene-bloom {
+  .scene-bloom,
+  .weather-layer,
+  .weather-front,
+  .wf-bank {
     animation: none !important;
   }
   .scene-lightning { opacity: 0; }

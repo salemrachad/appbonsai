@@ -1,7 +1,7 @@
 // SQLite schema for the local Appbonsai database (data/appbonsai.db).
 // All timestamps are INTEGER milliseconds since the Unix epoch (UTC).
 
-export const SCHEMA_VERSION = 4; // 4: interactions (created by SCHEMA_SQL on open, no migration step needed)
+export const SCHEMA_VERSION = 5; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL on open, no migration step needed)
 
 export const SCHEMA_SQL = `
 -- Raw observations: the permanent truth. Health can be re-evaluated from these later.
@@ -72,6 +72,24 @@ CREATE TABLE IF NOT EXISTS interactions (
   metadata_json TEXT    NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_interactions_kind_started ON interactions(kind, started_at);
+
+-- Outside weather at the tree's location (Open-Meteo), every 15 min. CONTEXT only: the greenhouse sensors are
+-- the truth about the tree; perception, health and episodes never read this table.
+CREATE TABLE IF NOT EXISTS outside_weather (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp     INTEGER NOT NULL,
+  sky           TEXT    NOT NULL,              -- clear, partly_cloudy, overcast, fog, drizzle, rain, heavy_rain, snow, thunderstorm
+  code          INTEGER NOT NULL,              -- WMO weather code
+  temperature   REAL,
+  humidity      REAL,
+  precipitation REAL,
+  cloud_cover   REAL,
+  wind          REAL,
+  gusts         REAL,
+  is_day        INTEGER,
+  raw_json      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_outside_weather_ts ON outside_weather(timestamp);
 
 -- Small key/value store: schema version, collector settings.
 CREATE TABLE IF NOT EXISTS meta (

@@ -67,6 +67,29 @@ export const APP_CONFIG = {
     familiarityWindowDays: 30, // older days count for nothing: a month away is fully neutral again
   },
 
+  // Habitat (visitors such as the squirrel): how welcoming the tree has been as a place to be, derived
+  // from the stored episodes. Evidence class "art": it never reaches health, mood or energy.
+  // Slow to trust, quick to leave: calm time raises it over days, stress empties it within hours.
+  habitat: {
+    windowDays: 14, // episodes replayed (older ones no longer matter much)
+    riseHours: { comfortable: 36, thriving: 20 }, // observed calm hours, time constant toward 1
+    fallHours: { mild: 12, moderate: 4, critical: 1 }, // time constant toward 0 while that stress is primary
+    enter: 0.6, // Schmitt trigger: visitors start coming above this…
+    exit: 0.4, // …and stop below this
+    slotMinutes: 30, // the day is cut into slots; each may hold one visit
+    visitChance: { min: 0.15, max: 0.45 }, // chance a daytime slot holds a visit, from just welcoming → fully
+    visitMinutes: { min: 4, max: 12 },
+    // Petting while the squirrel visits: it plays around the tree (UI only, never stored). How playful comes
+    // from the tree's state (ExpressionEngine visitorPlay); these are the tunings per kind.
+    play: {
+      returnMs: 10_000, // a squirrel that hid comes back out after this
+      lingerMs: 4_000, // play ends this long after the last stroke (it stays where it ended up)
+      playful: { hopEveryMs: 2_500, hideChance: 0.25 }, // thriving
+      gentle: { hopEveryMs: 4_000, hideChance: 0.3 }, // comfortable
+      shy: { hopEveryMs: 0, hideChance: 1 }, // hiding through a stress: only ducks and re-peeks
+    },
+  },
+
   history: {
     replayHours: 48, // fallback when no saved health memory exists: telemetry replayed on start
     maxGapMs: 15 * 60 * 1000, // short gap: readings this far apart still count as continuous observation

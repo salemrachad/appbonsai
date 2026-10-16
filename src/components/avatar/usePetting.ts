@@ -62,6 +62,7 @@ export function usePetting(svg: React.RefObject<SVGSVGElement | null>, touch: To
   const lean = useRef<SVGGElement | null>(null);
   const glow = useRef<SVGCircleElement | null>(null);
   const [blink, setBlink] = useState<{ kind: 'soft_close' | 'slow'; at: number } | null>(null);
+  const [strokeAt, setStrokeAt] = useState<number | null>(null); // a visitor in the tree is startled by it
 
   const touchRef = useRef(touch);
   touchRef.current = touch;
@@ -199,6 +200,7 @@ export function usePetting(svg: React.RefObject<SVGSVGElement | null>, touch: To
     if (touch && restingSince.current !== null) level.current = habituate(level.current, touch.habituation, performance.now() - restingSince.current, false);
     restingSince.current = null;
     stroke.current = { source, pointerId, startedAt: now, acknowledged: false };
+    setStrokeAt(now);
     hand.current = { x: p.x, y: p.y, vx: 0, speed: 0, t: performance.now() };
     kick();
   };
@@ -339,6 +341,7 @@ export function usePetting(svg: React.RefObject<SVGSVGElement | null>, touch: To
     leanRef: lean,
     glowRef: glow,
     blink,
+    strokeAt,
     consumeClick,
     handlers: { onPointerDown, onPointerMove, onPointerUp: onPointerEnd, onPointerCancel: onPointerEnd, onPointerLeave },
   };

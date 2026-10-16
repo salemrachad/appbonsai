@@ -36,6 +36,7 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
         <Row label="Episode duration" value={`${duration(b.episode.minutes)}${b.episode.id !== null ? ` (episode #${b.episode.id})` : ''}`} />
         <Row label="Recent event" value={lastEvent ? `${lastEvent.type.replace('_', ' ')} ${ago(lastEvent.timestamp)}` : '–'} />
         <Row label="Time of day" value={b.timeOfDay} />
+        <Row label="Outside (context, never health)" value={x.atmosphere.weather ? x.atmosphere.weather.label : 'unknown / stale'} />
       </Section>
 
       <Section title="Behaviour">
@@ -86,6 +87,18 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
         <Row label="Observation" value={rel.observation ? rel.observation.id.replace(/_/g, ' ') : '–'} />
         <Row label="Petting sessions (7 days, attention)" value={`${rel.attention?.petSessions7d ?? 0}${rel.attention?.lastPetAt ? ` · last ${ago(rel.attention.lastPetAt)}` : ''} · familiarity ${rel.attention?.familiarity ?? 0}`} />
       </Section>
+
+      {b.habitat && (
+        <Section title="Habitat (visitors · art, never health)">
+          <Row label="Welcoming" value={`${b.habitat.value} · ${b.habitat.welcoming ? 'yes' : 'no'}${b.habitat.lastChangeAt ? ` (since ${ago(b.habitat.lastChangeAt)})` : ''}`} strong />
+          <Row label="Observed (14 days)" value={`${b.habitat.calmHours14d}h calm · ${b.habitat.stressHours14d}h stress`} />
+          <Row
+            label="Right now"
+            value={b.habitat.visit ? `squirrel ${b.habitat.presence} · ${b.habitat.visit.spot.replace('_', ' ')} · until ${clock(b.habitat.visit.endsAt)}` : b.habitat.why}
+          />
+          {x.visitor && x.visitor.id.startsWith('preview') && <Row label="Shown" value={`preview: squirrel ${x.visitor.mode}`} />}
+        </Section>
+      )}
     </div>
   );
 };

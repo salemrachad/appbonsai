@@ -9,6 +9,7 @@ import { StateTester } from '../components/developer/StateTester';
 import { BackendPanel } from '../components/developer/BackendPanel';
 import { apiUrl } from '../config/backend';
 import type { ExpressionState } from '../expression/expressionTypes';
+import type { VisitorPreview, WeatherPreview } from '../hooks/usePlantBehaviour';
 import type { Season } from '../perception/season';
 
 interface DeveloperProps {
@@ -19,12 +20,16 @@ interface DeveloperProps {
   onSelectDevPreset: (id: string | null) => void;
   devSeason: Season | null;
   onSelectDevSeason: (season: Season | null) => void;
+  devVisitor: VisitorPreview | null;
+  onSelectDevVisitor: (v: VisitorPreview | null) => void;
+  devWeather: WeatherPreview | null;
+  onSelectDevWeather: (w: WeatherPreview | null) => void;
 }
 
 const API_LINKS = ['/status', '/current', '/health', '/behaviour', '/events', '/history/diary?days=7', '/history/episodes?days=7', '/telemetry/latest?limit=20'];
 
 // Developer tools: state previews, why vitality is what it is, and why the tree behaves as it does.
-export const Developer: React.FC<DeveloperProps> = ({ snapshot, behaviour, expression, devPresetId, onSelectDevPreset, devSeason, onSelectDevSeason }) => {
+export const Developer: React.FC<DeveloperProps> = ({ snapshot, behaviour, expression, devPresetId, onSelectDevPreset, devSeason, onSelectDevSeason, devVisitor, onSelectDevVisitor, devWeather, onSelectDevWeather }) => {
   const st = snapshot?.status;
   return (
     <div className="space-y-5 pb-12">
@@ -35,7 +40,7 @@ export const Developer: React.FC<DeveloperProps> = ({ snapshot, behaviour, expre
 
       <BackendPanel status={st ?? null} />
 
-      <StateTester activePresetId={devPresetId} onSelectPreset={onSelectDevPreset} activeSeason={devSeason} onSelectSeason={onSelectDevSeason} />
+      <StateTester activePresetId={devPresetId} onSelectPreset={onSelectDevPreset} activeSeason={devSeason} onSelectSeason={onSelectDevSeason} activeVisitor={devVisitor} onSelectVisitor={onSelectDevVisitor} activeWeather={devWeather} onSelectWeather={onSelectDevWeather} />
 
       <HealthDebugPanel live={snapshot?.health ?? null} perception={snapshot?.perception ?? null} previewing={!!devPresetId} />
       <BehaviourDebugPanel behaviour={behaviour} expression={expression} recentEvents={snapshot?.recentEvents ?? []} previewing={!!devPresetId} />

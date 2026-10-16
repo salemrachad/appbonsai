@@ -2,6 +2,7 @@
 // gives the avatar. The avatar only draws these; it never sees health or sensor values.
 
 import type { Season } from '../perception/season';
+import type { OutsideSky } from '../telemetry/outsideWeather';
 
 export type EyeStyle =
   | 'happy' // open, sparkly
@@ -147,6 +148,15 @@ export type SceneId =
   | 'storm' // multiple stress
   | 'static'; // sensor uncertain
 
+// Outside weather, drawn as its own background layer behind the tree (the tree itself never changes).
+// Context only: from perception.outside, never from health.
+export interface WeatherLook {
+  sky: OutsideSky;
+  windy: boolean;
+  intensity: number; // 0-1: how much of it the layer shows (drizzle light, a downpour heavy)
+  label: string; // short header chip text, e.g. "Rain · 9°C"
+}
+
 export interface ExpressionMessage {
   text: string; // the current thought (always available, e.g. when the tree is tapped)
   tip: string;
@@ -183,6 +193,29 @@ export interface TouchResponse {
   familiarity: number; // 0-1 applied to this answer (0 outside the calm kinds): ease with the caretaker's hand
 }
 
+// A visitor in the tree (evidence class "art", from behaviour.habitat). The avatar only draws it: out on a
+// branch (`visiting`) or tucked behind the leaves, peeking (`hiding`). A stroke startles it (UI only).
+export interface VisitorPresentation {
+  kind: 'squirrel';
+  id: string; // stable per visit: the avatar replays the arrival only when it changes
+  mode: 'visiting' | 'hiding';
+  spot: 'left_branch' | 'right_branch' | 'crown' | 'trunk' | 'pot_rim';
+  carrying: 'nut' | null;
+  play: VisitorPlay; // how it answers petting, decided from the tree's state
+}
+
+// Petting while the squirrel visits: it plays around the tree. Decided by the Expression Engine from the
+// tree's state (a stressed tree doesn't play); the avatar only animates it. Attention, never stored.
+export interface VisitorPlay {
+  kind: 'playful' | 'gentle' | 'shy'; // thriving / comfortable / hiding through a stress
+  hopEveryMs: number; // 0 = doesn't hop (shy: ducks and re-peeks)
+  hideChance: number; // 0-1 per hop: dives behind a pad instead
+  returnMs: number; // back out after hiding
+  lingerMs: number; // play ends this long after the last stroke
+  // The tail wags in the tree's own rhythm: tempo from its sway speed, amount from its sway amplitude
+  wag: { tempo: number; amount: number };
+}
+
 // Everything the avatar and the companion screen need. The UI renders this and nothing else.
 export interface ExpressionState {
   avatar: AvatarPresentation;
@@ -195,6 +228,7 @@ export interface ExpressionState {
   };
   reactionStrength: number; // 0-1, from responsiveness: how visibly touch and care register
   touch: TouchResponse; // how a stroke registers right now
+  visitor: VisitorPresentation | null;
   atmosphere: {
     theme: 'day' | 'night';
     phase: string;
@@ -202,6 +236,7 @@ export interface ExpressionState {
     season: Season;
     seasonStage: 'early' | 'mid' | 'late';
     intensity: number; // 0-1: how strongly the scene shows (follows the state's intensity)
+    weather: WeatherLook | null; // outside weather layer (null = unknown or stale)
   };
   gauge: { label: string; tone: GaugeTone }; // vitality chip label/colour, decided upstream
   tapLabel: string; // short mood label shown when the tree is tapped

@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import type { CalibrationSaveResult, CalibrationState, CaptureResult, ServerStatus } from '../api/types';
 
 type Sensor = 'soil' | 'light';
-type Step = 'idle' | 'first' | 'second' | 'review';
+type Step = 'idle' | 'first' | 'second' | 'review' | 'manual';
 
 // Wording for each sensor's two references. The workflow is the same; the meaning is honest per sensor.
 const TEXT: Record<Sensor, { title: string; first: string; second: string; firstHelp: string; secondHelp: string; note: string; unitNote: string }> = {
@@ -120,9 +120,16 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
           <Icon className="w-3.5 h-3.5 text-[#356077]" /> {t.title}
         </span>
         {step === 'idle' && (
-          <button onClick={() => setStep('first')} className={`${btn} bg-[#356077] text-white hover:bg-[#284B5D]`}>
-            {current ? 'Recalibrate' : 'Calibrate'}
-          </button>
+          <div className="flex gap-1.5">
+            {sensor === 'light' && (
+              <button onClick={() => setStep('manual')} className={`${btn} border border-[#356077]/40 text-[#356077] hover:bg-[#356077]/10`}>
+                Set min / max
+              </button>
+            )}
+            <button onClick={() => setStep('first')} className={`${btn} bg-[#356077] text-white hover:bg-[#284B5D]`}>
+              {current ? 'Recalibrate' : 'Calibrate'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -130,7 +137,7 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
         {current
           ? sensor === 'soil'
             ? `Calibrated (${'dryRaw' in current ? `dry ${current.dryRaw} · wet ${current.wetRaw}` : ''}, ${current.method}, ${time(current.savedAt)}).`
-            : `Calibrated (${'darkRaw' in current ? `dark ${current.darkRaw} · bright ${current.brightRaw}` : ''}, ${time(current.savedAt)}).`
+            : `Calibrated (${'darkRaw' in current ? `min ${current.darkRaw} · max ${current.brightRaw}` : ''}, ${current.method === 'manual' ? 'set by hand' : 'guided'}, ${time(current.savedAt)}).`
           : 'Using the ESP32 firmware’s own percentage.'}{' '}
         {current && step === 'idle' && (
           <button onClick={remove} className="underline text-[#A64F34] cursor-pointer">
@@ -139,7 +146,11 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
         )}
       </p>
 
-      {step !== 'idle' && (
+      {step === 'manual' && sensor === 'light' && (
+        <ManualLight current={current && 'darkRaw' in current ? current : null} onDone={() => { reset(); onChanged(); }} onCancel={reset} />
+      )}
+
+      {step !== 'idle' && step !== 'manual' && (
         <div className="space-y-2.5 pt-1">
           <p className="sans text-[10.5px] text-[#2D332A]/55">{t.note}</p>
 
@@ -219,6 +230,78 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
           {error && <p className="sans text-[11px] text-[#A63629]">{error}</p>}
         </div>
       )}
+    </div>
+  );
+}
+
+// Light min / max typed in by hand (raw ADC): a stopgap until a better sensor, or when the guided capture
+// can't be done. Same checks and live preview as the guided flow; saved as method "manual" with history.
+function ManualLight({ current, onDone, onCancel }: { current: { darkRaw: number; brightRaw: number } | null; onDone: () => void; onCancel: () => void }) {
+  const [min, setMin] = useState(String(current?.darkRaw ?? 0));
+  const [max, setMax] = useState(String(current?.brightRaw ?? 4095));
+  const [check, setCheck] = useState<CalibrationSaveResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const btn = 'px-3 py-1.5 rounded-lg sans text-[11px] font-semibold cursor-pointer disabled:opacity-50';
+  const values = { darkRaw: Number(min), brightRaw: Number(max), manual: true };
+  const valid = min.trim() !== '' && max.trim() !== '' && Number.isFinite(values.darkRaw) && Number.isFinite(values.brightRaw);
+
+  const run = async (confirm: boolean, dryRun: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.saveLightCalibration({ ...values, confirm, dryRun });
+      setCheck(r);
+      if (r.saved) onDone();
+    } catch (e: any) {
+      setError(`${e?.message ?? e}. Is the Appbonsai server running?`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Check (validation + preview with the live raw reading) whenever the numbers settle
+  useEffect(() => {
+    setCheck(null);
+    if (!valid) return;
+    const t = setTimeout(() => void run(false, true), 500);
+    return () => clearTimeout(t);
+  }, [min, max]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const input = 'w-24 px-2 py-1 rounded-lg border border-[#D8D2C9] bg-white sans text-xs font-mono text-[#2D332A] focus:outline-none focus:border-[#356077]';
+  return (
+    <div className="space-y-2 pt-1">
+      <p className="sans text-[11px] text-[#2D332A]/70 leading-relaxed">
+        Raw LDR values (0–4095). <strong>Min</strong> reads as 0% (dark), <strong>max</strong> as 100% (your bright reference). Readings outside are clamped. Stored readings are never changed; only how they're read.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="sans text-[11px] text-[#2D332A]/75 space-y-0.5">
+          <span className="block font-semibold">Min (dark)</span>
+          <input type="number" inputMode="numeric" min={0} max={4095} value={min} onChange={(e) => setMin(e.target.value)} className={input} />
+        </label>
+        <label className="sans text-[11px] text-[#2D332A]/75 space-y-0.5">
+          <span className="block font-semibold">Max (bright)</span>
+          <input type="number" inputMode="numeric" min={0} max={4095} value={max} onChange={(e) => setMax(e.target.value)} className={input} />
+        </label>
+        <div className="sans text-[11px] text-[#2D332A]/70 font-mono pb-1">
+          {busy && !check ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : check?.preview?.raw != null ? `now: raw ${check.preview.raw} → ${check.preview.percent}%` : check ? 'now: sensor not reachable' : 'now: –'}
+        </div>
+      </div>
+      {check?.errors.map((e) => (
+        <div key={e} className="sans text-[11px] text-[#A63629]">✕ {e}</div>
+      ))}
+      {check?.warnings.map((w) => (
+        <div key={w} className="sans text-[11px] text-[#8F5E24]">⚠ {w}</div>
+      ))}
+      <p className="sans text-[10.5px] text-[#2D332A]/55">{TEXT.light.unitNote}</p>
+      <div className="flex gap-2">
+        <button disabled={busy || !valid || !check || check.errors.length > 0} onClick={() => run(true, false)} className={`${btn} bg-[#4A6741] text-white hover:bg-[#3D5535]`}>
+          {check?.warnings.length ? 'Save anyway' : 'Save'}
+        </button>
+        <button disabled={busy} onClick={onCancel} className={`${btn} text-[#2D332A]/60`}>
+          Cancel
+        </button>
+      </div>
+      {error && <p className="sans text-[11px] text-[#A63629]">{error}</p>}
     </div>
   );
 }

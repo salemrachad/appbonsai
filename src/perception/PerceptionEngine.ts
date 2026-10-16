@@ -1,3 +1,4 @@
+import { outsideNow, type OutsideObservation } from '../telemetry/outsideWeather';
 import { APP_CONFIG } from '../config/appConfig';
 import type { PlantEvent } from '../history/historyTypes';
 import type { SpeciesProfile } from '../species';
@@ -31,6 +32,8 @@ export interface PerceptionInput {
   deviceError: string | null;
   species: SpeciesProfile;
   now: number;
+  outside?: OutsideObservation | null; // latest outside weather (context; health never reads it directly)
+  outsideToday?: OutsideObservation[]; // today's outside observations: a grey sky explains dim light
 }
 
 export function toSample(t: PlantTelemetry, species: SpeciesProfile, location: PerceptionInput['location']): PerceptionSample {
@@ -110,7 +113,7 @@ export function perceive(input: PerceptionInput): PerceptionState {
   const recentCare = sorted.filter((e) => e.timestamp >= now - 7 * 24 * HOUR && e.timestamp <= now);
   const careContext = computeCareContext(events, species, now);
   const cadenceMs = Math.max(APP_CONFIG.dataQuality.minStaleMs, pollMs * APP_CONFIG.dataQuality.staleAfterPolls);
-  const light = computeDailyLight({ samples: recent, species, location, cadenceMs, movedAt: careContext.recentMove?.at ?? null, now });
+  const light = computeDailyLight({ samples: recent, species, location, cadenceMs, movedAt: careContext.recentMove?.at ?? null, now, outside: input.outsideToday ?? [] });
 
   return {
     at: now,
@@ -147,5 +150,6 @@ export function perceive(input: PerceptionInput): PerceptionState {
     },
     light,
     quality,
+    outside: outsideNow(input.outside ?? null, now),
   };
 }

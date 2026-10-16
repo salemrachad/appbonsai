@@ -90,15 +90,18 @@ export class CalibrationService {
     return { ...v, saved: ok, preview, calibration: this.collector.getCalibration() };
   }
 
-  async saveLight(input: { darkRaw: number; brightRaw: number; dark?: CaptureStats; bright?: CaptureStats; confirm?: boolean; dryRun?: boolean }): Promise<SaveResult> {
+  // manual: min (dark) / max (bright) raw typed in by hand, e.g. a stopgap until a new sensor arrives
+  async saveLight(input: { darkRaw: number; brightRaw: number; dark?: CaptureStats; bright?: CaptureStats; confirm?: boolean; dryRun?: boolean; manual?: boolean }): Promise<SaveResult> {
     const v = validateLight(Number(input.darkRaw), Number(input.brightRaw), input.dark, input.bright);
     const preview = await this.preview('light', (raw) => lightPercentFromRaw(raw, { darkRaw: input.darkRaw, brightRaw: input.brightRaw }));
     const ok = v.errors.length === 0 && (v.warnings.length === 0 || !!input.confirm) && !input.dryRun;
     if (ok) {
       this.collector.applyCalibration(
         'light',
-        { darkRaw: Math.round(input.darkRaw), brightRaw: Math.round(input.brightRaw), savedAt: this.now(), method: 'guided' },
-        describe(input.dark, input.bright, 'dark', 'bright')
+        { darkRaw: Math.round(input.darkRaw), brightRaw: Math.round(input.brightRaw), savedAt: this.now(), method: input.manual ? 'manual' : 'guided' },
+        input.manual
+          ? `Set by hand: min (dark) ${Math.round(input.darkRaw)} · max (bright) ${Math.round(input.brightRaw)}`
+          : describe(input.dark, input.bright, 'dark', 'bright')
       );
     }
     return { ...v, saved: ok, preview, calibration: this.collector.getCalibration() };

@@ -190,10 +190,12 @@ async function main() {
     const input = { health: s.health, perception: s.perception, episodes: b.db.episodesSince(0), events: [], species: (await import('../src/species')).ACTIVE_SPECIES, now: b.clock };
     const before = evaluateBehaviour(input);
     const saved = { ...MESSAGE_CATALOG };
+    const savedDay = { ...DAY_LINES };
     for (const k of Object.keys(MESSAGE_CATALOG)) MESSAGE_CATALOG[k] = ['(reworded)'];
     for (const k of Object.keys(DAY_LINES) as (keyof typeof DAY_LINES)[]) DAY_LINES[k] = ['(reworded)'];
     const after = evaluateBehaviour(input);
     Object.assign(MESSAGE_CATALOG, saved);
+    Object.assign(DAY_LINES, savedDay);
     const strip = (x: typeof before) => JSON.stringify({ ...x, reasons: [] });
     check('S13 changing all wording leaves behaviour identical', strip(before) === strip(after), `${before.messageIntent}/${before.intensityTier}/${before.mood}`);
   }
@@ -339,6 +341,207 @@ async function main() {
     check('H2 a rest recovers the fresh answer', afterRest > 0.9, `${Math.round(level * 100) / 100} → ${Math.round(afterRest * 100) / 100}`);
     const muted = { settlePerSec: 0, floor: 1, recoverMs: 60_000 };
     check('H3 a muted answer has nothing to settle', habituate(1, muted, 60_000, true) === 1);
+  }
+
+  console.log('\n— Outside weather —');
+  {
+    const { OUTSIDE_SKIES, skyFromCode } = await import('../src/telemetry/outsideWeather');
+    const { weatherLook } = await import('../src/expression/ExpressionEngine');
+    // Same readings, wildly different weather: the tree must be identical (health, behaviour minus lines)
+    const make = async (code: number | null, temp = 15) => {
+      const b = new Bench();
+      b.weather = code === null ? null : { code, temp, gusts: 60 };
+      await b.boot();
+      await b.run(240, (i) => (i < 120 ? day() : { soil: 30 }));
+      await b.collector.pollWeather(); // the bench has no weather timer: refresh it (it goes stale after an hour)
+      return b.state();
+    };
+    const dry = await make(null);
+    const storm = await make(95, -3);
+    // (the light guide may explain a grey sky in words: that's the point, not a change to the tree)
+    const strip = (s: typeof dry) => JSON.stringify({ health: { ...s.health, metrics: s.health.metrics.map(({ guide, ...m }) => m) }, mood: s.behaviour.mood, energy: s.behaviour.energy, intent: s.behaviour.messageIntent, habitat: s.behaviour.habitat, avatar: s.expression.avatar, droop: s.expression.leafDroop, scene: s.expression.atmosphere.scene });
+    check('O1 outside weather never changes the tree beyond explaining light (health, mood, look, scene, habitat)', strip(dry) === strip(storm), `${dry.health.condition} vs ${storm.health.condition}`);
+    check('O2 the weather layer carries it instead', dry.expression.atmosphere.weather === null && storm.expression.atmosphere.weather?.sky === 'thunderstorm' && storm.expression.atmosphere.weather.windy);
+    const looks = OUTSIDE_SKIES.map((sky) => weatherLook({ at: 0, ageMs: 0, sky, code: 0, temperature: 10, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true, windy: false }));
+    check('O3 every sky has a look and a label', looks.every((l) => l && l.label.length > 0 && l.intensity >= 0 && l.intensity <= 1), looks.map((l) => l?.label).join(' | '));
+    check('O3b WMO codes map sensibly', skyFromCode(0) === 'clear' && skyFromCode(45) === 'fog' && skyFromCode(61) === 'rain' && skyFromCode(65) === 'heavy_rain' && skyFromCode(73) === 'snow' && skyFromCode(95) === 'thunderstorm');
+
+    // A calm day with rain outside: one word about it, once a day, never during stress
+    const b = new Bench();
+    b.weather = { code: 61, temp: 12 };
+    await b.boot();
+    const l = new Listener(b);
+    await l.run(90, () => day());
+    await b.collector.pollWeather();
+    await l.run(60, () => day());
+    const rainLines = l.spoken.filter((s) => /rain/i.test(s.text));
+    check('O4 calm + rain outside: mentioned once', rainLines.length === 1, l.spoken.map((s) => `${s.reason}: ${s.text}`).join(' / '));
+    await b.collector.pollWeather();
+    await l.run(120, () => day());
+    check('O4b not repeated the same day', l.spoken.filter((s) => /rain/i.test(s.text)).length === 1);
+    {
+      // Rain starts while the tree is calm and silent: it is news, said once (after the cooldown)
+      const q = new Bench();
+      q.weather = { code: 1, temp: 18 };
+      await q.boot();
+      const lq = new Listener(q);
+      await lq.run(90, () => day());
+      lq.reset();
+      q.weather = { code: 63, temp: 12 };
+      await q.collector.pollWeather();
+      await lq.run(60, () => day());
+      // (spoken inside pollWeather(), so the listener sees it on the next poll)
+      const news = lq.spoken.filter((s) => /rain/i.test(s.text));
+      check('O4c rain starting on a quiet calm day is news, said once', news.length === 1, lq.spoken.map((s) => `${s.reason}: ${s.text}`).join(' / ') || 'silent');
+    }
+    const t = new Bench();
+    t.weather = { code: 61, temp: 12 };
+    await t.boot();
+    const lt = new Listener(t);
+    await lt.run(30, () => day());
+    lt.reset();
+    await lt.run(120, () => ({ soil: 30 }));
+    check('O5 a thirsty tree talks about its thirst, not the weather', !lt.spoken.some((s) => /rain/i.test(s.text)), lt.keys());
+
+    const { weatherSpells } = await import('../src/history/diary');
+    const obs = (h: number, m: number, code: number, temp = 10) => ({ at: at(20, h, m), sky: skyFromCode(code), code, temperature: temp, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true });
+    const spells = weatherSpells([obs(13, 0, 0), obs(14, 0, 61), obs(14, 15, 63), obs(14, 30, 61), obs(15, 0, 3), obs(23, 0, 0, -2), obs(23, 15, 0, -3)]);
+    check('O6 diary: one line per spell (rain 14:00–14:30, frost)', spells.length === 2 && spells.some((s) => s.weather === 'rain') && spells.some((s) => s.weather === 'frost' && /-3/.test(s.detail ?? '')), spells.map((s) => `${s.title} ${s.detail}`).join(' | '));
+  }
+
+  console.log('\n— Habitat (visitors) —');
+  {
+    const { evaluateHabitat, replayHabitat } = await import('../src/behaviour/habitat');
+    type Ep = import('../src/history/historyTypes').BehaviourEpisode;
+    type C = Ep['condition'];
+    const HOUR = 60 * MIN;
+    let id = 0;
+    const ep = (condition: C, startedAt: number, hours: number, unobservedMs = 0, open = false): Ep => ({
+      id: ++id, startedAt, endedAt: open ? null : startedAt + hours * HOUR, lastSeenAt: startedAt + hours * HOUR, unobservedMs, condition, modifiers: [], peakSeverity: 'none', engineVersion: 't',
+    });
+    // Days of real life: 14 h awake (comfortable) and 10 h asleep, ending at `end`
+    const calmDays = (days: number, end: number, awake: C = 'comfortable') => {
+      const out: Ep[] = [];
+      for (let t = end - days * 24 * HOUR; t < end; t += 24 * HOUR) out.push(ep(awake, t, 14), ep('sleeping', t + 14 * HOUR, 10));
+      return out;
+    };
+    const habitat = (episodes: Ep[], now: number, condition: C = 'comfortable', modifiers: C[] = [], isDay = true) =>
+      evaluateHabitat({ episodes, condition, modifiers, isDay, season: { id: 'summer', energy: 1 }, now });
+    // The first minute of the day that holds a visit (visits are rare and fall in slots)
+    const firstVisit = (episodes: (t: number) => Ep[], dayStart: number, condition: C = 'comfortable') => {
+      for (let t = dayStart + 7 * HOUR; t < dayStart + 18 * HOUR; t += MIN) {
+        const h = habitat(episodes(t), t, condition);
+        if (h.visit) return { t, h };
+      }
+      return null;
+    };
+
+    const now = at(20, 7);
+    check('V1 no history: nobody', habitat([], now).value === 0 && habitat([], now).presence === 'none');
+    const one = replayHabitat(calmDays(1, now), now);
+    const three = replayHabitat(calmDays(3, now), now);
+    check('V2 slow to trust: one calm day is not enough, three are', !one.welcoming && three.welcoming, `1 day ${one.value}, 3 days ${three.value}`);
+
+    const base = calmDays(5, now);
+    const after = (c: C, hours: number) => replayHabitat([...base, ep(c, now, hours)], now + hours * HOUR);
+    const thirsty1 = after('thirsty', 1);
+    const thirsty6 = after('thirsty', 6);
+    const dry1 = after('very_dry', 1.5);
+    check('V3 quick to leave: a long thirst empties it, a short one does not', thirsty1.welcoming && !thirsty6.welcoming, `1h ${thirsty1.value}, 6h ${thirsty6.value}`);
+    check('V3b critical stress empties it fastest', !dry1.welcoming && dry1.value < thirsty1.value, `very dry 1.5h ${dry1.value}`);
+    const humid8 = after('high_humidity', 8);
+    check('V3c a mild stress drains it slowly', humid8.welcoming && humid8.value < replayHabitat(base, now).value, `humid 8h ${humid8.value}`);
+
+    // Hysteresis: between exit and enter the latch keeps whatever it was
+    const falling = replayHabitat([...base, ep('thirsty', now, 2.5)], now + 2.5 * HOUR);
+    const rising = replayHabitat(calmDays(2, now), now);
+    check(
+      'V4 Schmitt trigger: same value band, different history → different answer',
+      falling.value < 0.6 && falling.value >= 0.4 && falling.welcoming && rising.value < 0.6 && !rising.welcoming,
+      `falling ${falling.value} welcoming=${falling.welcoming}, rising ${rising.value} welcoming=${rising.welcoming}`
+    );
+
+    // Unobserved time teaches nothing; sleeping and recovering hold
+    const blind = replayHabitat([ep('comfortable', now - 72 * HOUR, 72, 72 * HOUR)], now);
+    check('V5 unobserved calm raises nothing', blind.value === 0, `${blind.value}`);
+    const held = replayHabitat([...base, ep('recovering', now, 10), ep('sleeping', now + 10 * HOUR, 10)], now + 20 * HOUR);
+    check('V5b recovering and sleeping hold it', held.value === replayHabitat(base, now).value, `${replayHabitat(base, now).value} → ${held.value}`);
+
+    // Who shows right now
+    const day0 = new Date(2026, 5, 22).getTime();
+    const life = (t: number) => [...calmDays(5, day0), ep('comfortable', day0, (t - day0) / HOUR, 0, true)];
+    const v = firstVisit(life, day0);
+    check('V6 a welcoming calm day has visits', !!v && v.h.presence === 'visiting' && v.h.visit!.endsAt > v.t, v ? `${new Date(v.t).toTimeString().slice(0, 5)} at ${v.h.visit!.spot}` : 'none');
+    if (v) {
+      const again = habitat(life(v.t), v.t);
+      check('V6b deterministic: the same moment gives the same visit', JSON.stringify(again.visit) === JSON.stringify(v.h.visit));
+      check('V7 a passing moderate stress: hiding in the leaves', habitat(life(v.t), v.t, 'thirsty').presence === 'hiding');
+      check('V7b critical stress: fled, even while the latch holds', habitat(life(v.t), v.t, 'very_dry').presence === 'none');
+      check('V8 no trustworthy data (overlay): nobody shown', habitat(life(v.t), v.t, 'comfortable', ['sensor_uncertain']).presence === 'none');
+      check('V8b night: nobody', habitat(life(v.t), v.t, 'comfortable', [], false).presence === 'none');
+    }
+    let visits = 0;
+    for (let t = day0 + 6 * HOUR; t < day0 + 19 * HOUR; t += 10 * MIN) if (habitat(life(t), t).visit) visits++;
+    check('V9 visits are occasional, not constant', visits > 0 && visits < 30, `${visits} of 78 ten-minute checks`);
+
+    // The real collector: a calm week brings visitors, and the avatar is told
+    const b = new Bench();
+    for (const e of calmDays(4, b.clock)) {
+      const row = b.db.insertEpisode({ startedAt: e.startedAt, condition: e.condition, modifiers: [], peakSeverity: 'none', engineVersion: 't' });
+      b.db.closeEpisode(row.id, e.endedAt!);
+    }
+    await b.boot();
+    await b.run(5, () => day());
+    const st = b.state();
+    check('V10 the collector reads the habitat from stored episodes', st.behaviour.habitat.welcoming && 'visitor' in st.expression, `habitat ${st.behaviour.habitat.value}, ${st.behaviour.habitat.why}`);
+
+    // Play: how the squirrel answers petting comes from the tree's state, and its tail from the tree's sway
+    const { visitorPlay } = await import('../src/expression/ExpressionEngine');
+    const bh = { ...st.behaviour, afterglow: false, concern: null };
+    const lively = { swaySpeed: 1.1, swayAmount: 1.1, flutter: 1, blinkEveryMs: 3000 };
+    const tired = { swaySpeed: 0.55, swayAmount: 0.45, flutter: 0.3, blinkEveryMs: 7000 };
+    const pThriving = visitorPlay('thriving', 'visiting', bh, lively);
+    const pCalm = visitorPlay('comfortable', 'visiting', bh, tired);
+    const pShy = visitorPlay('thirsty', 'hiding', bh, tired);
+    check(
+      'V11 play by state: thriving playful, comfortable gentle, hiding through a stress shy (no hopping)',
+      pThriving.kind === 'playful' && pCalm.kind === 'gentle' && pShy.kind === 'shy' && pShy.hopEveryMs === 0 && pThriving.hopEveryMs < pCalm.hopEveryMs && pCalm.returnMs === 10_000,
+      `${pThriving.kind} ${pThriving.hopEveryMs}ms · ${pCalm.kind} ${pCalm.hopEveryMs}ms · ${pShy.kind}`
+    );
+    check(
+      'V12 the tail wags in the tree rhythm: a lively tree wags faster and wider than a tired one; shy = small quick flicks',
+      pThriving.wag.tempo === lively.swaySpeed && pCalm.wag.tempo === tired.swaySpeed && pThriving.wag.amount > pCalm.wag.amount && pShy.wag.tempo > tired.swaySpeed && pShy.wag.amount < tired.swayAmount,
+      `thriving ${JSON.stringify(pThriving.wag)} · calm ${JSON.stringify(pCalm.wag)} · shy ${JSON.stringify(pShy.wag)}`
+    );
+    const carefulPlay = visitorPlay('comfortable', 'visiting', { ...bh, afterglow: true }, tired);
+    check('V12b afterglow: more careful play (slower hops, hides more)', carefulPlay.hopEveryMs > pCalm.hopEveryMs && carefulPlay.hideChance > pCalm.hideChance);
+    {
+      // Petting never changes the habitat or the visitor (no reward loop)
+      const seed = (x: Bench) => {
+        for (const e of calmDays(4, x.clock)) {
+          const row = x.db.insertEpisode({ startedAt: e.startedAt, condition: e.condition, modifiers: [], peakSeverity: 'none', engineVersion: 't' });
+          x.db.closeEpisode(row.id, e.endedAt!);
+        }
+      };
+      const plain = new Bench();
+      const petted = new Bench();
+      seed(plain);
+      seed(petted);
+      await plain.boot();
+      await petted.boot();
+      for (let i = 0; i < 120; i++) {
+        await plain.poll(day());
+        if (i % 5 === 0) petted.collector.recordInteraction({ kind: 'pet', startedAt: petted.clock - 40_000, endedAt: petted.clock, count: 6, activeMs: 30_000 });
+        await petted.poll(day());
+      }
+      const a = plain.state();
+      const z = petted.state();
+      check(
+        'V13 petting changes nothing in the habitat or the visitor',
+        JSON.stringify(a.behaviour.habitat) === JSON.stringify(z.behaviour.habitat) && JSON.stringify(a.expression.visitor) === JSON.stringify(z.expression.visitor),
+        `habitat ${a.behaviour.habitat.value} vs ${z.behaviour.habitat.value}`
+      );
+    }
   }
 
   finish();

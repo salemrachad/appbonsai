@@ -87,7 +87,11 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
       const label = isSensor
         ? relativeLightBand(species, r.lightPercent!).label
         : ({ very_dark: 'Very Dark', low: 'Low', good: 'Good', bright: 'Bright', very_bright: 'Very Bright' } as const)[level];
-      const tone: MetricTone = resting
+      // A grey sky outside explains a dim reading: what the clouds let through, not a dark spot
+      const f = isSensor && p.outside ? species.light.skyFactor[p.outside.sky] : 1;
+      const greyExplained =
+        !resting && f < 1 && r.lightPercent !== null && (level === 'low' || level === 'very_dark') && r.lightPercent >= species.light.usefulMinPercent * f;
+      const tone: MetricTone = resting || greyExplained
         ? 'info'
         : level === 'very_dark'
         ? 'alert'
@@ -102,7 +106,7 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
         value: isSensor ? r.lightPercent : r.radiation,
         display: isSensor ? `${r.lightPercent}%` : `${r.radiation} W/m²`,
         unit: isSensor ? '%' : 'W/m²',
-        status: resting ? (p.sun.phase === 'night' ? 'Night' : p.sun.phase === 'low_sun' ? 'Low sun' : 'Twilight') : label,
+        status: resting ? (p.sun.phase === 'night' ? 'Night' : p.sun.phase === 'low_sun' ? 'Low sun' : 'Twilight') : greyExplained ? 'Grey day' : label,
         tone,
         idealRange,
         estimated,

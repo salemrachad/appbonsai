@@ -101,6 +101,12 @@ export const DAY_LINES: Record<DayLine, Lines> = {
   season_summer: ['Summer. Long bright days ahead.', 'Summer is here. I will be thirstier now.', 'Long days, warm nights. Summer.'],
   season_autumn: ['Autumn. The days are getting shorter.', 'I can feel autumn coming in.', 'Shorter days now. I will slow down a little.'],
   season_winter: ['Winter. Time to rest.', 'Short days. I am slowing right down.', 'Winter is here. I will drink much less now.'],
+  // Outside weather: context only. Never claims the tree is wet or cold: the sensors inside say how it is.
+  weather_rain: ['Rain outside. Dry and calm in here.', 'I can hear the rain out there.', 'Wet out there today. Sheltered in here.'],
+  weather_storm: ['A storm outside. Quiet in here.', 'Thunder out there. I am fine in here.', 'Stormy outside today.'],
+  weather_fog: ['Foggy outside this morning.', 'The world is grey with fog out there.', 'Fog outside. Soft light today.'],
+  weather_snow: ['Snow outside!', 'It is snowing out there.', 'Snow falling outside. Warm enough in here.'],
+  weather_cold_outside: ['Cold out there. Sheltered in here.', 'It is cold outside today.', 'Freezing out there. Glad to be inside.'],
 };
 
 // About recent care. Context, never health claims the sensors can't prove.

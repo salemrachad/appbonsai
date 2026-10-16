@@ -1,6 +1,7 @@
 import { CONDITION_LABELS } from '../health/labels';
 import type { HealthCondition } from '../health/healthTypes';
-import type { BehaviourEpisode, DiaryItem, PlantEvent } from './historyTypes';
+import type { OutsideObservation } from '../telemetry/outsideWeather';
+import type { BehaviourEpisode, DiaryItem, PlantEvent, WeatherSpellKind } from './historyTypes';
 
 // Calm, narrative titles for the plant diary (History). One line per meaningful change.
 function episodeTitle(c: HealthCondition, prev: HealthCondition | null): string {
@@ -35,9 +36,52 @@ const EVENT_TITLE: Record<PlantEvent['type'], string> = {
   manual_note: 'Note',
 };
 
-// Episodes + care events → diary lines, newest first.
-export function buildDiary(episodes: BehaviourEpisode[], events: PlantEvent[], gapMs: number): DiaryItem[] {
+const SPELL_TITLE: Record<WeatherSpellKind, string> = {
+  rain: 'Rain outside',
+  storm: 'Storm outside',
+  snow: 'Snow outside',
+  fog: 'Fog outside',
+  frost: 'Frost outside',
+};
+const SPELL_JOIN_MS = 45 * 60 * 1000; // observations further apart than this start a new spell
+
+function spellKind(o: OutsideObservation): WeatherSpellKind | null {
+  if (o.sky === 'thunderstorm') return 'storm';
+  if (o.sky === 'drizzle' || o.sky === 'rain' || o.sky === 'heavy_rain') return 'rain';
+  if (o.sky === 'snow') return 'snow';
+  if (o.temperature !== null && o.temperature <= 0) return 'frost';
+  if (o.sky === 'fog') return 'fog';
+  return null;
+}
+
+const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+// Outside weather → one diary line per notable spell (rain, storm, snow, fog, frost). Context only.
+export function weatherSpells(observations: OutsideObservation[]): DiaryItem[] {
   const items: DiaryItem[] = [];
+  let spell: { kind: WeatherSpellKind; from: number; to: number; min: number | null } | null = null;
+  const close = () => {
+    if (!spell) return;
+    const range = spell.to - spell.from >= 20 * 60 * 1000 ? `${hhmm(spell.from)}–${hhmm(spell.to)}` : `around ${hhmm(spell.from)}`;
+    const detail = spell.kind === 'frost' && spell.min !== null ? `${range} · down to ${Math.round(spell.min)}°C` : range;
+    items.push({ at: spell.from, kind: 'weather', title: SPELL_TITLE[spell.kind], detail, weather: spell.kind });
+    spell = null;
+  };
+  for (const o of [...observations].sort((a, b) => a.at - b.at)) {
+    const kind = spellKind(o);
+    if (spell && (kind !== spell.kind || o.at - spell.to > SPELL_JOIN_MS)) close();
+    if (!kind) continue;
+    const t = o.temperature;
+    if (!spell) spell = { kind, from: o.at, to: o.at, min: t };
+    else spell = { ...spell, to: o.at, min: t === null ? spell.min : spell.min === null ? t : Math.min(spell.min, t) };
+  }
+  close();
+  return items;
+}
+
+// Episodes + care events (+ outside weather spells) → diary lines, newest first.
+export function buildDiary(episodes: BehaviourEpisode[], events: PlantEvent[], gapMs: number, outside: OutsideObservation[] = []): DiaryItem[] {
+  const items: DiaryItem[] = [...weatherSpells(outside)];
   const eps = [...episodes].sort((a, b) => a.startedAt - b.startedAt);
   for (let i = 0; i < eps.length; i++) {
     const e = eps[i];

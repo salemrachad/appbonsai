@@ -1,4 +1,5 @@
 import type { SpeciesProfile } from '../species';
+import type { OutsideObservation, OutsideSky } from '../telemetry/outsideWeather';
 import type { PerceptionSample } from './perceptionTypes';
 import { sunState } from './sun';
 
@@ -19,6 +20,8 @@ export interface DailyLight {
   usefulMin: number; // daylight at/above light.usefulMinPercent
   lowMin: number; // daylight at/below light.lowMaxPercent
   usefulShare: number | null; // useful / observed (%)
+  greyMin: number; // observed daylight under a grey outside sky (overcast, fog, rain, snow, storm)
+  explainedMin: number; // daylight that counted as useful/in-between only because the sky explained it
   peak: number | null; // strongest relative light seen in daylight
   average: number | null; // time-weighted average daylight %
   coverage: number | null; // observed / expected so far
@@ -67,9 +70,24 @@ export interface DailyLightInput {
   cadenceMs: number; // a reading represents at most this much time
   movedAt: number | null; // a move to a new spot: only light since then counts for that day
   now: number;
+  outside?: OutsideObservation[]; // outside weather today (any order): a grey sky explains dim light
 }
 
-export function computeDailyLight({ samples, species, location, cadenceMs, movedAt, now }: DailyLightInput): DailyLight {
+const SKY_MATCH_BEFORE_MS = 30 * MIN; // an observation describes the sky for this long after it…
+const SKY_MATCH_AFTER_MS = 15 * MIN; // …and a little before
+
+// The outside sky at time t (nearest earlier observation, else a slightly later one). null = unknown.
+export function skyAt(observations: OutsideObservation[], t: number): OutsideSky | null {
+  let best: OutsideObservation | null = null;
+  for (const o of observations) {
+    const d = t - o.at;
+    if (d >= 0 ? d > SKY_MATCH_BEFORE_MS : -d > SKY_MATCH_AFTER_MS) continue;
+    if (!best || Math.abs(t - o.at) < Math.abs(t - best.at)) best = o;
+  }
+  return best?.sky ?? null;
+}
+
+export function computeDailyLight({ samples, species, location, cadenceMs, movedAt, now, outside = [] }: DailyLightInput): DailyLight {
   const L = species.light;
   const dayStart = startOfDay(now);
   const since = movedAt !== null && movedAt > dayStart ? movedAt : dayStart;
@@ -84,6 +102,8 @@ export function computeDailyLight({ samples, species, location, cadenceMs, moved
   let low = 0;
   let weighted = 0;
   let peak: number | null = null;
+  let grey = 0;
+  let explained = 0;
   const today = samples.filter((s) => s.t >= since && s.t <= now);
   for (let i = 0; i < today.length; i++) {
     const s = today[i];
@@ -94,8 +114,16 @@ export function computeDailyLight({ samples, species, location, cadenceMs, moved
     const min = Math.max(0, end - s.t) / MIN;
     observed += min;
     weighted += pct * min;
-    if (pct >= L.usefulMinPercent) useful += min;
-    else if (pct <= L.lowMaxPercent) low += min;
+    // Relative to the sky as well as the sun: under cloud the same LDR % is a fair share of what there was.
+    // Only the LDR is scaled (weather-mode radiation already includes the clouds); unknown sky = clear.
+    const sky = s.light !== null ? skyAt(outside, s.t) : null;
+    const f = sky ? L.skyFactor[sky] : 1;
+    if (f < 1) grey += min;
+    if (pct >= L.usefulMinPercent * f) {
+      useful += min;
+      if (pct < L.usefulMinPercent) explained += min;
+    } else if (pct <= L.lowMaxPercent * f) low += min;
+    else if (pct <= L.lowMaxPercent) explained += min;
     peak = peak === null ? pct : Math.max(peak, pct);
   }
 
@@ -118,6 +146,12 @@ export function computeDailyLight({ samples, species, location, cadenceMs, moved
   if (expectedSoFar > 0) reasoning.push(`Observed ${h1(observed)} of ${h1(expectedSoFar)} expected daylight hours so far (${h1(expectedTotal)}h today in total).`);
   if (missing >= 30) reasoning.push(`${h1(missing)}h of daylight not observed: counted as unknown, not as darkness.`);
   if (since > dayStart) reasoning.push('Moved to a new spot today: only light since the move counts.');
+  if (grey >= 15) {
+    reasoning.push(
+      `${h1(grey)}h under a grey sky outside: light judged against what the sky allowed` +
+        (explained >= 5 ? ` (${h1(explained)}h of dim light explained by the clouds, not counted as too dark).` : '.')
+    );
+  }
 
   const confidence: DailyLight['confidence'] = coverage === null || coverage >= 0.8 ? 'high' : coverage >= 0.4 ? 'medium' : 'low';
   return {
@@ -130,6 +164,8 @@ export function computeDailyLight({ samples, species, location, cadenceMs, moved
     usefulMin: Math.round(useful),
     lowMin: Math.round(low),
     usefulShare: usefulShare === null ? null : Math.round(usefulShare),
+    greyMin: Math.round(grey),
+    explainedMin: Math.round(explained),
     peak: peak === null ? null : Math.round(peak),
     average: observed > 0 ? Math.round(weighted / observed) : null,
     coverage: coverage === null ? null : Math.round(coverage * 100) / 100,

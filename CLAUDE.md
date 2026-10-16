@@ -64,7 +64,7 @@ Each layer has one job. Keep them separate. Biological thresholds never go in Re
 
 ### The living loop (`server/collector.ts`)
 
-Each poll (ESP32 every `telemetryIntervalMs`, 60 s by default and changeable in Settings; weather every 15 min) does the following:
+Each poll (ESP32 every `telemetryIntervalMs`, 60 s by default and changeable in Settings; every 15 min in `weather_estimate` mode) does the following:
 1. Fetch with `telemetryManager` (injectable, with the clock, via `CollectorOptions` for tests). On failure it never invents a reading.
 2. Insert the raw observation into `telemetry`, including the device JSON in `raw_json`.
 3. Detect watering with `src/perception/wateringDetector.ts` (pure state machine, numbers in `appConfig.watering`):
@@ -119,6 +119,7 @@ Suspicious sensors are reported in `quality.suspect`. Health leaves them out (no
   - **Mood** comes from condition × tier × recovery × reaction × concern.
   - **Responsiveness** sets how strongly touch and care register.
   - **Petting is attention, not care** (see `docs/LIVING_ART.md`, "Touch and attention"). `expression.touch` (`TouchResponse`) decides how a stroke registers per state, and `usePetting` only animates it. Sessions go to the `interactions` table and only feed `relationship.attention`; they never change health or behaviour state. `attention.familiarity` (from distinct days with petting, fading to neutral) warms only the calm touch answers; habituation within a session (`expression/touch.ts`, rates in `touch.habituation`) lets continuous stroking settle and recover after a rest.
+- **Habitat / visitors** (`habitat.ts`, `APP_CONFIG.habitat`; see `docs/LIVING_ART.md`, "Visitors and habitat"): a slow value replayed from the last 14 days of episodes (calm raises it over days, stress lowers it within hours, sleeping/recovering/uncertain hold it) with an enter/exit latch. While welcoming, the squirrel visits in deterministic day slots: `visiting` when calm, `hiding` during a passing stress, gone when critical, at night or without trustworthy data. `expression.visitor` → `avatar/Visitor.tsx`. Petting while it visits is play (`useVisitorPlay`, UI only, never stored): it hops between perches (branches, crown, trunk, pot rim), sometimes hides for `play.returnMs` (10 s). How it plays is `visitor.play` from `visitorPlay()` (thriving playful, comfortable gentle, hiding shy = only ducks), and its tail wags at the tree's sway tempo/amplitude (`--wag-tempo`, `--wag-amp`). Continuous stroking settles it via `habituate()`. Art only: computed last, nothing reads it.
 - **Speech** (`speech.ts`, memory persisted in `meta.message_memory`):
   - It speaks on a new episode, new care, a stronger tier, or a critical state; a minor change waits a 10-minute cooldown.
   - A line stays visible for a while (quiet states 10 min, up to 60 min for critical), then the tree is "quiet" (no new line; Home still shows its current thought). The speech policy still decides when something new is said.
@@ -143,14 +144,15 @@ Suspicious sensors are reported in `quality.suspect`. Health leaves them out (no
 
 ### Developer previews
 
-`DEV_PRESETS` (`health/developerOverrides.ts`) cover all 17 conditions plus combinations. A preview overrides only the displayed health. A season preview (Developer panel, or `#season=winter`) swaps only the perceived season, computed as the middle day of that season at the tree's latitude (`midSeasonState`). `usePlantBehaviour` re-runs behaviour and expression in the browser with no history or events. Nothing is sent to the server: telemetry, the DB, events and episodes stay real. The Developer panel (wrench icon, or `#developer` in the URL) holds the state tester, the Health Debug panel (the live vitality calculation and latches) and the Behaviour Debug panel.
+`DEV_PRESETS` (`health/developerOverrides.ts`) cover all 17 conditions plus combinations. A preview overrides only the displayed health. A squirrel preview (Developer panel, or `#visitor=visiting:crown` / `#visitor=hiding`) puts a visitor in the tree. A season preview (Developer panel, or `#season=winter`) swaps only the perceived season, computed as the middle day of that season at the tree's latitude (`midSeasonState`). `usePlantBehaviour` re-runs behaviour and expression in the browser with no history or events. Nothing is sent to the server: telemetry, the DB, events and episodes stay real. The Developer panel (wrench icon, or `#developer` in the URL) holds the state tester, the Health Debug panel (the live vitality calculation and latches) and the Behaviour Debug panel.
 
 ### Telemetry rules (unchanged)
 
 - `soilMoisture` is the firmware's `soil_moisture` exactly as sent, unless `useAppSoilCalibration` is on (then `soil_raw` is converted with `soilRawDry`/`soilRawWet`).
 - Light is `light_percent`, a relative LDR %. **Never lux**; `light_lux` is null.
 - A missing measurement stays `null`.
-- In ESP32 mode nothing fake, cached or weather-based ever stands in for the sensor. Weather is used only in `auto` mode, as a fallback.
+- In ESP32 mode nothing fake, cached or weather-based ever stands in for the sensor. Weather as a *data source* is used only in `auto` mode, as a fallback.
+- **Outside weather is separate, and context only.** The tree is in a greenhouse: the ESP32 measures inside. `src/telemetry/outsideWeather.ts` fetches Open-Meteo `current` (`OutsideSky` vocabulary from the WMO code, `windy` from gusts) on the collector's own 15-min timer (`pollWeather()`, injectable as `CollectorOptions.fetchOutsideWeather`; the bench fakes it via `Bench.weather`) in every data-source mode. Rows go to `outside_weather`; `perception.outside` is the latest observation, or null once older than 1 h (a failed fetch never invents one). Health, mood and the habitat never read it directly (scenario O1). The one interpretive effect: **a grey sky explains dim light**. `perceive({ outsideToday })` → `computeDailyLight` scales the useful/low LDR thresholds per reading by `species.light.skyFactor[skyAt(t)]`, so overcast-day dimness isn't `too_dark` and the light card says "Grey day". A clear sky or no weather changes nothing (scenarios D3–D6); the collector passes today's stored observations, replays included. It shows as `expression.atmosphere.weather` (`WeatherLook`) → a separate weather layer in `SceneBackdrop` behind the tree, plus `WeatherForeground` over the avatar on Home (fog drifting across the plant, rain falling past it, `pointer-events: none`). The tree art never changes for it. Also the header `WeatherChip`; as once-a-day `weather_*` day lines when the tree is calm (a fresh one counts as news for the speech policy); and as diary spells (`weatherSpells`, rain/storm/snow/fog/frost). Preview: Developer → Outside, or `#weather=rain|fog|thunderstorm|snow|overcast|heavy_rain|windy`.
 - Settings → Test Link still fetches the ESP32 directly from the browser (Private Network Access headers, iframe detection). "Test from server" checks it from the collector's side.
 
 ### ESP32 firmware
@@ -163,6 +165,7 @@ Suspicious sensors are reported in `quality.suspect`. Health leaves them out (no
 - `telemetry`: raw observations (the permanent truth, re-evaluable), unique on (source, timestamp).
 - `plant_events`: watering, pruning, fertilizing, repotting, moved_location, manual_note, with `metadata_json` (waterings: source sensor/manual, moistureBefore/After, conditionBefore).
 - `behaviour_episodes`: opened when the primary condition changes and closed on transition (or at `last_seen_at` after a long gap), with `unobserved_ms`, `modifiers_json` (union seen, never `sensor_uncertain`), `peak_severity` and `engine_version`.
+- `outside_weather`: outside observations every 15 min (sky, WMO code, temp, humidity, precipitation, cloud, wind, gusts, raw JSON). Context only, never read by perception's health inputs.
 - `interactions`: attention sessions with the digital tree (V1: `kind = 'pet'`; free-text kind, validated by the API). Never care, never read by perception or health.
 - `meta`: schema version, collector settings (`collector_settings`), saved health memory (`health_memory`), speech memory (`message_memory`), watering-detection pause (`watering_detection_suppressed_until`).
 - Migrations: `server/schema.ts` `MIGRATIONS`, applied on open. Steps with a column check always verify the actual table shape.
@@ -180,11 +183,12 @@ Suspicious sensors are reported in `quality.suspect`. Health leaves them out (no
 | `GET /api/current` | Everything the UI needs in one call: perception, health, behaviour, expression, forecast, live readings, recent events and episodes |
 | `GET /api/health`, `GET /api/behaviour` | Subsets of the current state |
 | `POST /api/refresh` | Read the sensor now |
+| `POST /api/calibration/light {darkRaw, brightRaw, manual?, dryRun?, confirm?}` | Light calibration; `manual: true` = min/max raw typed in Settings (stored as method `manual`, with history), same checks as the guided capture |
 | `POST /api/collector/calibration {minutes}` | Pause watering detection while handling the probe (`0` resumes) |
 | `GET`/`PUT /api/config` | Collector settings |
 | `GET /api/events?days=`, `POST /api/events {type, note?, timestamp?}`, `DELETE /api/events/:id` | Care events |
 | `GET /api/interactions?days=&kind=`, `POST /api/interactions {kind, startedAt, endedAt, count, activeMs}` | Attention sessions (petting); one POST per session, merged within 2 min |
-| `GET /api/history?hours=`, `/hourly`, `/daily?days=`, `/diary?days=`, `/episodes?days=` | History and the plant diary |
+| `GET /api/history?hours=`, `/hourly`, `/daily?days=`, `/diary?days=`, `/episodes?days=`, `/weather?hours=` | History, the plant diary, outside weather observations |
 | `GET /api/telemetry/latest`, `POST /api/telemetry/test {url}`, `POST /api/telemetry/import-browser` | Raw readings, server-side link test, one-time import of browser history |
 
 ### UI

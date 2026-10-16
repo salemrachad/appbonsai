@@ -60,7 +60,7 @@ export const api = {
     call<CaptureResult>('/calibration/capture', { method: 'POST', body: JSON.stringify({ sensor }), timeoutMs: 90000 }),
   saveSoilCalibration: (b: { dryRaw: number; wetRaw: number; dry?: CaptureStats; wet?: CaptureStats; confirm?: boolean; dryRun?: boolean }) =>
     call<CalibrationSaveResult>('/calibration/soil', { method: 'POST', body: JSON.stringify(b), timeoutMs: 15000 }),
-  saveLightCalibration: (b: { darkRaw: number; brightRaw: number; dark?: CaptureStats; bright?: CaptureStats; confirm?: boolean; dryRun?: boolean }) =>
+  saveLightCalibration: (b: { darkRaw: number; brightRaw: number; dark?: CaptureStats; bright?: CaptureStats; confirm?: boolean; dryRun?: boolean; manual?: boolean }) =>
     call<CalibrationSaveResult>('/calibration/light', { method: 'POST', body: JSON.stringify(b), timeoutMs: 15000 }),
   clearCalibration: (sensor: 'soil' | 'light') => call<CalibrationState>(`/calibration/${sensor}`, { method: 'DELETE' }),
   pauseWateringDetection: (minutes: number) =>

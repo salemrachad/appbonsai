@@ -75,7 +75,13 @@ export type DayLine =
   | 'season_spring'
   | 'season_summer'
   | 'season_autumn'
-  | 'season_winter';
+  | 'season_winter'
+  // Outside weather in contrast with the calm inside (the tree is in a greenhouse): once a day each
+  | 'weather_rain'
+  | 'weather_storm'
+  | 'weather_fog'
+  | 'weather_snow'
+  | 'weather_cold_outside';
 
 // Lines about recent care, spoken at most once a day while the context lasts.
 export type CareLine = 'settling_in' | 'new_spot' | 'new_shape';
@@ -123,6 +129,27 @@ export interface RelationshipContext {
   attention: { petSessions7d: number; lastPetAt: number | null; familiarity: number };
 }
 
+// Visitors (evidence class "art"; see behaviour/habitat.ts). Never read by health, mood, energy or speech.
+export type VisitSpot = 'left_branch' | 'right_branch' | 'crown' | 'trunk' | 'pot_rim'; // visits start on the first three; play uses all
+export interface HabitatVisit {
+  kind: 'squirrel';
+  id: string; // day:slot, stable across refreshes
+  startedAt: number;
+  endsAt: number;
+  spot: VisitSpot;
+  carrying: 'nut' | null; // autumn caching
+}
+export interface HabitatState {
+  value: number; // 0-1: how welcoming the tree has been (slow to rise, quick to fall)
+  welcoming: boolean; // latch (enter/exit) on value: do visitors come at all
+  presence: 'none' | 'visiting' | 'hiding'; // right now: out on a branch, or tucked into the leaves
+  visit: HabitatVisit | null;
+  calmHours14d: number; // observed hours that raised it
+  stressHours14d: number; // observed hours that lowered it
+  lastChangeAt: number | null; // when the latch last flipped
+  why: string; // developer panel
+}
+
 export interface Concern {
   metric: 'soil' | 'temperature' | 'humidity' | 'light';
   status: string; // the metric's status label, e.g. "Waterlogged"
@@ -163,6 +190,7 @@ export interface PlantBehaviourState {
   reaction: CareReaction | null;
   concern: Concern | null;
   relationship: RelationshipContext;
+  habitat: HabitatState; // visitors: expressive only, nothing above reads it
   reasons: string[]; // why the engine chose this behaviour (developer panel)
   evaluatedAt: number;
 }

@@ -4,6 +4,7 @@ import { LivingCollector } from '../server/collector';
 import { AppDatabase } from '../server/database';
 import { DEFAULT_SETTINGS, TreeSettings } from '../src/settings/settings';
 import { normalizeESP32Payload } from '../src/telemetry/telemetryNormalizer';
+import { skyFromCode, type OutsideObservation } from '../src/telemetry/outsideWeather';
 import type { TelemetryFetchResult } from '../src/telemetry/types';
 
 export const MIN = 60 * 1000;
@@ -34,6 +35,8 @@ export class Bench {
   clock = START;
   online = true;
   payload: Record<string, unknown> = {};
+  // Fake outside weather (WMO code, °C). null = Open-Meteo unreachable. Never the real network in tests.
+  weather: { code: number; temp?: number; gusts?: number } | null = null;
   collector!: LivingCollector;
   logs: string[] = [];
   constructor(public db = new AppDatabase(':memory:')) {
@@ -53,8 +56,22 @@ export class Bench {
     current.timestamp = this.clock;
     return { current, hourly: [], timeline: [], raw: this.payload };
   };
+  private fetchWeather = async (_s: TreeSettings, now: number): Promise<{ observation: OutsideObservation; raw: unknown }> => {
+    if (!this.weather) throw new Error('ENOTFOUND');
+    const w = this.weather;
+    const observation: OutsideObservation = {
+      at: now, sky: skyFromCode(w.code), code: w.code, temperature: w.temp ?? 15, humidity: 80, precipitation: 0, cloudCover: 50, wind: 10, gusts: w.gusts ?? 15, isDay: true,
+    };
+    return { observation, raw: w };
+  };
   async boot() {
-    this.collector = new LivingCollector(this.db, { now: () => this.clock, fetchTelemetry: this.fetch, autoSchedule: false, log: (m) => this.logs.push(m) });
+    this.collector = new LivingCollector(this.db, {
+      now: () => this.clock,
+      fetchTelemetry: this.fetch,
+      fetchOutsideWeather: this.fetchWeather,
+      autoSchedule: false,
+      log: (m) => this.logs.push(m),
+    });
     await this.collector.start();
   }
   // One poll, one minute later. null = ESP32 unreachable.

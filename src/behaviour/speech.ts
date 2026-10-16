@@ -78,6 +78,10 @@ export function stableVariant(seed: string, count: number): number {
   return (h >>> 0) % Math.max(1, count);
 }
 
+// A weather contrast line (calm tree, outside turned) not yet said today
+const weatherNews = (b: PlantBehaviourState, m: MessageMemory, now: number) =>
+  !!b.dayLine?.startsWith('weather_') && m.dayLinesSaid[b.dayLine] !== localDate(now);
+
 const localDate = (t: number) => {
   const d = new Date(t);
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -135,6 +139,10 @@ export function decideSpeech({
     } else {
       reason = `minor change: waiting ${Math.ceil((SPEECH.minGapMs - sinceSpoken) / MIN)} min (cooldown)`;
     }
+  } else if (weatherNews(b, m, now) && sinceSpoken >= SPEECH.minGapMs) {
+    // Outside weather turned (rain, a storm, fog, snow, a cold snap): one word about it, once a day
+    speakNow = true;
+    reason = `outside: ${b.dayLine!.replace('weather_', '').replace(/_/g, ' ')}`;
   } else if (sinceSpoken < visibleFor) {
     reason = 'same thought, still showing';
   } else if (repeatEvery !== null && sinceSpoken >= repeatEvery) {

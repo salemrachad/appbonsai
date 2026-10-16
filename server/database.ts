@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { BehaviourEpisode, HourlyBucket, Interaction, InteractionKind, PlantEvent, PlantEventType, TelemetryRecord } from '../src/history/historyTypes';
 import type { HealthCondition, Severity } from '../src/health/healthTypes';
+import type { OutsideObservation } from '../src/telemetry/outsideWeather';
 import { MIGRATIONS, SCHEMA_SQL, SCHEMA_VERSION } from './schema';
 
 // Thin data-access layer over node:sqlite (built into Node 22.5+, no native build step).
@@ -49,6 +50,19 @@ const toInteraction = (r: Row): Interaction => ({
   endedAt: r.ended_at,
   count: r.count,
   metadata: json(r.metadata_json, {}),
+});
+
+const toOutside = (r: Row): OutsideObservation => ({
+  at: r.timestamp,
+  sky: r.sky,
+  code: r.code,
+  temperature: r.temperature,
+  humidity: r.humidity,
+  precipitation: r.precipitation,
+  cloudCover: r.cloud_cover,
+  wind: r.wind,
+  gusts: r.gusts,
+  isDay: r.is_day === null ? null : r.is_day === 1,
 });
 
 const toEpisode = (r: Row): BehaviourEpisode => ({
@@ -231,6 +245,22 @@ export class AppDatabase {
   }
   interactionCount(): number {
     return (this.db.prepare('SELECT COUNT(*) AS n FROM interactions').get() as Row).n;
+  }
+
+  // ---- outside weather (context only) ----
+  insertOutsideWeather(o: OutsideObservation, raw: unknown) {
+    this.db
+      .prepare(
+        'INSERT INTO outside_weather (timestamp, sky, code, temperature, humidity, precipitation, cloud_cover, wind, gusts, is_day, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      )
+      .run(o.at, o.sky, o.code, o.temperature, o.humidity, o.precipitation, o.cloudCover, o.wind, o.gusts, o.isDay === null ? null : o.isDay ? 1 : 0, raw === undefined ? null : JSON.stringify(raw));
+  }
+  latestOutsideWeather(): OutsideObservation | null {
+    const r = this.db.prepare('SELECT * FROM outside_weather ORDER BY timestamp DESC LIMIT 1').get() as Row | undefined;
+    return r ? toOutside(r) : null;
+  }
+  outsideWeatherSince(since: number): OutsideObservation[] {
+    return (this.db.prepare('SELECT * FROM outside_weather WHERE timestamp >= ? ORDER BY timestamp ASC').all(since) as Row[]).map(toOutside);
   }
 
   // ---- calibration history ----

@@ -342,8 +342,54 @@ async function main() {
     const ep = db.openEpisode();
     check('M1 v1 database upgraded: unobserved_ms added, old rows kept', ep?.unobservedMs === 0 && db.getMeta<number>('schema_version') === SCHEMA_VERSION);
     check('M2 old database gains the interactions table, empty', db.interactionCount() === 0 && db.getMeta<number>('schema_version') === SCHEMA_VERSION);
+    check('M3 old database gains the outside_weather table, empty', db.latestOutsideWeather() === null && db.outsideWeatherSince(0).length === 0);
     db.close();
     for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
+  }
+
+  console.log('\n— Light min / max set by hand —');
+  {
+    const { CalibrationService } = await import('../server/calibration');
+    const b = new Bench();
+    await b.boot();
+    await b.run(3, () => ({ soil: 60, light: 50, extra: { light_raw: 1700 } }));
+    const svc = new CalibrationService(b.db, b.collector, { now: () => b.clock });
+    const swapped = await svc.saveLight({ darkRaw: 3000, brightRaw: 200, manual: true, confirm: true });
+    check('L1 swapped min/max is refused, nothing saved', !swapped.saved && swapped.errors.length > 0 && b.collector.getCalibration().light === null);
+    const ok = await svc.saveLight({ darkRaw: 100, brightRaw: 3300, manual: true, confirm: true });
+    const cal = b.collector.getCalibration().light;
+    check('L2 typed min/max saved as method "manual", with history', ok.saved && cal?.method === 'manual' && cal.darkRaw === 100 && cal.brightRaw === 3300 && /by hand/.test(b.db.calibrationHistory(1)[0]?.note ?? ''), JSON.stringify(cal));
+    await b.run(2, () => ({ soil: 60, light: 50, extra: { light_raw: 1700 } }));
+    const pct = b.state().perception.readings.lightPercent;
+    check('L3 light % now read with the typed range (raw 1700 -> 50%)', pct === 50, `${pct}%`);
+    const guided = await svc.saveLight({ darkRaw: 150, brightRaw: 3000, dark: { mean: 150, min: 148, max: 152, stdev: 1, n: 10 }, bright: { mean: 3000, min: 2990, max: 3010, stdev: 4, n: 10 }, confirm: true });
+    check('L4 the guided calibration still works and replaces it', guided.saved && b.collector.getCalibration().light?.method === 'guided');
+  }
+
+  console.log('\n— Outside weather (context only) —');
+  {
+    const b = new Bench();
+    b.weather = { code: 63, temp: 9 };
+    await b.boot();
+    await b.run(3, () => ({ soil: 60 }));
+    const rows = b.db.outsideWeatherSince(0);
+    const o = b.state().perception.outside;
+    check('OW1 fetched on start and stored, separately from telemetry', rows.length === 1 && rows[0].sky === 'heavy_rain' && o?.sky === 'heavy_rain', `${rows.length} row(s), sky ${o?.sky}`);
+    check('OW1b the ESP32 cadence does not fetch weather', b.db.outsideWeatherSince(0).length === 1, `${b.db.outsideWeatherSince(0).length} rows after 3 sensor polls`);
+    await b.collector.pollWeather();
+    check('OW2 its own poll adds an observation', b.db.outsideWeatherSince(0).length === 2);
+    b.weather = null;
+    await b.collector.pollWeather();
+    const kept = b.state().perception.outside;
+    check('OW3 a failed fetch invents nothing: the last observation is kept, nothing stored', kept?.sky === 'heavy_rain' && b.db.outsideWeatherSince(0).length === 2);
+    await b.run(65, () => ({ soil: 60 }));
+    check('OW4 stale after an hour: shown as nothing', b.state().perception.outside === null && b.state().expression.atmosphere.weather === null);
+    b.weather = { code: 45, temp: 6 };
+    const restarted = new Bench(b.db);
+    restarted.clock = b.clock;
+    restarted.weather = null;
+    await restarted.boot();
+    check('OW5 a restart within the hour shows the stored weather (offline is fine)', restarted.state().perception.outside === null || restarted.state().perception.outside?.sky === 'heavy_rain');
   }
 
   finish();

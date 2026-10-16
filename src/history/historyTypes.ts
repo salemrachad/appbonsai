@@ -104,9 +104,13 @@ export interface DailySummary {
 // A line in the plant diary.
 export interface DiaryItem {
   at: number;
-  kind: 'episode_start' | 'episode_gap' | 'event';
+  kind: 'episode_start' | 'episode_gap' | 'event' | 'weather'; // weather: outside, context only
   title: string;
   detail?: string;
   condition?: HealthCondition;
   eventType?: PlantEventType;
+  weather?: WeatherSpellKind;
 }
+
+// A notable stretch of outside weather (the tree is in a greenhouse: context, never the tree's state).
+export type WeatherSpellKind = 'rain' | 'storm' | 'snow' | 'fog' | 'frost';

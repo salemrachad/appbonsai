@@ -15,7 +15,7 @@ const localDate = (t: number) => {
 };
 const clampNum = (v: unknown, lo: number, hi: number, dflt: number) => Math.min(hi, Math.max(lo, Number(v) || dflt));
 
-// GET /api/history?hours=24 (raw rows) · /hourly?hours=24 · /daily?days=7 · /diary?days=3 · /episodes?days=30
+// GET /api/history?hours=24 (raw rows) · /hourly?hours=24 · /daily?days=7 · /diary?days=3 · /episodes?days=30 · /weather?hours=24
 export function historyRoutes(db: AppDatabase, collector: LivingCollector): Router {
   const r = Router();
   const source = () => (collector.getSettings().settings.dataSource === 'weather_estimate' ? 'weather_estimate' : 'esp32_sensor');
@@ -81,7 +81,13 @@ export function historyRoutes(db: AppDatabase, collector: LivingCollector): Rout
   r.get('/diary', (req, res) => {
     const days = clampNum(req.query.days, 1, 365, 3);
     const since = Date.now() - days * DAY;
-    res.json(buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs));
+    res.json(buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs, db.outsideWeatherSince(since)));
+  });
+
+  // Outside weather observations (context only; the tree's own readings are /api/history)
+  r.get('/weather', (req, res) => {
+    const hours = clampNum(req.query.hours, 1, 24 * 90, 24);
+    res.json(db.outsideWeatherSince(Date.now() - hours * HOUR));
   });
 
   r.get('/episodes', (req, res) => {

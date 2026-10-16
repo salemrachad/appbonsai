@@ -38,7 +38,7 @@ random emotion or generic chatbot talk. When in doubt, biology wins over enterta
 
 ## 2. The tree
 
-One Ficus microcarpa/retusa (ginseng type) on a balcony: substantial trunk, exposed roots, two major upper branches.
+One Ficus microcarpa/retusa (ginseng type) in a greenhouse (the sensors measure inside it; outside weather is context, see "Outside weather"): substantial trunk, exposed roots, two major upper branches.
 
 Its history (**caretaker-reported**, not recorded in the database):
 - Significant green-leaf drop, likely from environmental stress.
@@ -216,6 +216,90 @@ real, felt answer, it is remembered, and it changes nothing about the tree's sta
     unsure answers.
   - `npm run test:behaviour` H1–H3: habituation settles above its floor and recovers after a rest.
   - `npm run test:collector` A1–A5, M2: session merging, refusals, no care events, migration.
+
+### Outside weather [Implemented, V1]
+
+The tree lives in a greenhouse. Outside it still rains, fogs, storms and freezes, and that is part of the
+tree's world, but **not its condition**: the ESP32 inside says how the tree is. Evidence class *context*.
+
+- **Source:** Open-Meteo at the tree's location, every 15 min, in every data-source mode
+  (`telemetry/outsideWeather.ts`, `outside_weather` table). A failed fetch invents nothing. After an hour
+  without a new observation, nothing is shown.
+- **Not the tree's condition, with one exception: it explains dim light.** Perception carries it as
+  `outside`. Health, mood, energy and the habitat never read it.
+  - Light is judged relative to the sky as well as the sun. Each daylight LDR reading is compared with
+    thresholds scaled by `species.light.skyFactor` for the sky outside at that moment (`dailyLight.ts`,
+    `skyAt()`). Overcast is 0.55, fog and rain 0.5, a storm 0.35 (evidence class *inference*, PROTOTYPE).
+  - So a grey day's dim reading counts as a fair share of what there was. It is not "too dark", and the
+    light card says "Grey day".
+  - The same reading under a clear sky is a dim spot. A reading darker than even the grey sky explains is
+    still too dark. With no weather data, nothing changes.
+  - Replays use the stored observations, so the judgement is the same after a restart.
+  - Tested: `npm run test:scenarios` D3–D6. Scenario O1 runs a storm against calm weather with good light
+    and requires an identical tree.
+- **Around the tree, never on it:** `atmosphere.weather` paints a layer behind the tree, over the state
+  scene: rain, a downpour, drizzle, fog, grey overcast, snow, a storm with lightning, wind streaks. A
+  thirsty tree on a rainy day shows both.
+  - `WeatherForeground` (on Home, over the avatar, never taking the pointer) adds the weather *in front*:
+    fog banks drifting across the plant under a white veil, big raindrops falling past it and splashing by
+    the pot, flakes passing in front.
+  - **The tree art itself never changes for the weather.**
+  The header chip names it ("Outside · Rain · 9°C").
+- **Wording:** a calm, awake tree mentions a notable contrast once a day (rain, storm, fog, snow, or cold
+  outside while it is warm inside), e.g. "Rain outside. Dry and calm in here." The lines never claim the
+  tree is wet or cold. A stressed tree talks about its own state instead.
+- **Diary:** one line per notable spell ("Rain outside, 14:00–17:30", "Frost outside · down to -3°C").
+- **Open:** tuning `skyFactor` against this LDR on real grey days; outside forecasts ("rain tonight").
+
+### Visitors and habitat (the squirrel) [Implemented, V1]
+
+A squirrel that visits the digital tree is **art, not biology**, and not a pet. It is shown only because
+the real tree has been a good place to be for a while. Wild animals behave like the health latches: slow to
+trust a place, quick to leave it.
+
+- **Habitat value** (`behaviour/habitat.ts`, numbers in `APP_CONFIG.habitat`). It is derived from the stored
+  episodes of the last 14 days, so nothing new is persisted and it survives restarts.
+  - Comfortable or thriving time raises it toward 1, over days of **observed** time (τ 36 h, or 20 h when
+    thriving).
+  - A primary stress lowers it toward 0: τ 1 h when critical, 4 h when moderate, 12 h when mild.
+  - Sleeping, recovering, very bright and sensor-uncertain episodes hold it. So do gaps and unobserved time.
+- **Latch:** visitors come above 0.6 and stop below 0.4 (a Schmitt trigger). In practice, about three calm
+  days bring them, and a thirst of a few hours sends them away.
+- **Right now:**
+  - When it is calm, the squirrel **visits** a branch or the crown.
+  - During a passing mild or moderate stress (and while recovering or in glare), it **hides** behind a pad
+    and peeks.
+  - During a critical stress or multiple stress, it is gone.
+  - At night, while asleep or with no trustworthy data (primary or overlay), nothing is shown. An unsure tree
+    never looks falsely healthy.
+- **Visits are occasional.** The day is cut into 30-minute slots, and each slot may hold one visit of
+  4–12 min. Visits are more likely the more welcoming the tree is, are busier in the morning and late
+  afternoon, and are fewer at winter rest. In autumn the squirrel carries a nut. Visits are chosen with
+  `stableVariant(day:slot)`, so a refresh never reshuffles them.
+- **Petting is play** (attention, never stored; the petting session is recorded exactly as before). While it
+  visits, stroking the leaves makes the squirrel play around the tree:
+  - It hops between the branches, the crown, the trunk and the pot rim.
+  - Sometimes it dives behind a pad and comes back out after 10 s.
+  - Play ends a few seconds after the last stroke, and it stays where it ended up.
+- **How it plays comes from the tree, never from the squirrel's own mood.** `expression.visitor.play`
+  (`visitorPlay()` in `ExpressionEngine.ts`, numbers in `APP_CONFIG.habitat.play`) decides it:
+  - **thriving** → playful (hops every ~2.5 s)
+  - **comfortable** → gentle (~4 s; slower and hides more in an afterglow or while a reading is watched)
+  - **hiding through a stress** → shy: it only ducks and peeks again, and never comes out to play
+- **The tail wags in the tree's rhythm.** `play.wag` takes the tree's own sway speed and amplitude: fast and
+  wide when the tree is lively, slow and soft when it's tired, small quick flicks when it's hiding.
+- **No reward loop.** Continuous stroking settles the play toward the touch habituation floor, and a rest
+  recovers it. Petting never brings more visits or changes the habitat (V13).
+- **Reduced motion:** no hopping; the squirrel stays where it is.
+- **Boundaries:** the habitat is computed last in `evaluateBehaviour`, and health, mood, energy, speech and
+  touch never read it. It is nonverbal: no lines.
+- **Previews:** Developer → Test Tree State → Squirrel, or `#visitor=visiting:crown` / `#visitor=hiding`.
+  The Behaviour Debug panel shows the value, the latch, the calm and stress hours, and why nobody is
+  visiting.
+- **Tested:** `npm run test:behaviour` V1–V13 (V11–V13: play by state, the tail in the tree's rhythm, petting
+  changes nothing).
+- **Open:** whether the thriving butterfly should join this system (arriving after a while, not on the latch
+  minute), and other visitors (dawn birds; real ants once a pest observation can be logged).
 
 ## 7. Known gaps
 

@@ -4,7 +4,9 @@ import { decideSpeech, INITIAL_MESSAGE_MEMORY, SpeechDecision } from '../behavio
 import type { HealthCondition, HealthModifier, PlantHealthState, QualitativeState } from '../health/healthTypes';
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { Season } from '../perception/season';
-import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gesture, SceneId, TouchKind, TouchResponse } from './expressionTypes';
+import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gesture, SceneId, TouchKind, TouchResponse, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
+import { APP_CONFIG } from '../config/appConfig';
+import type { OutsideSky } from '../telemetry/outsideWeather';
 
 type Look = Omit<AvatarPresentation, 'effects'> & { effects?: AvatarEffect[] };
 
@@ -248,6 +250,25 @@ function touchResponse(condition: HealthCondition, modifiers: HealthModifier[], 
   };
 }
 
+// How the squirrel plays when the leaves are petted: from the tree's state, never its own mood. Its tail
+// wags in the tree's rhythm (the tree's sway). Evidence class "art"; attention only, nothing is stored.
+export function visitorPlay(condition: HealthCondition, mode: VisitorPresentation['mode'], b: PlantBehaviourState, motion: ExpressionState['motion']): VisitorPlay {
+  const cfg = APP_CONFIG.habitat.play;
+  const kind: VisitorPlay['kind'] = mode === 'hiding' ? 'shy' : condition === 'thriving' && !b.afterglow ? 'playful' : 'gentle';
+  const t = cfg[kind];
+  // An afterglow or a watched reading: a little more careful
+  const careful = kind === 'gentle' && (b.afterglow || !!b.concern);
+  return {
+    kind,
+    hopEveryMs: careful ? Math.round(t.hopEveryMs * 1.4) : t.hopEveryMs,
+    hideChance: careful ? Math.min(1, t.hideChance + 0.15) : t.hideChance,
+    returnMs: cfg.returnMs,
+    lingerMs: cfg.lingerMs,
+    // Shy: small quick nervous flicks; otherwise the tree's own tempo and amplitude
+    wag: kind === 'shy' ? { tempo: r2(motion.swaySpeed * 1.6), amount: r2(motion.swayAmount * 0.35) } : { tempo: motion.swaySpeed, amount: motion.swayAmount },
+  };
+}
+
 const TAP_LABEL: Record<Mood, string> = {
   joyful: '🌿 Joyful',
   content: '🍃 Content',
@@ -266,6 +287,19 @@ const TAP_LABEL: Record<Mood, string> = {
   confused: '🤔 Unsure',
 };
 
+// Outside weather → the background weather layer. The tree's own scene, look and droop never change for it.
+const SKY_INTENSITY: Record<OutsideSky, number> = {
+  clear: 0, partly_cloudy: 0.3, overcast: 0.5, fog: 0.8, drizzle: 0.35, rain: 0.65, heavy_rain: 1, snow: 0.7, thunderstorm: 1,
+};
+const SKY_LABEL: Record<OutsideSky, string> = {
+  clear: 'Clear', partly_cloudy: 'Some clouds', overcast: 'Overcast', fog: 'Fog', drizzle: 'Drizzle', rain: 'Rain', heavy_rain: 'Heavy rain', snow: 'Snow', thunderstorm: 'Storm',
+};
+export function weatherLook(o: PerceptionState['outside'] | undefined): WeatherLook | null {
+  if (!o) return null;
+  const temp = o.temperature !== null ? ` · ${Math.round(o.temperature)}°C` : '';
+  return { sky: o.sky, windy: o.windy, intensity: SKY_INTENSITY[o.sky], label: `${SKY_LABEL[o.sky]}${o.windy ? ', windy' : ''}${temp}` };
+}
+
 const RAIN_SECONDS = 60;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -273,7 +307,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 export interface ExpressionInput {
   behaviour: PlantBehaviourState;
   health: PlantHealthState;
-  perception: Pick<PerceptionState, 'sun' | 'source' | 'season'>;
+  perception: Pick<PerceptionState, 'sun' | 'source' | 'season'> & Partial<Pick<PerceptionState, 'outside'>>;
   speech?: SpeechDecision; // from the server's speech policy; previews decide fresh
   now: number;
 }
@@ -408,12 +442,18 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
   const night = DARK_SCENES.includes(scene);
   const calmScene = scene === 'calm' || scene === 'golden' || scene === 'night' || scene === 'renewal';
   const avatar: AvatarPresentation = { ...look, effects: [...effects] };
+  const h = b.habitat;
+  const visitor: VisitorPresentation | null =
+    h?.visit && h.presence !== 'none'
+      ? { kind: h.visit.kind, id: h.visit.id, mode: h.presence, spot: h.visit.spot, carrying: h.visit.carrying, play: visitorPlay(condition, h.presence, b, motion) }
+      : null;
   return {
     avatar,
     leafDroop,
     motion,
     reactionStrength: b.responsiveness,
     touch: touchResponse(condition, modifiers, b),
+    visitor,
     atmosphere: {
       theme: night ? 'night' : 'day',
       phase: perception.sun.phase,
@@ -421,6 +461,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
       season: season.id,
       seasonStage: season.stage,
       intensity: r2(calmScene ? 0.5 : clamp(0.35 + 0.65 * b.expressionIntensity, 0, 1)),
+      weather: weatherLook(perception.outside),
     },
     gauge,
     tapLabel: TAP_LABEL[b.mood],
@@ -437,12 +478,12 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
       onceStatus: s.onceStatus,
     },
     intensity: b.expressionIntensity,
-    layers: { epidermal: describeBody(avatar, b, leafDroop, motion), wording: rendered.text, diffraction },
+    layers: { epidermal: describeBody(avatar, b, leafDroop, motion, visitor), wording: rendered.text, diffraction },
   };
 }
 
 // Plain-language description of the body language, for the developer panel.
-function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: number, m: ExpressionState['motion']): string[] {
+function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: number, m: ExpressionState['motion'], v: VisitorPresentation | null): string[] {
   const mood = b.mood;
   const eyes: Record<AvatarPresentation['eyes'], string> = {
     happy: 'soft open eyes', joy: 'smiling closed eyes', closed: 'eyes closed (asleep)', drowsy: 'half-closed drowsy eyes',
@@ -468,5 +509,9 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
   if (a.sweat) out.push('sweating');
   if (a.soil === 'wet') out.push('dark soaked soil');
   if (a.effects.length) out.push(`effects: ${a.effects.join(', ')}`);
+  if (v) {
+    out.push(`a squirrel ${v.mode === 'visiting' ? 'visiting' : 'hiding'} on the ${v.spot.replace('_', ' ')}${v.carrying ? ' with a nut' : ''}`);
+    out.push(v.play.kind === 'shy' ? 'petting: it ducks and peeks again (tail flicking)' : `petting: it plays around the tree (${v.play.kind}), tail in the tree's rhythm`);
+  }
   return out;
 }

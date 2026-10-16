@@ -1,3 +1,4 @@
+import type { OutsideWeather } from '../telemetry/outsideWeather';
 import type { PlantEvent } from '../history/historyTypes';
 import type { DataQuality } from '../telemetry/dataQuality';
 import type { PlantTelemetry, TelemetrySource } from '../telemetry/types';
@@ -56,4 +57,8 @@ export interface PerceptionState {
   care: { lastWatering: PlantEvent | null; lastCare: PlantEvent | null; recent: PlantEvent[]; context: CareContext };
   light: DailyLight; // today's accumulated daylight exposure
   quality: DataQuality;
+  // Outside weather at the tree's location (the tree is in a greenhouse; the sensors measure inside).
+  // Context and expression. Its one effect on interpretation is through `light`: a grey sky explains a dim
+  // LDR reading (dailyLight.ts). Health never reads this field. null = unknown/stale.
+  outside: OutsideWeather | null;
 }

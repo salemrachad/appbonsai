@@ -1,3 +1,4 @@
+import type { OutsideSky } from '../telemetry/outsideWeather';
 // A comfort range for one measurement. Values outside optimal score lower.
 export interface ComfortRange {
   minCritical: number;
@@ -98,6 +99,9 @@ export interface SpeciesProfile {
     usefulShareTarget: number; // share of observed daylight in useful light that counts as a good light day
     lowCountsAs: number; // a low-light minute counts as this fraction of a useful one in the score
     minObservedMinutes: number; // observed daylight needed before the day's light is judged
+    // How much light the outside sky lets through, as a factor on usefulMinPercent / lowMaxPercent for a
+    // reading taken under that sky. A grey sky explains a dim reading; it never makes a bright one worse.
+    skyFactor: Record<OutsideSky, number>;
   };
 
   // How long care events stay part of the tree's context, and how they colour behaviour.

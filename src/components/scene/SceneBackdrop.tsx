@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { SceneId } from '../../expression/expressionTypes';
+import type { SceneId, WeatherLook } from '../../expression/expressionTypes';
+import type { OutsideSky } from '../../telemetry/outsideWeather';
 import type { Season } from '../../perception/season';
 
 // The whole screen's backdrop for the tree's state, like night always did: gradient + ambient motion.
@@ -9,6 +10,7 @@ interface SceneBackdropProps {
   scene: SceneId;
   season: Season;
   intensity: number; // 0-1: how strongly the scene shows
+  weather?: WeatherLook | null; // outside weather: its own layer, on top of the state scene, behind the tree
 }
 
 function rng(seed: number) {
@@ -21,7 +23,7 @@ function rng(seed: number) {
   };
 }
 
-interface ParticleSpec {
+export interface ParticleSpec {
   kind: string; // CSS class suffix: .p-<kind>
   count: number;
   dur: [number, number]; // seconds
@@ -79,7 +81,7 @@ const SCENE_PARTICLES: Partial<Record<SceneId, ParticleSpec[]>> = {
   ],
 };
 
-const Particles: React.FC<{ spec: ParticleSpec; seed: number }> = ({ spec, seed }) => {
+export const Particles: React.FC<{ spec: ParticleSpec; seed: number }> = ({ spec, seed }) => {
   const items = useMemo(() => {
     const r = rng(seed);
     const pick = (range: [number, number]) => range[0] + r() * (range[1] - range[0]);
@@ -134,9 +136,54 @@ const Layer: React.FC<{ scene: SceneId; season: Season; visible: boolean }> = ({
   );
 }
 
+// Outside weather (atmosphere.weather): a layer of its own over the tree's state scene. The tree is in a
+// greenhouse, so this is the world outside it; the tree's look never changes for it. Counts scale with intensity.
+const WEATHER_PARTICLES: Record<OutsideSky, ParticleSpec[]> = {
+  clear: [],
+  partly_cloudy: [{ kind: 'cloud', count: 3, dur: [70, 110], size: [260, 420], top: [-20, 5], colors: ['rgba(255,255,255,0.55)'] }],
+  overcast: [{ kind: 'cloud', count: 5, dur: [60, 95], size: [360, 560], top: [-25, 10], colors: ['rgba(120,128,140,0.22)'] }],
+  fog: [{ kind: 'fog', count: 9, dur: [40, 70], size: [600, 1000], top: [5, 95], left: [-40, 40], colors: ['rgba(255,255,255,0.75)', 'rgba(236,240,244,0.8)'] }],
+  drizzle: [{ kind: 'rain', count: 40, dur: [1.1, 1.7], size: [12, 18], top: [-20, -5], colors: ['rgba(85,125,170,0.7)'] }],
+  rain: [
+    { kind: 'cloud', count: 3, dur: [60, 90], size: [360, 520], top: [-25, 5], colors: ['rgba(100,110,125,0.22)'] },
+    { kind: 'rain', count: 80, dur: [0.75, 1.2], size: [22, 36], top: [-20, -5], colors: ['rgba(70,110,160,0.85)', 'rgba(95,135,185,0.8)'] },
+  ],
+  heavy_rain: [
+    { kind: 'cloud', count: 4, dur: [50, 80], size: [380, 560], top: [-25, 5], colors: ['rgba(80,88,104,0.3)'] },
+    { kind: 'rain', count: 120, dur: [0.55, 0.9], size: [28, 44], top: [-20, -5], colors: ['rgba(65,105,155,0.9)', 'rgba(90,130,180,0.85)'] },
+  ],
+  snow: [
+    // Far away: many tiny soft flakes, slow (subtle depth)
+    { kind: 'snowfar', count: 140, dur: [14, 24], size: [2, 4], top: [-10, 0], colors: ['rgba(255,255,255,0.85)', 'rgba(236,243,250,0.8)'] },
+    { kind: 'snow', count: 80, dur: [9, 16], size: [4, 9], top: [-10, 0], colors: ['#FFFFFF', '#F2F7FC'] },
+  ],
+  thunderstorm: [
+    { kind: 'cloud', count: 5, dur: [40, 65], size: [380, 580], top: [-25, 10], colors: ['rgba(60,55,75,0.38)'] },
+    { kind: 'rain', count: 100, dur: [0.6, 1], size: [26, 42], top: [-20, -5], colors: ['rgba(95,100,145,0.9)', 'rgba(120,128,170,0.85)'] },
+  ],
+};
+const WINDY: ParticleSpec = { kind: 'streak', count: 12, dur: [2.4, 4.2], size: [90, 190], left: [-30, -10], colors: ['rgba(130,135,145,0.5)'] };
+
+const WeatherLayer: React.FC<{ weather: WeatherLook }> = ({ weather }) => {
+  const scale = 0.5 + 0.5 * weather.intensity;
+  const specs = [...WEATHER_PARTICLES[weather.sky], ...(weather.windy ? [WINDY] : [])].map((s) =>
+    s.kind === 'cloud' || s.kind === 'fog' ? s : { ...s, count: Math.max(1, Math.round(s.count * scale)) }
+  );
+  return (
+    <div className={`weather-layer weather-${weather.sky}${weather.windy ? ' weather-windy' : ''}`} style={{ '--weather-intensity': weather.intensity } as React.CSSProperties}>
+      <div className="weather-tint" />
+      {weather.sky === 'thunderstorm' && <div className="scene-lightning weather-lightning" />}
+      {weather.sky === 'snow' && <div className="weather-snow-ground" />}
+      {specs.map((s, i) => (
+        <Particles key={`${weather.sky}-${i}`} spec={s} seed={weather.sky.length * 977 + i * 31} />
+      ))}
+    </div>
+  );
+};
+
 const FADE_MS = 1600;
 
-export const SceneBackdrop: React.FC<SceneBackdropProps> = ({ scene, season, intensity }) => {
+export const SceneBackdrop: React.FC<SceneBackdropProps> = ({ scene, season, intensity, weather = null }) => {
   // Keep the previous scene for a moment so the new one fades in over it
   const [layers, setLayers] = useState<{ key: string; scene: SceneId; season: Season; visible: boolean }[]>([
     { key: `${scene}-${season}`, scene, season, visible: true },
@@ -161,6 +208,7 @@ export const SceneBackdrop: React.FC<SceneBackdropProps> = ({ scene, season, int
       {layers.map((l) => (
         <Layer key={l.key} scene={l.scene} season={l.season} visible={l.visible} />
       ))}
+      {weather && (weather.sky !== 'clear' || weather.windy) && <WeatherLayer key={`${weather.sky}-${weather.windy}`} weather={weather} />}
     </div>
   );
 };

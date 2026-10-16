@@ -6,7 +6,8 @@ import { DEV_PRESETS } from './health/developerOverrides';
 import type { DailySummary } from './history/historyTypes';
 import { importBrowserHistoryOnce } from './history/legacyBrowserHistory';
 import { useLivingState } from './hooks/useLivingState';
-import { usePlantBehaviour } from './hooks/usePlantBehaviour';
+import { usePlantBehaviour, type VisitorPreview, type WeatherPreview } from './hooks/usePlantBehaviour';
+import { OUTSIDE_SKIES } from './telemetry/outsideWeather';
 import { usePlantHealth } from './hooks/usePlantHealth';
 import { DEFAULT_SETTINGS, loadSettings, TreeSettings } from './settings/settings';
 import { midSeasonState, SEASONS, type Season } from './perception/season';
@@ -16,6 +17,7 @@ import type { PetSession } from './components/avatar/usePetting';
 import { DetailView } from './components/DetailView';
 import { SceneBackdrop } from './components/scene/SceneBackdrop';
 import { SeasonChip } from './components/scene/SeasonChip';
+import { WeatherChip } from './components/scene/WeatherChip';
 import { BackendBadge } from './components/developer/BackendBadge';
 import { SensorDiagnostics } from './components/sensors/SensorDiagnostics';
 import { Toast, ToastMessage } from './components/Toast';
@@ -50,6 +52,16 @@ export default function App() {
   const [devSeason, setDevSeason] = useState<Season | null>(() => {
     const m = typeof window !== 'undefined' ? window.location.hash.match(/season=([a-z]+)/) : null;
     return m && (SEASONS as string[]).includes(m[1]) ? (m[1] as Season) : null;
+  });
+  // #visitor=visiting or #visitor=hiding:crown puts the squirrel in the tree (presentation only)
+  const [devVisitor, setDevVisitor] = useState<VisitorPreview | null>(() => {
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/visitor=(visiting|hiding)(?::(left_branch|right_branch|crown|trunk|pot_rim))?/) : null;
+    return m ? { mode: m[1] as VisitorPreview['mode'], spot: (m[2] ?? 'left_branch') as VisitorPreview['spot'] } : null;
+  });
+  // #weather=rain previews the outside weather layer (presentation only)
+  const [devWeather, setDevWeather] = useState<WeatherPreview | null>(() => {
+    const m = typeof window !== 'undefined' ? window.location.hash.match(/weather=([a-z_]+)/) : null;
+    return m && (m[1] === 'windy' || (OUTSIDE_SKIES as string[]).includes(m[1])) ? (m[1] as WeatherPreview) : null;
   });
 
   // Calm confirmation toasts
@@ -133,7 +145,7 @@ export default function App() {
   }, [serverOffline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { live, display } = usePlantHealth(snapshot?.health ?? null, devPresetId);
-  const { behaviour, expression } = usePlantBehaviour(snapshot, display, devSeason, settings.latitude);
+  const { behaviour, expression } = usePlantBehaviour(snapshot, display, devSeason, settings.latitude, devVisitor, devWeather);
   const perception = snapshot?.perception ?? null;
   const reading = perception?.lastReading ?? null;
 
@@ -187,7 +199,7 @@ export default function App() {
   // ---- Header status ----
   const collector = snapshot?.status.collector;
   const sensorDown = !!perception && !perception.telemetry;
-  const previewing = !!devPresetId || !!devSeason;
+  const previewing = !!devPresetId || !!devSeason || !!devVisitor || !!devWeather;
   // Petting is attention, not care: one record per session, and none during a developer preview
   // (previews never write to the server)
   const recordPetSession = useCallback(
@@ -240,7 +252,12 @@ export default function App() {
         isNight ? 'night' : ''
       }`}
     >
-      <SceneBackdrop scene={scene} season={atmosphere?.season ?? perception?.season?.id ?? 'summer'} intensity={atmosphere?.intensity ?? 0.5} />
+      <SceneBackdrop
+        scene={scene}
+        season={atmosphere?.season ?? perception?.season?.id ?? 'summer'}
+        intensity={atmosphere?.intensity ?? 0.5}
+        weather={atmosphere?.weather ?? null}
+      />
       <header className="relative z-10 shrink-0 h-16 px-8 flex items-center justify-between border-b border-[var(--line)]">
         <div className="flex items-baseline gap-4 min-w-0">
           <h1 className="serif text-3xl font-medium tracking-tight">{settings.treeName || 'Ficus'}</h1>
@@ -250,6 +267,7 @@ export default function App() {
           </span>
           {BACKEND.devBuild && <BackendBadge remote={BACKEND.remote} mode={backendMode} offline={serverOffline} />}
           {perception?.season && <SeasonChip season={devSeason ? midSeasonState(devSeason, settings.latitude) : perception.season} />}
+          <WeatherChip weather={atmosphere?.weather ?? null} />
         </div>
 
         <div className="flex items-center gap-2">
@@ -284,9 +302,11 @@ export default function App() {
         health={display}
         expression={expression}
         offlineMessage={offlineMessage}
-        devPresetLabel={[devPreset?.label, devSeason && `${devSeason[0].toUpperCase()}${devSeason.slice(1)} season`].filter(Boolean).join(' · ') || null}
+        devPresetLabel={[devPreset?.label, devSeason && `${devSeason[0].toUpperCase()}${devSeason.slice(1)} season`, devVisitor && `Squirrel ${devVisitor.mode}`, devWeather && `Outside: ${devWeather.replace('_', ' ')}`].filter(Boolean).join(' · ') || null}
         onReturnToLive={() => {
           setDevSeason(null);
+          setDevVisitor(null);
+          setDevWeather(null);
           selectDevPreset(null);
         }}
         onOpenDetails={() => setShowDetail(true)}
@@ -326,6 +346,16 @@ export default function App() {
                 onSelectDevSeason={(s) => {
                   setDevSeason(s);
                   notify(s ? `Previewing ${s}` : 'Back to the real season');
+                }}
+                devVisitor={devVisitor}
+                onSelectDevVisitor={(v) => {
+                  setDevVisitor(v);
+                  notify(v ? `Squirrel ${v.mode} (${v.spot.replace('_', ' ')})` : 'Back to real visitors');
+                }}
+                devWeather={devWeather}
+                onSelectDevWeather={(w) => {
+                  setDevWeather(w);
+                  notify(w ? `Outside: ${w.replace('_', ' ')}` : 'Back to the real weather');
                 }}
               />
             ) : (

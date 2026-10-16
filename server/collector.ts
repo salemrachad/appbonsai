@@ -18,6 +18,7 @@ import { lightPercentFromRaw, NO_CALIBRATION, SensorCalibration, soilPercentFrom
 import { assessDataQuality } from '../src/telemetry/dataQuality';
 import { normalizeTelemetryEndpoint } from '../src/telemetry/ESP32TelemetryProvider';
 import { calculateVPD } from '../src/telemetry/telemetryNormalizer';
+import { fetchOutsideWeather, type OutsideObservation } from '../src/telemetry/outsideWeather';
 import { telemetryManager } from '../src/telemetry/telemetryManager';
 import type { HourlyTelemetryPoint, LiveReading, PlantTelemetry, TelemetryFetchResult, TelemetrySource, TimelineEvent } from '../src/telemetry/types';
 import type { AppDatabase } from './database';
@@ -71,6 +72,7 @@ const toLive = (t: PlantTelemetry): LiveReading => ({
 export interface CollectorOptions {
   now?: () => number; // clock (scenario tests run simulated time)
   fetchTelemetry?: (settings: TreeSettings) => Promise<TelemetryFetchResult>;
+  fetchOutsideWeather?: (settings: TreeSettings, now: number) => Promise<{ observation: OutsideObservation; raw: unknown }>;
   autoSchedule?: boolean; // false: only poll when pollNow() is called (tests)
   log?: (msg: string) => void;
 }
@@ -93,6 +95,9 @@ export class LivingCollector {
   private liveReadings: LiveReading[] = [];
   private forecast: { hourly: HourlyTelemetryPoint[]; timeline: TimelineEvent[] } = { hourly: [], timeline: [] };
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private weatherTimer: ReturnType<typeof setTimeout> | undefined;
+  private outside: OutsideObservation | null = null; // latest outside weather (context only)
+  private outsideError: string | null = null;
   private polling: Promise<void> | null = null;
   private repoll = false;
   private detector: DetectorState = INITIAL_DETECTOR;
@@ -109,6 +114,7 @@ export class LivingCollector {
   private state: { perception: PerceptionState; health: PlantHealthState; behaviour: PlantBehaviourState; expression: ExpressionState } | null = null;
   private readonly now: () => number;
   private readonly fetchTelemetry: (settings: TreeSettings) => Promise<TelemetryFetchResult>;
+  private readonly fetchOutside: (settings: TreeSettings, now: number) => Promise<{ observation: OutsideObservation; raw: unknown }>;
   private readonly autoSchedule: boolean;
   private readonly log: (msg: string) => void;
 
@@ -118,6 +124,7 @@ export class LivingCollector {
     this.configured = !!stored;
     this.now = opts.now ?? Date.now;
     this.fetchTelemetry = opts.fetchTelemetry ?? ((s) => telemetryManager.getTelemetry(s));
+    this.fetchOutside = opts.fetchOutsideWeather ?? fetchOutsideWeather;
     this.autoSchedule = opts.autoSchedule ?? true;
     this.log = opts.log ?? ((m) => console.log(m));
     this.calibration = this.loadCalibration();
@@ -128,11 +135,34 @@ export class LivingCollector {
   // ---- lifecycle ----
   start(): Promise<void> {
     this.restore();
+    this.outside = this.db.latestOutsideWeather();
+    void this.pollWeather();
     return this.pollNow();
   }
 
   stop() {
     clearTimeout(this.timer);
+    clearTimeout(this.weatherTimer);
+  }
+
+  // Outside weather: its own cadence (15 min) in every data source mode, independent of the ESP32.
+  // Context only. A failure keeps the last observation, which goes stale on its own (never invented).
+  async pollWeather(): Promise<void> {
+    clearTimeout(this.weatherTimer);
+    if (this.autoSchedule) this.weatherTimer = setTimeout(() => void this.pollWeather(), APP_CONFIG.polling.weatherMs);
+    if (this.settings.latitude == null || this.settings.longitude == null) return;
+    try {
+      const { observation, raw } = await this.fetchOutside(this.settings, this.now());
+      this.outside = observation;
+      this.db.insertOutsideWeather(observation, raw);
+      if (this.outsideError) this.log('[collector] outside weather back');
+      this.outsideError = null;
+    } catch (err: any) {
+      const msg = err?.cause?.code ?? err?.message ?? String(err);
+      if (!this.outsideError) this.log(`[collector] outside weather unavailable: ${msg}`);
+      this.outsideError = msg;
+    }
+    if (this.state) this.evaluate(this.now());
   }
 
   // After importing old readings: rebuild state from the database.
@@ -242,8 +272,13 @@ export class LivingCollector {
     this.wateringSessionEventId = lastSensorWatering?.id ?? null;
   }
 
-  private perceiveAt(now: number, events: PlantEvent[], deviceError: string | null = null): PerceptionState {
+  private perceiveAt(now: number, events: PlantEvent[], deviceError: string | null = null, outside: OutsideObservation | null = null): PerceptionState {
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
     return perceive({
+      outside,
+      // Today's skies: a grey day explains dim light (also on replay, from the stored observations)
+      outsideToday: this.db.outsideWeatherSince(dayStart.getTime() - 3600_000).filter((o) => o.at <= now + 15 * 60_000),
       latest: this.latest,
       previous: this.previous,
       recent: this.recent,
@@ -410,7 +445,7 @@ export class LivingCollector {
   // Perception → health → episodes → behaviour → expression, for the current moment.
   private evaluate(now: number) {
     const events = this.db.eventsSince(now - 30 * DAY);
-    const perception = this.perceiveAt(now, events, this.status.lastError);
+    const perception = this.perceiveAt(now, events, this.status.lastError, this.outside);
     const { state: health, memory } = evaluatePlantHealth({
       perception,
       species: ACTIVE_SPECIES,
@@ -453,6 +488,10 @@ export class LivingCollector {
     const changed = (k: keyof TreeSettings) => before[k] !== this.settings[k];
     if (changed('dataSource') || changed('latitude') || changed('longitude')) {
       this.replay(this.now());
+    }
+    if (changed('latitude') || changed('longitude')) {
+      this.outside = null; // weather from the old place no longer describes this one
+      void this.pollWeather();
     }
     // A new device or calibration changes the soil scale: that must never look like a watering
     if (changed('esp32EndpointUrl')) this.suppressWateringDetection();

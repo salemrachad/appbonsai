@@ -20,6 +20,7 @@ import type {
   RecoveryStage,
   TimeOfDay,
 } from './behaviourTypes';
+import { evaluateHabitat } from './habitat';
 import { computeRelationship } from './relationship';
 
 const HOUR = 3600 * 1000;
@@ -216,6 +217,21 @@ const INTENT: Record<HealthCondition, MessageIntent> = {
   sensor_uncertain: 'sensor_confused',
 };
 
+// Outside differs enough from the inside to be worth a word. Never about the tree's own state.
+const COLD_OUTSIDE_C = 5;
+const WARM_INSIDE_C = 15;
+function outsideLine(p: PerceptionState): DayLine | null {
+  const o = p.outside;
+  if (!o) return null;
+  if (o.sky === 'thunderstorm') return 'weather_storm';
+  if (o.sky === 'rain' || o.sky === 'heavy_rain') return 'weather_rain';
+  if (o.sky === 'snow') return 'weather_snow';
+  if (o.sky === 'fog') return 'weather_fog';
+  const inside = p.readings.temperature;
+  if (o.temperature !== null && inside !== null && o.temperature < COLD_OUTSIDE_C && inside >= WARM_INSIDE_C) return 'weather_cold_outside';
+  return null;
+}
+
 function timeOfDay(p: PerceptionState, now: number): TimeOfDay {
   const h = new Date(now).getHours();
   if (p.sun.phase === 'dawn') return 'morning'; // first light, sun not quite up yet
@@ -361,6 +377,8 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (!dayLine && perception.season.progress < 0.1 && (tod === 'morning' || tod === 'day') && CALM.includes(condition) && !reaction) {
     dayLine = `season_${season.id}` as DayLine;
   }
+  // Outside weather in contrast with a calm inside (context only: the sensors say how the tree is)
+  if (!dayLine && tod !== 'night' && CALM.includes(condition) && !reaction) dayLine = outsideLine(perception);
   if (dayLine) reasons.push(`Time of day: ${dayLine.replace(/_/g, ' ')}`);
 
   // ---- Care line (once a day while the context lasts; not during serious stress) ----
@@ -383,6 +401,10 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (perception.quality.insufficientHistory) reasons.push('Little history yet: staying cautious');
   if (health.modifiers.includes('sensor_uncertain')) reasons.push("Data overlay: biological state held while it can't be observed");
 
+  // ---- Habitat (visitors): computed last, from episodes only; nothing above may depend on it ----
+  const habitat = evaluateHabitat({ episodes, condition, modifiers: health.modifiers, isDay: perception.sun.isDay, season: { id: season.id, energy: season.energy }, now });
+  if (habitat.welcoming || habitat.value > 0) reasons.push(`Habitat ${habitat.value}${habitat.welcoming ? ' (welcoming)' : ''}: ${habitat.presence === 'none' ? habitat.why : `squirrel ${habitat.presence}`}`);
+
   return {
     primaryState: condition,
     modifiers: health.modifiers,
@@ -404,6 +426,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     reaction,
     concern,
     relationship,
+    habitat,
     reasons,
     evaluatedAt: now,
   };

@@ -1,5 +1,6 @@
 import React from 'react';
 import { BonsaiAvatar } from '../components/avatar/BonsaiAvatar';
+import { WeatherForeground } from '../components/scene/WeatherForeground';
 import type { PetSession } from '../components/avatar/usePetting';
 import { SensorCardGrid } from '../components/sensors/SensorCard';
 import { VitalityGauge } from '../components/VitalityGauge';
@@ -22,8 +23,10 @@ export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, 
 
   return (
     <main className="relative z-10 flex-1 min-h-0 w-full max-w-6xl mx-auto px-8 py-6 grid grid-cols-1 md:grid-cols-2 gap-10 items-center overflow-y-auto md:overflow-hidden">
-      <div className="h-full min-h-[320px] flex items-center justify-center">
+      <div className="relative h-full min-h-[320px] flex items-center justify-center">
         <BonsaiAvatar className="w-full h-full max-h-[620px]" expression={expression} onPetSession={onPetSession} />
+        {/* Outside weather in front of the tree (fog drifting across it, rain falling past it) */}
+        <WeatherForeground weather={expression?.atmosphere.weather} />
       </div>
 
       <div className="flex flex-col gap-6">

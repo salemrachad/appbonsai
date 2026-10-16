@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X } from 'lucide-react';
+import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake } from 'lucide-react';
 import type { HealthCondition } from '../health/healthTypes';
-import type { DailySummary, DiaryItem, PlantEventType } from '../history/historyTypes';
+import type { DailySummary, DiaryItem, PlantEventType, WeatherSpellKind } from '../history/historyTypes';
 
 interface HistoryViewProps {
   days: DailySummary[];
@@ -32,6 +32,9 @@ const EVENT_ICON: Record<PlantEventType, { Icon: typeof Droplet; color: string }
 };
 
 const CALM: HealthCondition[] = ['thriving', 'comfortable', 'recovering', 'very_bright'];
+
+// Outside weather lines: muted blue-grey, they are the world around the tree, not the tree
+const WEATHER_ICON: Record<WeatherSpellKind, typeof Droplet> = { rain: CloudRain, storm: CloudLightning, snow: CloudSnow, fog: CloudFog, frost: Snowflake };
 
 function conditionIcon(c: HealthCondition | undefined) {
   if (c === 'sleeping') return { Icon: Moon, color: '#6B7A8F' };
@@ -137,7 +140,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
           <div key={g.heading} className="space-y-1">
             <h3 className="sans text-[10px] font-bold uppercase tracking-widest text-[#2D332A]/50 pb-1">{g.heading}</h3>
             {g.items.map((item, i) => {
-              const { Icon, color } = item.kind === 'event' && item.eventType ? EVENT_ICON[item.eventType] : conditionIcon(item.condition);
+              const { Icon, color } =
+                item.kind === 'event' && item.eventType
+                  ? EVENT_ICON[item.eventType]
+                  : item.kind === 'weather' && item.weather
+                  ? { Icon: WEATHER_ICON[item.weather], color: '#7C8FA3' }
+                  : conditionIcon(item.condition);
               return (
                 <div key={`${item.at}-${i}`} className={`flex items-start gap-3 py-1.5 ${item.kind === 'episode_gap' ? 'opacity-50' : ''}`}>
                   <span className="sans text-[11px] font-mono text-[#2D332A]/50 w-16 shrink-0 pt-0.5 whitespace-nowrap">

@@ -87,6 +87,9 @@ export const FICUS: SpeciesProfile = {
     usefulShareTarget: 0.5,
     lowCountsAs: 0.4,
     minObservedMinutes: 2 * HOUR,
+    // INFERENCE / PROTOTYPE: share of clear-sky light reaching the greenhouse under each outside sky.
+    // Thick cloud passes roughly a third to a half of clear-sky light; to be checked against this LDR.
+    skyFactor: { clear: 1, partly_cloudy: 0.85, overcast: 0.55, fog: 0.5, drizzle: 0.55, rain: 0.5, heavy_rain: 0.4, snow: 0.5, thunderstorm: 0.35 },
   },
 
   // PROTOTYPE care windows (days). Context fades linearly over each window.
