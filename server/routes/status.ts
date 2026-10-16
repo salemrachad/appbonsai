@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Router } from 'express';
 import type { BackendInfo, LivingSnapshot, ServerStatus } from '../../src/api/types';
 import { APP_CONFIG } from '../../src/config/appConfig';
@@ -26,7 +27,17 @@ export function statusRoutes(db: AppDatabase, collector: LivingCollector, starte
   const snapshot = (): LivingSnapshot => ({ serverTime: Date.now(), status: serverStatus(db, collector, startedAt, backend), ...collector.snapshot() });
 
   r.get('/status', (_req, res) => res.json(serverStatus(db, collector, startedAt, backend)));
-  r.get('/current', (_req, res) => res.json(snapshot()));
+  // Polled every few seconds, but the state changes about once a minute: the ETag is a hash of everything
+  // except serverTime, so an unchanged state answers 304 with no body (and the UI doesn't re-render)
+  r.get('/current', (req, res) => {
+    const { serverTime, ...state } = snapshot();
+    const body = JSON.stringify(state);
+    const etag = `"${createHash('sha1').update(body).digest('base64url')}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'no-cache');
+    if (req.headers['if-none-match'] === etag) return res.status(304).end();
+    res.type('application/json').send(`{"serverTime":${serverTime},${body.slice(1)}`);
+  });
 
   r.get('/health', (_req, res) => {
     const s = collector.snapshot();

@@ -18,6 +18,7 @@ export function useLivingState({ onNewWatering, onManualRefreshDone }: Options =
   const callbacks = useRef({ onNewWatering, onManualRefreshDone });
   callbacks.current = { onNewWatering, onManualRefreshDone };
   const lastWateringId = useRef<number | null | undefined>(undefined);
+  const etag = useRef<string | null>(null); // the state shown; the server answers 304 while it's unchanged
 
   const accept = useCallback((s: LivingSnapshot) => {
     setSnapshot(s);
@@ -29,7 +30,13 @@ export function useLivingState({ onNewWatering, onManualRefreshDone }: Options =
 
   const load = useCallback(async () => {
     try {
-      accept(await api.current());
+      const r = await api.current(etag.current);
+      if (r) {
+        etag.current = r.etag;
+        accept(r.snapshot);
+      } else {
+        setServerOffline(false); // unchanged: nothing to render
+      }
     } catch {
       setServerOffline(true);
     }
@@ -54,6 +61,7 @@ export function useLivingState({ onNewWatering, onManualRefreshDone }: Options =
     setIsManualRefresh(true);
     try {
       const s = await api.refresh();
+      etag.current = null; // shown without an ETag: the next poll fetches in full
       accept(s);
       callbacks.current.onManualRefreshDone?.(!s.status.collector.lastError);
     } catch {

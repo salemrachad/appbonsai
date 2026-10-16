@@ -62,7 +62,7 @@ Each layer has one job. Keep them separate. Biological thresholds never go in Re
 | Behaviour | `src/behaviour/` | `evaluateBehaviour()`: mood, energy, responsiveness, intensity + tier, recovery stage, afterglow, time of day, message intent, care reactions (diffraction), relationship memory (`relationship.ts`). `speech.ts` decides when to speak or stay silent; `messages.ts` is the only place with wording. |
 | Expression | `src/expression/` | `expressBehaviour()` → `ExpressionState`: avatar look (eyes/mouth/foliage/gaze/gesture/filter/effects), sway speed, leaf droop, atmosphere (scene per condition, season, day/night theme), message + tip, and the three Living Art layers (epidermal / wording / diffraction). |
 | Server | `server/` | `index.ts` (Express, modes production / local-dev, serves `dist/`), `cors.ts` (local-network CORS), `collector.ts` (the living loop), `database.ts` + `schema.ts` (node:sqlite), `episodes.ts`, `routes/*`. |
-| UI | `src/App.tsx`, `src/pages/`, `src/components/`, `src/hooks/` | Show what the server concluded. `useLivingState` polls `/api/current` every 5 s; `usePlantHealth`/`usePlantBehaviour` apply developer previews. |
+| UI | `src/App.tsx`, `src/pages/`, `src/components/`, `src/hooks/` | Show what the server concluded. `useLivingState` polls `/api/current` every 5 s with the last `ETag` (`If-None-Match`); an unchanged state answers 304 with no body and nothing re-renders; `usePlantHealth`/`usePlantBehaviour` apply developer previews. |
 
 ### The living loop (`server/collector.ts`)
 
@@ -218,7 +218,7 @@ A dot marks a group with a preview on, and **Reset all previews** clears every p
 | Endpoint | Purpose |
 |---|---|
 | `GET /api/status` | Server, collector and database status |
-| `GET /api/current` | Everything the UI needs in one call: perception, health, behaviour, expression, forecast, live readings, recent events and episodes |
+| `GET /api/current` | Everything the UI needs in one call: perception (without `recent` and `outsideToday`, which stay on the server), health, behaviour, expression, forecast, live readings, recent events and episodes. `ETag` = hash of all but `serverTime`; `If-None-Match` → 304 (CORS allows the header and exposes `ETag`) |
 | `GET /api/health`, `GET /api/behaviour` | Subsets of the current state |
 | `POST /api/refresh` | Read the sensor now |
 | `POST /api/calibration/light {darkRaw, brightRaw, manual?, dryRun?, confirm?}` | Light calibration; `manual: true` = min/max raw typed in Settings (stored as method `manual`, with history), same checks as the guided capture |

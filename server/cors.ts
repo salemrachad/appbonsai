@@ -28,7 +28,8 @@ export function corsForLocalNetwork(extraOrigins: string[] = []) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, If-None-Match');
+      res.setHeader('Access-Control-Expose-Headers', 'ETag'); // /api/current: the UI asks "changed since?"
       res.setHeader('Access-Control-Max-Age', '600');
       // Chrome's Private Network Access preflight (a public page is never allowed above)
       if (req.headers['access-control-request-private-network']) res.setHeader('Access-Control-Allow-Private-Network', 'true');

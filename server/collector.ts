@@ -697,7 +697,9 @@ export class LivingCollector {
     const now = this.now();
     const s = this.state;
     return {
-      perception: s ? { ...s.perception, recent: [] } : null,
+      // The 24 h of samples and today's skies stay on the server: the UI never reads them (they were
+      // most of the payload), and the browser's preview engines run without history anyway
+      perception: s ? { ...s.perception, recent: [], outsideToday: [] } : null,
       health: s?.health ?? null,
       behaviour: s?.behaviour ?? null,
       expression: s?.expression ?? null,

@@ -6,10 +6,9 @@ import { apiUrl, BACKEND } from '../config/backend';
 
 // Frontend → the Appbonsai server. Every API call goes through here, and the address comes only
 // from src/config/backend.ts (the Raspberry Pi via VITE_API_BASE_URL, or the same origin).
-async function call<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
-  let res: Response;
+async function send(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<Response> {
   try {
-    res = await fetch(apiUrl(path), {
+    return await fetch(apiUrl(path), {
       ...init,
       headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(init?.headers ?? {}) },
       signal: AbortSignal.timeout(init?.timeoutMs ?? 8000),
@@ -18,6 +17,10 @@ async function call<T>(path: string, init?: RequestInit & { timeoutMs?: number }
     const why = e instanceof DOMException && e.name === 'TimeoutError' ? 'timed out' : 'not reachable';
     throw new Error(`${BACKEND.label} ${why} (${BACKEND.displayUrl})`);
   }
+}
+
+async function call<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const res = await send(path, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -33,8 +36,17 @@ export interface ServerTestResult {
   normalizedUrl: string;
 }
 
+// The living state, unless it is unchanged since `etag` (then null: the server answered 304, no body).
+// cache: 'no-store' keeps the browser from answering the 304 itself with its cached copy.
+async function current(etag: string | null): Promise<{ snapshot: LivingSnapshot; etag: string | null } | null> {
+  const res = await send('/current', { timeoutMs: 5000, cache: 'no-store', headers: etag ? { 'If-None-Match': etag } : {} });
+  if (res.status === 304) return null;
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return { snapshot: (await res.json()) as LivingSnapshot, etag: res.headers.get('ETag') };
+}
+
 export const api = {
-  current: () => call<LivingSnapshot>('/current', { timeoutMs: 5000 }),
+  current,
   status: () => call<ServerStatus>('/status'),
   refresh: () => call<LivingSnapshot>('/refresh', { method: 'POST', timeoutMs: 15000 }),
 
