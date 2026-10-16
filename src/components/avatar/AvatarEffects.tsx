@@ -91,9 +91,9 @@ export const AvatarEffects: React.FC<{ effects: AvatarEffect[] }> = ({ effects }
 
       {has('mist') && (
         <g fill="#B8C7D1" opacity="0.35">
-          <ellipse cx="120" cy="250" rx="40" ry="8" className="animate-heat-wave-1" />
-          <ellipse cx="320" cy="230" rx="46" ry="9" className="animate-heat-wave-2" />
-          <ellipse cx="220" cy="20" rx="60" ry="8" className="animate-heat-wave-1" />
+          <ellipse cx="120" cy="250" rx="40" ry="8" className="mist-drift-1" />
+          <ellipse cx="320" cy="230" rx="46" ry="9" className="mist-drift-2" />
+          <ellipse cx="220" cy="20" rx="60" ry="8" className="mist-drift-1" style={{ animationDelay: '-11s' }} />
         </g>
       )}
 
@@ -256,7 +256,7 @@ export const ForegroundEffects: React.FC<{ effects: AvatarEffect[]; palette: Pal
               key={i}
               d={`M ${p.x},${p.y} C ${p.x},${p.y} ${p.x + 2},${p.y + 3.4} ${p.x + 2},${p.y + 4.6} C ${p.x + 2},${p.y + 5.8} ${p.x + 1},${p.y + 6.6} ${p.x},${p.y + 6.6} C ${p.x - 1},${p.y + 6.6} ${p.x - 2},${p.y + 5.8} ${p.x - 2},${p.y + 4.6} C ${p.x - 2},${p.y + 3.4} ${p.x},${p.y} ${p.x},${p.y} Z`}
               className="dew-fall"
-              style={{ animationDelay: `${i * 3.7}s`, transformOrigin: `${p.x}px ${p.y}px` }}
+              style={{ animationDelay: `${i * 8.3}s`, transformOrigin: `${p.x}px ${p.y}px` }}
             />
           ))}
         </g>

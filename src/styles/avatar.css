@@ -151,18 +151,24 @@
 .animate-drip { animation: drip 3.2s ease-in infinite; }
 .animate-drip-fast { animation: drip 0.9s ease-in infinite; }
 /* A humid night: dew glinting on the leaves, a drop letting go now and then, mist drifting low */
-@keyframes dew-glint { 0%, 70%, 100% { opacity: 0.75; transform: scale(1); } 80% { opacity: 1; transform: scale(1.35); } 88% { opacity: 0.9; transform: scale(1.05); } }
-.dew-glint { animation: dew-glint 6s ease-in-out infinite; }
+/* Everything here is calm: slow glints, a rare drop, mist that barely drifts */
+@keyframes dew-glint { 0%, 60%, 100% { opacity: 0.8; transform: scale(1); } 78% { opacity: 1; transform: scale(1.12); } }
+.dew-glint { animation: dew-glint 14s ease-in-out infinite; }
 @keyframes dew-fall {
-  0%, 72% { transform: translateY(0) scale(0.6); opacity: 0; }
-  80% { transform: translateY(0) scale(1); opacity: 1; }
-  100% { transform: translateY(90px) scale(0.85, 1.25); opacity: 0; }
+  0%, 80% { transform: translateY(0) scale(0.6); opacity: 0; }
+  88% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(70px) scale(0.9, 1.15); opacity: 0; }
 }
-.dew-fall { animation: dew-fall 11s ease-in infinite; }
-@keyframes night-mist-a { 0%, 100% { transform: translateX(-16px); } 50% { transform: translateX(16px); } }
-@keyframes night-mist-b { 0%, 100% { transform: translateX(12px); } 50% { transform: translateX(-12px); } }
-.night-mist-1 { animation: night-mist-a 22s ease-in-out infinite; }
-.night-mist-2 { animation: night-mist-b 28s ease-in-out infinite; }
+.dew-fall { animation: dew-fall 24s ease-in-out infinite; }
+@keyframes night-mist-a { 0%, 100% { transform: translateX(-8px); } 50% { transform: translateX(8px); } }
+@keyframes night-mist-b { 0%, 100% { transform: translateX(6px); } 50% { transform: translateX(-6px); } }
+.night-mist-1 { animation: night-mist-a 50s ease-in-out infinite; }
+.night-mist-2 { animation: night-mist-b 64s ease-in-out infinite; }
+/* The daytime humid mist: a slow drift and swell, not the heat shimmer */
+@keyframes mist-drift { 0%, 100% { transform: translateX(-6px) scaleX(1); opacity: 0.85; } 50% { transform: translateX(6px) scaleX(1.06); opacity: 1; } }
+.mist-drift-1, .mist-drift-2 { transform-box: fill-box; transform-origin: center; }
+.mist-drift-1 { animation: mist-drift 36s ease-in-out infinite; }
+.mist-drift-2 { animation: mist-drift 46s ease-in-out -18s infinite; }
 @keyframes ripple { 0% { transform: scale(0.3); opacity: 0.9; } 100% { transform: scale(2.2); opacity: 0; } }
 .animate-ripple { animation: ripple 2.6s ease-out infinite; }
 @keyframes breath {
@@ -367,7 +373,7 @@
   .animate-butterfly-path, .animate-butterfly-wings, .animate-sun-throb, .animate-pollen, .animate-chatter, .animate-pant-mouth,
   .animate-eye-swirl path, .animate-cloud-bob, .animate-sweat-fly-left, .animate-sweat-fly-right,
   .visitor-arrive, .visitor-peek, .visitor-tail, .visitor-head, .visitor-hop, .visitor-dive, .visitor-peek-once,
-  .dew-glint, .dew-fall, .night-mist-1, .night-mist-2,
+  .dew-glint, .dew-fall, .night-mist-1, .night-mist-2, .mist-drift-1, .mist-drift-2,
   .visitor-ripple, .visitor-shaking, .visitor-flick, .traces-tail, .drey-tail, .drey-twitch, .drey-zzz,
   .df-wings-fly, .df-perch, .df-hover, .df-hover-here, .df-fly, .df-dart,
   .sloth-hang, .sloth-climb, .sloth-sleep, .sloth-look, .sloth-blink, .sloth-regrip, .sloth-slowblink {
