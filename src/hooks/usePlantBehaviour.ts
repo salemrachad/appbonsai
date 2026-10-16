@@ -12,6 +12,7 @@ import type { OutsideSky } from '../telemetry/outsideWeather';
 import type { PlantHealthState } from '../health/healthTypes';
 import { midSeasonState, type Season } from '../perception/season';
 import { ACTIVE_SPECIES } from '../species';
+import type { DevPreviews } from './useDevPreviews';
 
 // Live behaviour + expression come from the server. A developer preview re-runs the same engines
 // in the browser on the overridden health, without history or care events (so a real watering
@@ -35,19 +36,8 @@ export type DragonflyPreview = { presence: 'hovering' | 'perched'; perch: 'left_
 // A weather preview swaps only the outside weather layer (a sky, or 'windy' for a clear windy day).
 export type WeatherPreview = OutsideSky | 'windy';
 
-export function usePlantBehaviour(
-  snapshot: LivingSnapshot | null,
-  display: PlantHealthState | null,
-  previewSeason: Season | null = null,
-  latitude: number | null = null,
-  previewVisitor: VisitorPreview | null = null,
-  previewWeather: WeatherPreview | null = null,
-  previewDrey: DreyPreview | null = null,
-  previewCanopy: CanopyPreview | null = null,
-  previewTwilight: TwilightPreview | null = null,
-  previewDragonfly: DragonflyPreview | null = null,
-  previewSloth: SlothPreview | null = null
-) {
+export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previews: DevPreviews, latitude: number | null = null) {
+  const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth } = previews;
   return useMemo<{ behaviour: PlantBehaviourState | null; expression: ExpressionState | null }>(() => {
     let r = evaluate(snapshot, display, previewSeason, latitude, previewTwilight);
     if (previewVisitor?.mode === 'traces' && r.expression) {

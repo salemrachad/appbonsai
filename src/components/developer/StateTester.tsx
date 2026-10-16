@@ -1,28 +1,14 @@
 import React from 'react';
 import { RotateCcw, Wrench } from 'lucide-react';
 import { DEV_PRESETS } from '../../health/developerOverrides';
+import type { DevPreviews, SetPreview } from '../../hooks/useDevPreviews';
 import type { CanopyPreview, DragonflyPreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
 import { SEASONS, type Season } from '../../perception/season';
 
 interface StateTesterProps {
-  activePresetId: string | null;
-  onSelectPreset: (id: string | null) => void;
-  activeSeason: Season | null;
-  onSelectSeason: (season: Season | null) => void;
-  activeVisitor: VisitorPreview | null;
-  onSelectVisitor: (v: VisitorPreview | null) => void;
-  activeSloth: SlothPreview | null;
-  onSelectSloth: (s: SlothPreview | null) => void;
-  activeDragonfly: DragonflyPreview | null;
-  onSelectDragonfly: (d: DragonflyPreview | null) => void;
-  activeTwilight: TwilightPreview | null;
-  onSelectTwilight: (t: TwilightPreview | null) => void;
-  activeCanopy: CanopyPreview | null;
-  onSelectCanopy: (c: CanopyPreview | null) => void;
-  activeDrey: DreyPreview | null;
-  onSelectDrey: (d: DreyPreview | null) => void;
-  activeWeather: WeatherPreview | null;
-  onSelectWeather: (w: WeatherPreview | null) => void;
+  previews: DevPreviews;
+  onPreview: SetPreview;
+  onClearPreviews: () => void;
 }
 
 const WEATHER_PREVIEWS: { id: WeatherPreview; label: string }[] = [
@@ -155,38 +141,19 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 
 // Preview any health state, time, weather and visitor. Presentation only: telemetry, the database, care
 // events and episodes are untouched. Grouped: tree health · time & season · outside · the tree over time · visitors.
-export const StateTester: React.FC<StateTesterProps> = ({
-  activePresetId,
-  onSelectPreset,
-  activeSeason,
-  onSelectSeason,
-  activeVisitor,
-  onSelectVisitor,
-  activeDrey,
-  onSelectDrey,
-  activeCanopy,
-  onSelectCanopy,
-  activeTwilight,
-  onSelectTwilight,
-  activeDragonfly,
-  onSelectDragonfly,
-  activeSloth,
-  onSelectSloth,
-  activeWeather,
-  onSelectWeather,
-}) => {
+export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, onClearPreviews }) => {
+  const { preset: activePresetId, season: activeSeason, visitor: activeVisitor, drey: activeDrey, canopy: activeCanopy, twilight: activeTwilight, dragonfly: activeDragonfly, sloth: activeSloth, weather: activeWeather } = previews;
+  const onSelectPreset = (v: string | null) => onPreview('preset', v);
+  const onSelectSeason = (v: Season | null) => onPreview('season', v);
+  const onSelectVisitor = (v: VisitorPreview | null) => onPreview('visitor', v);
+  const onSelectDrey = (v: DreyPreview | null) => onPreview('drey', v);
+  const onSelectCanopy = (v: CanopyPreview | null) => onPreview('canopy', v);
+  const onSelectTwilight = (v: TwilightPreview | null) => onPreview('twilight', v);
+  const onSelectDragonfly = (v: DragonflyPreview | null) => onPreview('dragonfly', v);
+  const onSelectSloth = (v: SlothPreview | null) => onPreview('sloth', v);
+  const onSelectWeather = (v: WeatherPreview | null) => onPreview('weather', v);
   const anyActive = !!(activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeWeather);
-  const resetAll = () => {
-    onSelectPreset(null);
-    onSelectSeason(null);
-    onSelectVisitor(null);
-    onSelectDrey(null);
-    onSelectCanopy(null);
-    onSelectTwilight(null);
-    onSelectDragonfly(null);
-    onSelectSloth(null);
-    onSelectWeather(null);
-  };
+  const resetAll = onClearPreviews;
   return (
     <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
       <div className="flex items-center justify-between">

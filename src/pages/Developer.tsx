@@ -9,38 +9,23 @@ import { StateTester } from '../components/developer/StateTester';
 import { BackendPanel } from '../components/developer/BackendPanel';
 import { apiUrl } from '../config/backend';
 import type { ExpressionState } from '../expression/expressionTypes';
-import type { CanopyPreview, DragonflyPreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../hooks/usePlantBehaviour';
-import type { Season } from '../perception/season';
+import type { DevPreviews, SetPreview } from '../hooks/useDevPreviews';
 
 interface DeveloperProps {
   snapshot: LivingSnapshot | null;
   behaviour: PlantBehaviourState | null; // shown (live or preview)
   expression: ExpressionState | null;
-  devPresetId: string | null;
-  onSelectDevPreset: (id: string | null) => void;
-  devSeason: Season | null;
-  onSelectDevSeason: (season: Season | null) => void;
-  devVisitor: VisitorPreview | null;
-  onSelectDevVisitor: (v: VisitorPreview | null) => void;
-  devSloth: SlothPreview | null;
-  onSelectDevSloth: (s: SlothPreview | null) => void;
-  devDragonfly: DragonflyPreview | null;
-  onSelectDevDragonfly: (d: DragonflyPreview | null) => void;
-  devTwilight: TwilightPreview | null;
-  onSelectDevTwilight: (t: TwilightPreview | null) => void;
-  devCanopy: CanopyPreview | null;
-  onSelectDevCanopy: (c: CanopyPreview | null) => void;
-  devDrey: DreyPreview | null;
-  onSelectDevDrey: (d: DreyPreview | null) => void;
-  devWeather: WeatherPreview | null;
-  onSelectDevWeather: (w: WeatherPreview | null) => void;
+  previews: DevPreviews;
+  onPreview: SetPreview;
+  onClearPreviews: () => void;
 }
 
 const API_LINKS = ['/status', '/current', '/health', '/behaviour', '/events', '/history/diary?days=7', '/history/episodes?days=7', '/telemetry/latest?limit=20'];
 
 // Developer tools: state previews, why vitality is what it is, and why the tree behaves as it does.
-export const Developer: React.FC<DeveloperProps> = ({ snapshot, behaviour, expression, devPresetId, onSelectDevPreset, devSeason, onSelectDevSeason, devVisitor, onSelectDevVisitor, devSloth, onSelectDevSloth, devDragonfly, onSelectDevDragonfly, devTwilight, onSelectDevTwilight, devCanopy, onSelectDevCanopy, devDrey, onSelectDevDrey, devWeather, onSelectDevWeather }) => {
+export const Developer: React.FC<DeveloperProps> = ({ snapshot, behaviour, expression, previews, onPreview, onClearPreviews }) => {
   const st = snapshot?.status;
+  const previewing = !!previews.preset;
   return (
     <div className="space-y-5 pb-12">
       <div>
@@ -50,10 +35,10 @@ export const Developer: React.FC<DeveloperProps> = ({ snapshot, behaviour, expre
 
       <BackendPanel status={st ?? null} />
 
-      <StateTester activePresetId={devPresetId} onSelectPreset={onSelectDevPreset} activeSeason={devSeason} onSelectSeason={onSelectDevSeason} activeVisitor={devVisitor} onSelectVisitor={onSelectDevVisitor} activeDrey={devDrey} onSelectDrey={onSelectDevDrey} activeCanopy={devCanopy} onSelectCanopy={onSelectDevCanopy} activeTwilight={devTwilight} onSelectTwilight={onSelectDevTwilight} activeDragonfly={devDragonfly} onSelectDragonfly={onSelectDevDragonfly} activeSloth={devSloth} onSelectSloth={onSelectDevSloth} activeWeather={devWeather} onSelectWeather={onSelectDevWeather} />
+      <StateTester previews={previews} onPreview={onPreview} onClearPreviews={onClearPreviews} />
 
-      <HealthDebugPanel live={snapshot?.health ?? null} perception={snapshot?.perception ?? null} previewing={!!devPresetId} />
-      <BehaviourDebugPanel behaviour={behaviour} expression={expression} recentEvents={snapshot?.recentEvents ?? []} previewing={!!devPresetId} />
+      <HealthDebugPanel live={snapshot?.health ?? null} perception={snapshot?.perception ?? null} previewing={previewing} />
+      <BehaviourDebugPanel behaviour={behaviour} expression={expression} recentEvents={snapshot?.recentEvents ?? []} previewing={previewing} />
 
       <Section title="Local server & database" aside={<Database className="w-3.5 h-3.5 text-[#356077]" />}>
         {st ? (

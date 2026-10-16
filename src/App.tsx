@@ -2,15 +2,14 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapPin, RefreshCw, History as HistoryIcon, Settings as SettingsIcon, X, Activity, Wrench } from 'lucide-react';
 import { api } from './api/client';
 import { BACKEND } from './config/backend';
-import { DEV_PRESETS } from './health/developerOverrides';
 import type { DailySummary } from './history/historyTypes';
 import { importBrowserHistoryOnce } from './history/legacyBrowserHistory';
 import { useLivingState } from './hooks/useLivingState';
-import { usePlantBehaviour, type CanopyPreview, type DragonflyPreview, type SlothPreview, type DreyPreview, type TwilightPreview, type VisitorPreview, type WeatherPreview } from './hooks/usePlantBehaviour';
-import { OUTSIDE_SKIES } from './telemetry/outsideWeather';
+import { useDevPreviews } from './hooks/useDevPreviews';
+import { usePlantBehaviour } from './hooks/usePlantBehaviour';
 import { usePlantHealth } from './hooks/usePlantHealth';
 import { DEFAULT_SETTINGS, loadSettings, TreeSettings } from './settings/settings';
-import { midSeasonState, SEASONS, type Season } from './perception/season';
+import { midSeasonState } from './perception/season';
 import { ACTIVE_SPECIES } from './species';
 import type { HourlyTelemetryPoint } from './telemetry/types';
 import type { PetSession } from './components/avatar/usePetting';
@@ -43,62 +42,6 @@ export default function App() {
     return h === 'history' || h === 'settings' || h === 'developer' ? h : null;
   });
   const [showDetail, setShowDetail] = useState(false);
-  // #preview=<preset id> starts in a developer preview (e.g. #preview=very_dry), handy for screenshots
-  const [devPresetId, setDevPresetId] = useState<string | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/preview=([a-z_]+)/) : null;
-    return m && DEV_PRESETS.some((p) => p.id === m[1]) ? m[1] : null;
-  });
-  // #season=winter previews a season (only the perceived season changes)
-  const [devSeason, setDevSeason] = useState<Season | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/season=([a-z]+)/) : null;
-    return m && (SEASONS as string[]).includes(m[1]) ? (m[1] as Season) : null;
-  });
-  // #visitor=visiting or #visitor=hiding:crown puts the squirrel in the tree (presentation only);
-  // #visitor=peek (a new squirrel peeking) and #visitor=traces / traces:tail (only its signs)
-  const [devVisitor, setDevVisitor] = useState<VisitorPreview | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/visitor=(visiting|peek|hiding|sleeping|drinking|inspecting|shaking|traces)(?::(left_branch|right_branch|crown|trunk|pot_rim|tail))?/) : null;
-    if (!m) return null;
-    if (m[1] === 'traces') return { mode: 'traces', spot: 'left_branch', traces: m[2] === 'tail' ? 'tail_at_pot' : 'nibbled_leaf' };
-    if (m[2] === 'tail') return null;
-    const spot = (m[2] ?? 'left_branch') as VisitorPreview['spot'];
-    if (m[1] === 'drinking') return { mode: 'visiting', spot: 'pot_rim', action: 'drinking' };
-    if (m[1] === 'inspecting') return { mode: 'visiting', spot: 'left_branch', action: 'inspecting' };
-    if (m[1] === 'shaking') return { mode: 'visiting', spot, action: 'shake_off' };
-    if (m[1] === 'sleeping') return { mode: 'sleeping', spot: 'crown' };
-    return { mode: m[1] as VisitorPreview['mode'], spot };
-  });
-  // #canopy=0.7 (fullness) or #canopy=refilling shows the foliage after some weeks (presentation only)
-  const [devCanopy, setDevCanopy] = useState<CanopyPreview | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/canopy=(refilling|0?\.\d+|1)/) : null;
-    if (!m) return null;
-    return m[1] === 'refilling' ? { fullness: 0.72, refilling: 0.8 } : { fullness: Math.max(0.6, Math.min(1, Number(m[1]))), refilling: 0 };
-  });
-  // #dragonfly=perched or #dragonfly=hovering:crown_tip shows the dragonfly (presentation only)
-  const [devDragonfly, setDevDragonfly] = useState<DragonflyPreview | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/dragonfly=(hovering|perched)(?::(left_tip|right_tip|crown_tip|left_top))?/) : null;
-    return m ? { presence: m[1] as DragonflyPreview['presence'], perch: (m[2] ?? 'right_tip') as DragonflyPreview['perch'] } : null;
-  });
-  // #sloth=hanging or #sloth=climbing:right_branch or #sloth=hanging:left_branch:one_arm or #sloth=sleeping shows the sloth (presentation only)
-  const [devSloth, setDevSloth] = useState<SlothPreview | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/sloth=(hanging|climbing|sleeping)(?::(left_branch|right_branch))?(?::(four|arms|legs|one_arm|two_legs_one_arm))?/) : null;
-    return m ? { pose: m[1] as SlothPreview['pose'], branch: (m[2] ?? 'left_branch') as SlothPreview['branch'], grip: m[3] as SlothPreview['grip'] } : null;
-  });
-  // #drey=started or #drey=built shows the nest in the crown (presentation only)
-  const [devDrey, setDevDrey] = useState<DreyPreview | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/drey=(none|started|built)/) : null;
-    return m ? (m[1] as DreyPreview) : null;
-  });
-  // #twilight=sunrise-10 (10 min before) or #twilight=sunset+5 previews the twilight layer (presentation only)
-  const [devTwilight, setDevTwilight] = useState<TwilightPreview | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/twilight=(sunrise|sunset)([+-]\d+)?/) : null;
-    return m ? { event: m[1] as 'sunrise' | 'sunset', minutes: Number(m[2] ?? 0) } : null;
-  });
-  // #weather=rain previews the outside weather layer (presentation only)
-  const [devWeather, setDevWeather] = useState<WeatherPreview | null>(() => {
-    const m = typeof window !== 'undefined' ? window.location.hash.match(/weather=([a-z_]+)/) : null;
-    return m && (m[1] === 'windy' || (OUTSIDE_SKIES as string[]).includes(m[1])) ? (m[1] as WeatherPreview) : null;
-  });
-
   // Calm confirmation toasts
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -107,6 +50,10 @@ export default function App() {
     setToast({ id: Date.now(), text });
     toastTimer.current = setTimeout(() => setToast(null), 2400);
   }, []);
+
+  // Developer previews (#preview=very_dry, #season=winter, … in the URL start one): presentation only, never written
+  const { previews, setPreview, clearAll: clearPreviews, previewing, label: previewLabel } = useDevPreviews(notify);
+  const devPresetId = previews.preset;
 
   // Live sensor strip at the bottom, remembered per browser
   const [showDiagnostics, setShowDiagnostics] = useState(() => {
@@ -180,7 +127,7 @@ export default function App() {
   }, [serverOffline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { live, display } = usePlantHealth(snapshot?.health ?? null, devPresetId);
-  const { behaviour, expression } = usePlantBehaviour(snapshot, display, devSeason, settings.latitude, devVisitor, devWeather, devDrey, devCanopy, devTwilight, devDragonfly, devSloth);
+  const { behaviour, expression } = usePlantBehaviour(snapshot, display, previews, settings.latitude);
   const perception = snapshot?.perception ?? null;
   const reading = perception?.lastReading ?? null;
 
@@ -198,12 +145,6 @@ export default function App() {
       devPreset: devPresetId,
     });
   }, [reading?.timestamp, display?.condition, devPresetId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const selectDevPreset = (id: string | null) => {
-    setDevPresetId(id);
-    const preset = DEV_PRESETS.find((p) => p.id === id);
-    notify(preset ? `Previewing “${preset.label}”` : 'Back to live data');
-  };
 
   // Charts for the detail view: forecast (weather) or stored hourly averages (sensor)
   const [charts, setCharts] = useState<{ hourly: HourlyTelemetryPoint[]; days: DailySummary[] }>({ hourly: [], days: [] });
@@ -234,7 +175,6 @@ export default function App() {
   // ---- Header status ----
   const collector = snapshot?.status.collector;
   const sensorDown = !!perception && !perception.telemetry;
-  const previewing = !!devPresetId || !!devSeason || !!devVisitor || !!devWeather || !!devDrey || !!devCanopy || !!devTwilight || !!devDragonfly || !!devSloth;
   // Petting is attention, not care: one record per session, and none during a developer preview
   // (previews never write to the server)
   const recordPetSession = useCallback(
@@ -267,7 +207,6 @@ export default function App() {
     ? 'bg-[#D49B53]'
     : 'bg-[#4A6741] animate-pulse';
   const iconButton = 'p-2 rounded-full text-[var(--ink)]/55 hover:text-[#4A6741] hover:bg-white/70 transition-colors cursor-pointer';
-  const devPreset = DEV_PRESETS.find((p) => p.id === devPresetId) ?? null;
   // The main screen takes on the tree's state (a scene per condition; sleeping and too-dark are dark).
   // Settings, History and details stay light.
   const atmosphere = expression?.atmosphere;
@@ -302,7 +241,7 @@ export default function App() {
             {settings.locationName}
           </span>
           {BACKEND.devBuild && <BackendBadge remote={BACKEND.remote} mode={backendMode} offline={serverOffline} />}
-          {perception?.season && <SeasonChip season={devSeason ? midSeasonState(devSeason, settings.latitude) : perception.season} />}
+          {perception?.season && <SeasonChip season={previews.season ? midSeasonState(previews.season, settings.latitude) : perception.season} />}
         </div>
 
         <div className="flex items-center gap-2">
@@ -337,18 +276,8 @@ export default function App() {
         health={display}
         expression={expression}
         offlineMessage={offlineMessage}
-        devPresetLabel={[devPreset?.label, devSeason && `${devSeason[0].toUpperCase()}${devSeason.slice(1)} season`, devVisitor && `Squirrel ${devVisitor.action ?? devVisitor.mode}`, devDrey && `Drey ${devDrey}`, devDragonfly && `Dragonfly ${devDragonfly.presence}`, devSloth && `Sloth ${devSloth.pose}`, devCanopy && `Canopy ${Math.round(devCanopy.fullness * 100)}%${devCanopy.refilling ? ' refilling' : ''}`, devTwilight && `${devTwilight.event === 'sunrise' ? 'Sunrise' : 'Sunset'} ${devTwilight.minutes >= 0 ? '+' : ''}${devTwilight.minutes} min`, devWeather && `Outside: ${devWeather.replace('_', ' ')}`].filter(Boolean).join(' · ') || null}
-        onReturnToLive={() => {
-          setDevSeason(null);
-          setDevVisitor(null);
-          setDevWeather(null);
-          setDevDrey(null);
-          setDevCanopy(null);
-          setDevTwilight(null);
-          setDevDragonfly(null);
-          setDevSloth(null);
-          selectDevPreset(null);
-        }}
+        devPresetLabel={previewLabel}
+        onReturnToLive={clearPreviews}
         onOpenDetails={() => setShowDetail(true)}
         onPetSession={recordPetSession}
         outside={perception?.outside ?? null}
@@ -384,45 +313,9 @@ export default function App() {
                 snapshot={snapshot}
                 behaviour={behaviour}
                 expression={expression}
-                devPresetId={devPresetId}
-                onSelectDevPreset={selectDevPreset}
-                devSeason={devSeason}
-                onSelectDevSeason={(s) => {
-                  setDevSeason(s);
-                  notify(s ? `Previewing ${s}` : 'Back to the real season');
-                }}
-                devVisitor={devVisitor}
-                onSelectDevVisitor={(v) => {
-                  setDevVisitor(v);
-                  notify(v ? `Squirrel ${v.mode} (${v.spot.replace('_', ' ')})` : 'Back to real visitors');
-                }}
-                devSloth={devSloth}
-                onSelectDevSloth={(sl) => {
-                  setDevSloth(sl);
-                  notify(sl ? `Sloth ${sl.pose}` : 'Back to real sloths');
-                }}
-                devDragonfly={devDragonfly}
-                onSelectDevDragonfly={(d) => {
-                  setDevDragonfly(d);
-                  notify(d ? `Dragonfly ${d.presence}` : 'Back to real dragonflies');
-                }}
-                devTwilight={devTwilight}
-                onSelectDevTwilight={setDevTwilight}
-                devCanopy={devCanopy}
-                onSelectDevCanopy={(c) => {
-                  setDevCanopy(c);
-                  notify(c ? `Canopy ${Math.round(c.fullness * 100)}%${c.refilling ? ', refilling' : ''}` : 'Back to the real canopy');
-                }}
-                devDrey={devDrey}
-                onSelectDevDrey={(d) => {
-                  setDevDrey(d);
-                  notify(d ? `Drey: ${d}` : 'Back to the real drey');
-                }}
-                devWeather={devWeather}
-                onSelectDevWeather={(w) => {
-                  setDevWeather(w);
-                  notify(w ? `Outside: ${w.replace('_', ' ')}` : 'Back to the real weather');
-                }}
+                previews={previews}
+                onPreview={setPreview}
+                onClearPreviews={clearPreviews}
               />
             ) : (
               <Settings
