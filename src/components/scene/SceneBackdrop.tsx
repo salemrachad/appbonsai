@@ -185,7 +185,7 @@ const WeatherLayer: React.FC<{ weather: WeatherLook }> = ({ weather }) => {
 
 const FADE_MS = 1600;
 
-export const SceneBackdrop: React.FC<SceneBackdropProps> = ({ scene, season, intensity, weather = null, twilight = null }) => {
+const SceneBackdropView: React.FC<SceneBackdropProps> = ({ scene, season, intensity, weather = null, twilight = null }) => {
   // Keep the previous scene for a moment so the new one fades in over it
   const [layers, setLayers] = useState<{ key: string; scene: SceneId; season: Season; visible: boolean }[]>([
     { key: `${scene}-${season}`, scene, season, visible: true },
@@ -215,3 +215,6 @@ export const SceneBackdrop: React.FC<SceneBackdropProps> = ({ scene, season, int
     </div>
   );
 };
+
+// Redrawn only when the scene, season, intensity, weather or twilight change
+export const SceneBackdrop = React.memo(SceneBackdropView);

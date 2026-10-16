@@ -169,7 +169,7 @@ const FILTER_URL: Record<NonNullable<AvatarPresentation['filter']>, string> = {
 };
 
 // The animated bonsai character. Draws what the Expression Engine decided; never sees health or sensor values.
-export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick, onTouch, onPetSession, className = '' }) => {
+const BonsaiAvatarView: React.FC<BonsaiAvatarProps> = ({ expression, onClick, onTouch, onPetSession, className = '' }) => {
   const base = expression?.avatar ?? RESTING;
   const motion = expression?.motion ?? { swaySpeed: 0.6, swayAmount: 0.5, flutter: 0.4, blinkEveryMs: 6000 };
   const strength = expression?.reactionStrength ?? 0.5;
@@ -501,3 +501,7 @@ export const BonsaiAvatar: React.FC<BonsaiAvatarProps> = ({ expression, onClick,
     </div>
   );
 };
+
+// Redrawn only when its props change: a toast or an opened panel leaves the tree alone (its own timers and
+// pointer handlers keep it alive in between)
+export const BonsaiAvatar = React.memo(BonsaiAvatarView);
