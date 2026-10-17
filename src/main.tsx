@@ -4,10 +4,13 @@ import '@fontsource-variable/inter/wght.css';
 import '@fontsource-variable/cormorant-garamond/wght.css';
 import '@fontsource-variable/cormorant-garamond/wght-italic.css';
 import App from './App.tsx';
+import { ErrorScreen } from './components/ErrorScreen';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorScreen>
+      <App />
+    </ErrorScreen>
   </StrictMode>,
 );
