@@ -254,6 +254,21 @@ export const APP_CONFIG = {
       sky: { clear: 0, partly_cloudy: 0, overcast: 3, fog: 8, drizzle: 8, rain: 15, heavy_rain: 25, snow: 25, thunderstorm: 35 },
     },
     quality: { great: 80, good: 60, fair: 40 }, // score from; below: poor
+    // The best hours of the picked day (hikeWindow): a stretch of daylight, each hour scored like the day
+    window: {
+      hours: 4, // how long a hike the window is for
+      daylightFallback: [7, 18], // first/last hour when the forecast has no sunrise/sunset
+      comfortable: [12, 24], // °C, the hour's temperature
+      perDegree: 3,
+      perRainChance: 0.6,
+      perRainMm: 10,
+      uvFrom: 7, // UV index
+      perUv: 3,
+      rainChanceFrom: 50, // %: "rain likely from …"
+      rainMmFrom: 0.5,
+      hotFrom: 28, // °C: "it gets hot after …"
+      windyFrom: 40, // km/h gusts: "windy"
+    },
   },
 
   history: {

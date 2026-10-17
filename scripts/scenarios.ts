@@ -13,9 +13,10 @@ import { FICUS } from '../src/species/ficus';
 import { absoluteHumidity, calculateVPD, dewPoint } from '../src/telemetry/telemetryNormalizer';
 import { skyFromCode, type OutsideObservation } from '../src/telemetry/outsideWeather';
 import type { PlantTelemetry } from '../src/telemetry/types';
-import type { DayForecast, HikeForecast } from '../src/telemetry/hikeForecast';
-import { chooseHikeDay, dateKey, hikeScore, INITIAL_HIKE_MEMORY, planHike, type HikeMemory, type HikePlan } from '../src/behaviour/hike';
+import type { DayForecast, HikeForecast, HourForecast } from '../src/telemetry/hikeForecast';
+import { chooseHikeDay, dateKey, hikeScore, hikeWindow, INITIAL_HIKE_MEMORY, planHike, type HikeMemory, type HikePlan } from '../src/behaviour/hike';
 import { sampleHikePlan } from '../src/hooks/usePlantBehaviour';
+import { hikeAdvice } from '../src/behaviour/messages';
 import { decideSpeech, INITIAL_MESSAGE_MEMORY, type MessageMemory } from '../src/behaviour/speech';
 
 const LOC = { latitude: 33.97, longitude: 35.73 };
@@ -588,6 +589,21 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   check('HK10 the tree names both days, then answers the choice', offer.x.message.text.includes('Saturday or Wednesday') && chose.b.dayLine === 'hike_chosen' && chose.sp.decision.reason.startsWith('the hike') && chose.x.message.text.includes('Wednesday'), `${offer.x.message.text} | ${chose.x.message.text}`);
   const pv = sampleHikePlan('announced', dayAt(15));
   const pvChosen = pv && sampleHikePlan('announced', dayAt(15), pv.options[1]);
+  // The best hours of the hike day, from the hourly forecast
+  const hour = (h: number, x: Partial<HourForecast> = {}): HourForecast => ({ hour: h, code: 1, sky: 'clear', temp: 12 + Math.max(0, 12 - Math.abs(h - 14)), rainChance: 5, rainMm: 0, gusts: 20, uv: 3, ...x });
+  const hours = (f: (h: number) => Partial<HourForecast>) => Array.from({ length: 24 }, (_, h) => hour(h, f(h)));
+  const showery = day('2026-06-20', { sunrise: '06:10', sunset: '19:50', hours: hours((h) => (h >= 15 ? { code: 80, sky: 'rain', rainChance: 70, rainMm: 1.2 } : {})) });
+  const w1 = hikeWindow(showery);
+  check('HK11 the best hours dodge the afternoon showers, and the tree warns about them', !!w1 && w1.to <= 15 && w1.rainFrom === 15 && hikeAdvice(w1).includes('Rain likely from 15:00') && hikeAdvice(w1).includes('Light until 19:50'), w1 ? hikeAdvice(w1) : 'none');
+  const hot = hikeWindow(day('2026-06-20', { sunrise: '05:40', sunset: '20:10', hours: hours((h) => ({ temp: 16 + Math.max(0, 18 - 2 * Math.abs(h - 14)), uv: h >= 10 && h <= 16 ? 10 : 2 })) }));
+  check('HK11b a hot sunny day: an early start, with heat and sun warnings', !!hot && hot.from <= 8 && hot.hotFrom !== null && hot.from >= 6 && hikeAdvice(hot).includes('gets hot'), hot ? hikeAdvice(hot) : 'none');
+  const dark = hikeWindow(day('2026-06-20', { sunrise: '07:30', sunset: '16:30', hours: hours(() => ({})) }));
+  check('HK11c the window stays within daylight', !!dark && dark.from >= 8 && dark.to <= 16, dark ? `${dark.from}-${dark.to}` : 'none');
+  check('HK11d no hourly forecast: no detail (an older forecast still plans)', hikeWindow(day('x')) === null && o1.plan?.detail === null);
+  const withHours = planHike({ ...INITIAL_HIKE_MEMORY, forecast: { fetchedAt: at(6), days: two.days.map((d) => (d.date === '2026-06-17' ? { ...d, sunrise: '06:10', sunset: '19:50', hours: showery.hours } : d)) } }, dayAt(15));
+  const chosenDay = planHike(chooseHikeDay(withHours.memory, '2026-06-17', dayAt(15))!, dayAt(15)).plan!;
+  const told = say(chosenDay, offer.sp.memory, at(11));
+  check('HK12 the plan carries the best hours (not the 24 hours); the tree says them with the choice', !!chosenDay.detail && chosenDay.forecast.hours === undefined && told.x.message.text.includes('Best from'), told.x.message.text);
   check('HK10b previews offer two days and take a click', pv?.options.length === 2 && pvChosen?.chosen === true && pvChosen.day === pv.options[1], `${pv?.options} → ${pvChosen?.day}`);
 }
 

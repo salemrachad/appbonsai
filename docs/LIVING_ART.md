@@ -402,10 +402,15 @@ read it.
   the calendar."), again when the forecast moves its pick ("The forecast changed: the hike moves to
   Thursday."), answers a choice ("Wednesday it is!"), and greets the day itself.
   Only calm and by day; a stressed tree talks about itself.
+- **The best hours:** from the hourly forecast the tree picks the day's best stretch of daylight
+  (`hikeWindow()`, 4 h, each hour scored for warmth, rain, wind and sun) and says what comes after: rain
+  later, heat, gusts, strong sun, and when the light ends ("Best from 7:00 to 11:00: 15–19°, sunny and dry.
+  Rain likely from 15:00, so don't start late. Light until 17:35."). Said with the choice and on the day.
 - **Art:** on hike day two pairs of hiking boots and their two water bottles stand together on the ground
-  right of the stand (`avatar/HikingBoots.tsx`). Home shows the plan as the tree's own choice: "I picked
-  your hike day", a line in its voice, and its two days as chips (a 🌱 on its pick), not a forecast table, under the Outside panel.
-- **Tested:** `npm run test:scenarios` HK1–HK10.
+  right of the stand (`avatar/HikingBoots.tsx`). Home shows the plan as an entry of the tree's diary: quiet
+  chat bubbles over the top-left of the scene (`scene/TreeDiary.tsx`, collapsible), the hike pinned on top in
+  the tree's voice with its two days as chips (a 🌱 on its pick), today's latest diary lines below it.
+- **Tested:** `npm run test:scenarios` HK1–HK12.
 - **Open:** preferring weekends, and remembering hikes that happened in the diary.
 
 ### Visitors and habitat (the squirrel) [Implemented, V1]

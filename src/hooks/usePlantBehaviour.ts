@@ -9,7 +9,7 @@ import { meet } from '../behaviour/encounters';
 import { dragonflyRoute } from '../behaviour/dragonfly';
 import { APP_CONFIG } from '../config/appConfig';
 import type { OutsideSky } from '../telemetry/outsideWeather';
-import type { HikeForecast } from '../telemetry/hikeForecast';
+import type { HikeForecast, HourForecast } from '../telemetry/hikeForecast';
 import { addDays, chooseHikeDay, withHikeDefaults, dateKey, INITIAL_HIKE_MEMORY, planHike, weekOf, type HikeMemory, type HikePlan } from '../behaviour/hike';
 import type { PlantHealthState } from '../health/healthTypes';
 import { midSeasonState, type Season } from '../perception/season';
@@ -156,6 +156,15 @@ function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | n
   }
 }
 
+// A sample day hour by hour: warming from the morning low to the afternoon high; the fine day turns showery
+// from mid-afternoon (so the best hours are the morning and the tree warns about the rain)
+const sampleHours = (low: number, high: number, sky: HourForecast['sky'], code: number, rain: number, showersFrom: number | null): HourForecast[] =>
+  Array.from({ length: 24 }, (_, hour) => {
+    const warm = Math.max(0, Math.sin(((hour - 6) / 16) * Math.PI));
+    const showers = showersFrom !== null && hour >= showersFrom && hour < 20;
+    return { hour, code: showers ? 80 : code, sky: showers ? 'rain' : sky, temp: Math.round((low + (high - low) * warm) * 10) / 10, rainChance: showers ? 60 : rain, rainMm: showers ? 0.8 : 0, gusts: 20, uv: hour >= 10 && hour <= 14 ? 5 : 2 };
+  });
+
 // The real planner on a sample two weeks: a plain fair forecast with one fine day and a decent second one
 // (moved: first another fine day). Late in the week there may be no later day left: then this week's hike is
 // already behind us (yesterday) and the preview shows next week's pick. `chosen`: a day clicked on the
@@ -171,11 +180,12 @@ export function sampleHikePlan(kind: HikePreview, now: number, chosen: string | 
       fetchedAt: now,
       days: Array.from({ length: 14 }, (_, i) => {
         const date = addDays(monday, i);
+        const light = { sunrise: '06:20', sunset: '17:35' };
         return date === fine
-          ? { date, code: 1, sky: 'clear', tMax: 22, tMin: 13, rainChance: 5, rainMm: 0, gustsMax: 18 }
+          ? { date, code: 1, sky: 'clear', tMax: 22, tMin: 13, rainChance: 5, rainMm: 0, gustsMax: 18, ...light, hours: sampleHours(13, 22, 'clear', 1, 5, 15) }
           : date === second
-          ? { date, code: 2, sky: 'partly_cloudy', tMax: 20, tMin: 12, rainChance: 20, rainMm: 0, gustsMax: 25 }
-          : { date, code: 3, sky: 'overcast', tMax: 18, tMin: 12, rainChance: 40, rainMm: 0.6, gustsMax: 30 };
+          ? { date, code: 2, sky: 'partly_cloudy', tMax: 20, tMin: 12, rainChance: 20, rainMm: 0, gustsMax: 25, ...light, hours: sampleHours(12, 20, 'partly_cloudy', 2, 15, null) }
+          : { date, code: 3, sky: 'overcast', tMax: 18, tMin: 12, rainChance: 40, rainMm: 0.6, gustsMax: 30, ...light, hours: sampleHours(12, 18, 'overcast', 3, 40, null) };
       }),
     };
   };

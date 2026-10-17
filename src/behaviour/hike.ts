@@ -1,5 +1,5 @@
 import { APP_CONFIG } from '../config/appConfig';
-import type { DayForecast, HikeForecast } from '../telemetry/hikeForecast';
+import type { DayForecast, HikeForecast, HourForecast } from '../telemetry/hikeForecast';
 
 // The weekly hike: once a week the tree picks the day with the best forecast for its people's hike.
 // About the people, never the tree: health and the habitat never read it; the tree announces the pick
@@ -32,7 +32,8 @@ export interface HikePlan {
   nextWeek: boolean; // this week's hike is behind us: next week's pick
   movedFrom: string | null; // the day it was picked before the forecast changed
   quality: HikeQuality;
-  forecast: DayForecast; // that day's forecast
+  forecast: DayForecast; // that day's forecast (without its hours)
+  detail?: HikeDetail | null; // the day's best hours and what comes after (absent: no hourly forecast)
   week7: (HikeDayScore | null)[]; // Monday … Sunday of the plan's week (null: passed, or no forecast)
   forecastAt: number; // when the forecast was fetched
 }
@@ -42,6 +43,22 @@ export interface WeekPick {
   movedFrom: string | null;
   locked: boolean;
   chosen?: string | null; // the day the people chose (it wins over the tree's pick)
+}
+
+// The best hours of the hike day and what the rest of the day brings (from the hourly forecast)
+export interface HikeDetail {
+  from: number; // hour the best window starts (local at the location)
+  to: number; // hour it ends
+  tLow: number | null; // °C over the window
+  tHigh: number | null;
+  rainChance: number | null; // the window's highest %
+  sky: DayForecast['sky']; // the window's worst sky
+  rainFrom: number | null; // later in the daylight, rain likely from this hour
+  hotFrom: number | null; // it gets hot from this hour
+  gustsMax: number | null; // km/h over the window, when windy
+  uvMax: number | null; // over the window, when strong
+  sunrise: string | null;
+  sunset: string | null;
 }
 
 // Persisted by the collector (meta.hike_memory)
@@ -81,6 +98,68 @@ export function hikeScore(f: DayForecast): number {
   if (f.rainMm !== null) score -= Math.min(s.rainMmCap, f.rainMm * s.perRainMm);
   if (f.gustsMax !== null && f.gustsMax > s.gustsFrom) score -= (f.gustsMax - s.gustsFrom) * s.perGust;
   return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+// How good an hour is for walking, 0-100 (the day's sky penalties, the hour's own warmth, rain, wind, sun)
+export function hourScore(h: HourForecast): number {
+  const w = APP_CONFIG.hike.window;
+  const s = APP_CONFIG.hike.score;
+  let score = 100 - s.sky[h.sky];
+  const [lo, hi] = w.comfortable;
+  if (h.temp !== null) score -= h.temp < lo ? (lo - h.temp) * w.perDegree : h.temp > hi ? (h.temp - hi) * w.perDegree : 0;
+  if (h.rainChance !== null) score -= h.rainChance * w.perRainChance;
+  if (h.rainMm !== null) score -= h.rainMm * w.perRainMm;
+  if (h.gusts !== null && h.gusts > s.gustsFrom) score -= (h.gusts - s.gustsFrom) * s.perGust;
+  if (h.uv !== null && h.uv > w.uvFrom) score -= (h.uv - w.uvFrom) * w.perUv;
+  return score;
+}
+
+// The best stretch of daylight for the hike (ties: the earlier start), and what comes after it
+export function hikeWindow(day: DayForecast): HikeDetail | null {
+  const w = APP_CONFIG.hike.window;
+  const byHour = new Map((day.hours ?? []).map((h) => [h.hour, h]));
+  if (!byHour.size) return null;
+  const hourOf = (t: string | null | undefined, up: boolean) => {
+    if (!t) return null;
+    const [hh, mm] = t.split(':').map(Number);
+    return up && mm > 0 ? hh + 1 : hh;
+  };
+  const first = hourOf(day.sunrise, true) ?? w.daylightFallback[0];
+  const last = hourOf(day.sunset, false) ?? w.daylightFallback[1]; // the window ends by sunset
+  const length = Math.max(1, Math.min(w.hours, last - first));
+  let best: { from: number; score: number } | null = null;
+  for (let from = first; from + length <= Math.max(last, first + length); from++) {
+    const hours = Array.from({ length }, (_, i) => byHour.get(from + i));
+    if (hours.some((h) => !h)) continue;
+    const score = hours.reduce((sum, h) => sum + hourScore(h!), 0) / length;
+    if (!best || score > best.score) best = { from, score };
+  }
+  if (!best) return null;
+  const inWindow = Array.from({ length }, (_, i) => byHour.get(best!.from + i)!);
+  const values = (pick: (h: HourForecast) => number | null) => inWindow.map(pick).filter((v): v is number => v !== null);
+  const temps = values((h) => h.temp);
+  const max = (xs: number[]) => (xs.length ? Math.max(...xs) : null);
+  const s = APP_CONFIG.hike.score;
+  const sky = inWindow.reduce((worst, h) => (s.sky[h.sky] > s.sky[worst] ? h.sky : worst), inWindow[0].sky);
+  // Later the same day, while it is light
+  const after = Array.from({ length: Math.max(0, last - (best.from + length)) }, (_, i) => byHour.get(best!.from + length + i)).filter((h): h is HourForecast => !!h);
+  const daylight = Array.from({ length: Math.max(0, last - first) }, (_, i) => byHour.get(first + i)).filter((h): h is HourForecast => !!h);
+  const gusts = max(values((h) => h.gusts));
+  const uv = max(values((h) => h.uv));
+  return {
+    from: best.from,
+    to: best.from + length,
+    tLow: temps.length ? Math.round(Math.min(...temps)) : null,
+    tHigh: temps.length ? Math.round(Math.max(...temps)) : null,
+    rainChance: max(values((h) => h.rainChance)),
+    sky,
+    rainFrom: after.find((h) => (h.rainChance ?? 0) >= w.rainChanceFrom || (h.rainMm ?? 0) >= w.rainMmFrom)?.hour ?? null,
+    hotFrom: daylight.find((h) => (h.temp ?? -99) >= w.hotFrom)?.hour ?? null,
+    gustsMax: gusts !== null && gusts >= w.windyFrom ? Math.round(gusts) : null,
+    uvMax: uv !== null && uv > w.uvFrom ? Math.round(uv) : null,
+    sunrise: day.sunrise ?? null,
+    sunset: day.sunset ?? null,
+  };
 }
 
 export function hikeQuality(score: number): HikeQuality {
@@ -140,6 +219,7 @@ export function planHike(memory: HikeMemory, now: number): { plan: HikePlan | nu
     return d && date >= today ? { date, score: hikeScore(d), sky: d.sky, tMax: d.tMax, rainChance: d.rainChance } : null;
   });
   const score = hikeScore(f);
+  const { hours: _hours, ...dayOnly } = f; // the plan carries the window, not the 24 hours
   return {
     plan: {
       week,
@@ -151,7 +231,8 @@ export function planHike(memory: HikeMemory, now: number): { plan: HikePlan | nu
       nextWeek,
       movedFrom: chosen.chosen ? null : chosen.movedFrom,
       quality: hikeQuality(score),
-      forecast: f,
+      forecast: dayOnly,
+      detail: hikeWindow(f),
       week7,
       forecastAt: forecast.fetchedAt,
     },

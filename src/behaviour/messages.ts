@@ -3,6 +3,7 @@ import type { HealthModifier, StressSummary } from '../health/healthTypes';
 import type { Season } from '../perception/season';
 import type { CareLine, Concern, DayLine, IntensityTier, MessageIntent, MusingId, ObservationId, RecoveryStage, SeasonalCare } from './behaviourTypes';
 import { hhmm } from '../lib/time';
+import type { HikeDetail, HikePlan, HikeQuality } from './hike';
 
 // The tree's words. Gentle and plant-centred, never blaming.
 // Only wording lives here: behaviour works with intents/tiers/ids, so any sentence can be rewritten freely.
@@ -264,6 +265,7 @@ export interface RenderInput {
   musing?: { id: MusingId; facts: Record<string, number>; variant: number } | null; // a thought of the day, while shown
   hikeDay?: string | null; // the week's hike day in words, for the hike day lines
   hikeDays?: string | null; // the two days on offer, "Saturday or Thursday"
+  hikeDetail?: HikeDetail | null; // the hike day's best hours (said with the choice and on the day)
 }
 
 // Facts that stand for words (an index into these lists)
@@ -285,6 +287,7 @@ export function renderMessage(r: RenderInput): { text: string; tip: string } {
   text = text.replace('{concern}', (r.concern && CONCERN_PHRASE[`${r.concern.metric}:${r.concern.status}`]) ?? 'something feels a little off');
   if (r.isEstimate && r.intent === 'thirst') text = `I think ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
   if (r.dayLine) text = `${pick(DAY_LINES[r.dayLine]).replace('{day}', r.hikeDay ?? 'one day this week').replace('{days}', r.hikeDays ?? r.hikeDay ?? 'one day this week')} ${text}`;
+  if ((r.dayLine === 'hike_chosen' || r.dayLine === 'hike_today') && r.hikeDetail) text = text.replace(' 🥾', ` 🥾 ${hikeWindowShort(r.hikeDetail)}`);
   if (r.careLine) text = `${text} ${pick(CARE_LINES[r.careLine])}`;
   if (r.observation) text = `${text} ${pick(OBSERVATION_LINES[r.observation.id]).replace('{hours}', String(r.observation.hours ?? ''))}`;
   if (r.seasonalCare) text = `${text} ${pick(SEASONAL_CARE_LINES[r.seasonalCare])}`;
@@ -303,4 +306,48 @@ export function renderMessage(r: RenderInput): { text: string; tip: string } {
   if (hints.length > 0 && !r.intent.startsWith('watering') && !r.intent.startsWith('care')) tip = `${hints.slice(0, 2).join(' ')} ${tip}`;
   if (r.season && SEASON_TIP_INTENTS.includes(r.intent)) tip = `${tip} ${SEASON_TIPS[r.season]}`;
   return { text, tip: tip.trim() };
+}
+
+// ---- The weekly hike, in the tree's voice (the diary bubble on Home) ----
+
+const HIKE_SAYS: Record<HikeQuality, string> = {
+  great: '{Day} looks perfect for your hike.',
+  good: "I'd go on {day}. The sky looks kind.",
+  fair: '{Day} is your best chance this week.',
+  poor: '{Day} is the driest of a wet week.',
+};
+
+const HIKE_SKY: Record<HikeDetail['sky'], string> = {
+  clear: 'sunny', partly_cloudy: 'some clouds', overcast: 'grey skies', fog: 'foggy', drizzle: 'a little drizzle',
+  rain: 'some rain', heavy_rain: 'heavy rain', snow: 'snow', thunderstorm: 'storms',
+};
+
+const at = (hour: number) => `${hour}:00`;
+const capFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// "Best from 8:00 to 12:00."
+export const hikeWindowShort = (d: HikeDetail) => `Best from ${at(d.from)} to ${at(d.to)}.`;
+
+// What the tree says about the week's hike: its pick (or your choice, or the day itself) …
+export function hikeSays(plan: HikePlan, dayName: (date: string) => string): string {
+  const day = `${plan.nextWeek ? 'next ' : ''}${dayName(plan.day)}`;
+  const fill = (s: string) => s.replace('{Day}', capFirst(day)).replace('{day}', day);
+  if (plan.today) return "Today's the day! Your boots and water are by my pot.";
+  if (plan.chosen) return fill('{Day} it is. I’ll keep an eye on the sky for you.');
+  if (plan.movedFrom) return fill('I changed my mind: {day} looks better now.');
+  return fill(HIKE_SAYS[plan.quality]);
+}
+
+// … and what the hourly forecast says about that day: the best hours, then at most two warnings and the light
+export function hikeAdvice(d: HikeDetail): string {
+  const temps = d.tLow !== null && d.tHigh !== null ? (d.tLow === d.tHigh ? `${d.tLow}°` : `${d.tLow}–${d.tHigh}°`) : null;
+  const dry = (d.rainChance ?? 0) < 20 && !['drizzle', 'rain', 'heavy_rain', 'snow', 'thunderstorm'].includes(d.sky);
+  const how = [temps, `${HIKE_SKY[d.sky]}${dry && d.sky !== 'clear' ? ', dry' : dry ? ' and dry' : ''}`].filter(Boolean).join(', ');
+  const warnings = [
+    d.rainFrom !== null && `Rain likely from ${at(d.rainFrom)}, so don't start late.`,
+    d.hotFrom !== null && `It gets hot from ${at(d.hotFrom)}.`,
+    d.gustsMax !== null && `Gusty up there, up to ${d.gustsMax} km/h.`,
+    d.uvMax !== null && `Strong sun (UV ${d.uvMax}): hats on.`,
+  ].filter((w): w is string => !!w);
+  return [`Best from ${at(d.from)} to ${at(d.to)}: ${how}.`, ...warnings.slice(0, 2), d.sunset && `Light until ${d.sunset}.`].filter(Boolean).join(' ');
 }
