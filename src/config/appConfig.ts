@@ -13,7 +13,8 @@ export const APP_CONFIG = {
     telemetryMinMs: 10 * 1000,
     telemetryMaxMs: 10 * 60 * 1000,
     weatherMs: 15 * 60 * 1000, // Open-Meteo estimates change slowly
-    frontendMs: 5000, // browser → local server; cheap, so new readings show up within seconds
+    frontendMs: 5000, // browser → local server, only when /api/stream isn't available
+    streamCheckMs: 15 * 1000, // /api/stream: slow change check (status counters) + keep-alive ping
   },
 
   esp32: {

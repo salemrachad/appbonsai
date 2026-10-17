@@ -42,12 +42,18 @@ export function useLivingState({ onNewWatering, onManualRefreshDone }: Options =
     }
   }, [accept]);
 
-  // Polls only while the page is visible (a background tab or locked phone asks nothing) and
-  // catches up the moment it's shown again
+  // Listens to the server's push stream while the page is visible (a background tab or locked phone
+  // holds no connection) and catches up the moment it's shown again. If the stream never delivers
+  // (an older server, a proxy), it falls back to polling /api/current with the ETag.
   useEffect(() => {
     let cancelled = false;
     let running = false;
     let timer: ReturnType<typeof setTimeout>;
+    let closeStream: (() => void) | null = null;
+    let streamWorks = false;
+    let streamErrors = 0;
+    let polling = false;
+
     const tick = async () => {
       clearTimeout(timer);
       running = true;
@@ -55,17 +61,55 @@ export function useLivingState({ onNewWatering, onManualRefreshDone }: Options =
       running = false;
       if (!cancelled && !document.hidden) timer = setTimeout(tick, APP_CONFIG.polling.frontendMs);
     };
-    const onVisibility = () => {
-      if (!document.hidden && !running) tick();
+    const stopStream = () => {
+      closeStream?.();
+      closeStream = null;
     };
-    tick();
+    const fallBackToPolling = () => {
+      stopStream();
+      polling = true;
+      tick();
+    };
+    const start = () => {
+      clearTimeout(timer);
+      if (closeStream) return;
+      if (polling) {
+        if (!running) tick();
+        return;
+      }
+      closeStream = api.stream({
+        onState: (s) => {
+          streamWorks = true;
+          streamErrors = 0;
+          etag.current = null; // a later fallback poll fetches in full
+          accept(s);
+        },
+        onOpen: () => setServerOffline(false),
+        onError: (closed) => {
+          setServerOffline(true);
+          if (!streamWorks && (closed || ++streamErrors >= 3)) fallBackToPolling();
+          else if (closed) {
+            stopStream(); // it delivered before: reopen it ourselves
+            timer = setTimeout(start, APP_CONFIG.polling.frontendMs);
+          }
+        },
+      });
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stopStream();
+        clearTimeout(timer);
+      } else if (!closeStream) start();
+    };
+    start();
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      stopStream();
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [load]);
+  }, [load, accept]);
 
   // Ask the server to read the ESP32 right now
   const refreshNow = useCallback(async () => {

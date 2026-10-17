@@ -63,7 +63,7 @@ Each layer has one job. Keep them separate. Biological thresholds never go in Re
 | Behaviour | `src/behaviour/` | `evaluateBehaviour()`: mood, energy, responsiveness, intensity + tier, recovery stage, afterglow, time of day, message intent, care reactions (diffraction), relationship memory (`relationship.ts`). `speech.ts` decides when to speak or stay silent; `messages.ts` is the only place with wording. |
 | Expression | `src/expression/` | `expressBehaviour()` → `ExpressionState`: avatar look (eyes/mouth/foliage/gaze/gesture/filter/effects), sway speed, leaf droop, atmosphere (scene per condition, season, day/night theme), message + tip, and the three Living Art layers (epidermal / wording / diffraction). |
 | Server | `server/` | `index.ts` (Express, modes production / local-dev, serves `dist/`), `cors.ts` (local-network CORS), `collector/` (the living loop, one job per file: `index.ts` the loop and `LivingCollector`, `settings.ts` settings + calibration storage, `watering.ts` sensor-detected waterings, `careEvents.ts`, `interactions.ts`, `metaStore.ts` the typed `meta` keys, `records.ts` row conversions), `calibration.ts` (guided calibration), `database.ts` + `schema.ts` (node:sqlite), `episodes.ts`, `routes/*`. |
-| UI | `src/App.tsx`, `src/pages/`, `src/components/`, `src/hooks/` | Show what the server concluded. `useLivingState` polls `/api/current` every 5 s with the last `ETag` (`If-None-Match`); an unchanged state answers 304 with no body and nothing re-renders; `usePlantHealth`/`usePlantBehaviour` apply developer previews. |
+| UI | `src/App.tsx`, `src/pages/`, `src/components/`, `src/hooks/` | Show what the server concluded. `useLivingState` listens to `/api/stream` (the server pushes the state when it changes) only while the page is visible; if the stream never delivers (e.g. an older server answers 404), it falls back to polling `/api/current` every 5 s with the last `ETag` (`If-None-Match`; unchanged → 304, nothing re-renders); `usePlantHealth`/`usePlantBehaviour` apply developer previews. |
 
 ### The living loop (`server/collector/`)
 
@@ -220,6 +220,7 @@ A dot marks a group with a preview on, and **Reset all previews** clears every p
 |---|---|
 | `GET /api/status` | Server, collector and database status |
 | `GET /api/current` | Everything the UI needs in one call: perception (without `recent` and `outsideToday`, which stay on the server), health, behaviour, expression, forecast, live readings, recent events and episodes. `ETag` = hash of all but `serverTime`; `If-None-Match` → 304 (CORS allows the header and exposes `ETag`) |
+| `GET /api/stream` | The same state as Server-Sent Events (`event: state`, `id` = the ETag): on connect, after every collector evaluation (`collector.onChange`) when it differs, and from a check every `polling.streamCheckMs` (15 s; status counters change without an evaluation, else a `: ping`). Each write is flushed through `compression` |
 | `GET /api/health`, `GET /api/behaviour` | Subsets of the current state |
 | `POST /api/refresh` | Read the sensor now |
 | `POST /api/calibration/light {darkRaw, brightRaw, manual?, dryRun?, confirm?}` | Light calibration; `manual: true` = min/max raw typed in Settings (stored as method `manual`, with history), same checks as the guided capture |

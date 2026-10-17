@@ -76,6 +76,7 @@ export class LivingCollector {
   private polling: Promise<void> | null = null;
   private repoll = false;
   private messageMemory: MessageMemory = INITIAL_MESSAGE_MEMORY;
+  private changeListeners = new Set<() => void>();
   private status: Pick<CollectorStatus, 'lastPollAt' | 'lastSuccessAt' | 'lastError' | 'consecutiveFailures'> = {
     lastPollAt: null,
     lastSuccessAt: null,
@@ -400,6 +401,13 @@ export class LivingCollector {
     }
     const expression = expressBehaviour({ behaviour, health, perception, speech: speech.decision, now });
     this.state = { perception, health, behaviour, expression };
+    for (const fn of this.changeListeners) fn();
+  }
+
+  // Told after every evaluation (poll, care, settings, weather): /api/stream pushes the new state
+  onChange(fn: () => void): () => void {
+    this.changeListeners.add(fn);
+    return () => this.changeListeners.delete(fn);
   }
 
   // ---- settings ----

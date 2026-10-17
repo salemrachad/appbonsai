@@ -45,8 +45,20 @@ async function current(etag: string | null): Promise<{ snapshot: LivingSnapshot;
   return { snapshot: (await res.json()) as LivingSnapshot, etag: res.headers.get('ETag') };
 }
 
+// The living state pushed by the server (/api/stream) whenever it changes. EventSource reconnects
+// by itself after a dropped connection; `closed` means it gave up (e.g. an older server without the
+// route). Returns a function that closes the stream.
+function stream(handlers: { onState: (s: LivingSnapshot) => void; onOpen: () => void; onError: (closed: boolean) => void }): () => void {
+  const source = new EventSource(apiUrl('/stream'));
+  source.addEventListener('state', (e) => handlers.onState(JSON.parse((e as MessageEvent<string>).data) as LivingSnapshot));
+  source.onopen = handlers.onOpen;
+  source.onerror = () => handlers.onError(source.readyState === EventSource.CLOSED);
+  return () => source.close();
+}
+
 export const api = {
   current,
+  stream,
   status: () => call<ServerStatus>('/status'),
   refresh: () => call<LivingSnapshot>('/refresh', { method: 'POST', timeoutMs: 15000 }),
 
