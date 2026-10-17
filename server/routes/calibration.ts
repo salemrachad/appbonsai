@@ -3,7 +3,8 @@ import type { CalibrationService } from '../calibration';
 
 const sensorOf = (v: unknown) => (v === 'soil' || v === 'light' ? v : null);
 
-// GET /api/calibration · POST /api/calibration/capture {sensor} · POST /api/calibration/soil · POST /api/calibration/light (manual: true = typed min/max)
+// GET /api/calibration · POST /api/calibration/capture {sensor} · POST /api/calibration/soil (manual: true = typed dry/wet)
+// POST /api/calibration/light (manual: true = typed min/max)
 // DELETE /api/calibration/:sensor
 export function calibrationRoutes(service: CalibrationService): Router {
   const r = Router();
@@ -17,8 +18,8 @@ export function calibrationRoutes(service: CalibrationService): Router {
   });
 
   r.post('/soil', async (req, res) => {
-    const { dryRaw, wetRaw, dry, wet, confirm, dryRun } = req.body ?? {};
-    res.json(await service.saveSoil({ dryRaw: Number(dryRaw), wetRaw: Number(wetRaw), dry, wet, confirm: !!confirm, dryRun: !!dryRun }));
+    const { dryRaw, wetRaw, dry, wet, confirm, dryRun, manual } = req.body ?? {};
+    res.json(await service.saveSoil({ dryRaw: Number(dryRaw), wetRaw: Number(wetRaw), dry, wet, confirm: !!confirm, dryRun: !!dryRun, manual: !!manual }));
   });
 
   r.post('/light', async (req, res) => {

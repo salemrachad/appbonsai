@@ -122,11 +122,9 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
         </span>
         {step === 'idle' && (
           <div className="flex gap-1.5">
-            {sensor === 'light' && (
-              <button onClick={() => setStep('manual')} className={`${btn} border border-[#356077]/40 text-[#356077] hover:bg-[#356077]/10`}>
-                Set min / max
-              </button>
-            )}
+            <button onClick={() => setStep('manual')} className={`${btn} border border-[#356077]/40 text-[#356077] hover:bg-[#356077]/10`}>
+              Set min / max
+            </button>
             <button onClick={() => setStep('first')} className={`${btn} bg-[#356077] text-white hover:bg-[#284B5D]`}>
               {current ? 'Recalibrate' : 'Calibrate'}
             </button>
@@ -137,7 +135,7 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
       <p className="sans text-[11px] text-[#2D332A]/60">
         {current
           ? sensor === 'soil'
-            ? `Calibrated (${'dryRaw' in current ? `dry ${current.dryRaw} · wet ${current.wetRaw}` : ''}, ${current.method}, ${time(current.savedAt)}).`
+            ? `Calibrated (${'dryRaw' in current ? `dry ${current.dryRaw} · wet ${current.wetRaw}` : ''}, ${current.method === 'manual' ? 'set by hand' : current.method}, ${time(current.savedAt)}).`
             : `Calibrated (${'darkRaw' in current ? `min ${current.darkRaw} · max ${current.brightRaw}` : ''}, ${current.method === 'manual' ? 'set by hand' : 'guided'}, ${time(current.savedAt)}).`
           : 'Using the ESP32 firmware’s own percentage.'}{' '}
         {current && step === 'idle' && (
@@ -147,8 +145,13 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
         )}
       </p>
 
-      {step === 'manual' && sensor === 'light' && (
-        <ManualLight current={current && 'darkRaw' in current ? current : null} onDone={() => { reset(); onChanged(); }} onCancel={reset} />
+      {step === 'manual' && (
+        <ManualRange
+          sensor={sensor}
+          current={current ? ('dryRaw' in current ? [current.dryRaw, current.wetRaw] : [current.darkRaw, current.brightRaw]) : null}
+          onDone={() => { reset(); onChanged(); }}
+          onCancel={reset}
+        />
       )}
 
       {step !== 'idle' && step !== 'manual' && (
@@ -235,23 +238,51 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
   );
 }
 
-// Light min / max typed in by hand (raw ADC): a stopgap until a better sensor, or when the guided capture
-// can't be done. Same checks and live preview as the guided flow; saved as method "manual" with history.
-function ManualLight({ current, onDone, onCancel }: { current: { darkRaw: number; brightRaw: number } | null; onDone: () => void; onCancel: () => void }) {
-  const [min, setMin] = useState(String(current?.darkRaw ?? 0));
-  const [max, setMax] = useState(String(current?.brightRaw ?? 4095));
+// The two raw values typed by hand, per sensor: [the 0% end, the 100% end]. The soil probe reads higher when
+// drier, so its 0% end (dry) is the high number: named dry / wet, not min / max.
+const MANUAL: Record<Sensor, { labels: [string, string]; defaults: [number, number]; help: React.ReactNode }> = {
+  soil: {
+    labels: ['Dry raw (0%)', 'Wet raw (100%)'],
+    defaults: [4000, 2022], // the firmware's own SOIL_DRY_RAW / SOIL_WET_RAW
+    help: (
+      <>
+        Raw probe values (0–4095). Drier soil reads <strong>higher</strong>: <strong>dry</strong> reads as 0%, <strong>wet</strong> (watered and drained) as 100%. Readings outside are clamped. Watering detection pauses for a while after saving. Stored readings are never changed; only how they're read.
+      </>
+    ),
+  },
+  light: {
+    labels: ['Min (dark)', 'Max (bright)'],
+    defaults: [0, 4095],
+    help: (
+      <>
+        Raw LDR values (0–4095). <strong>Min</strong> reads as 0% (dark), <strong>max</strong> as 100% (your bright reference). Readings outside are clamped. Stored readings are never changed; only how they're read.
+      </>
+    ),
+  },
+};
+
+// Min / max typed in by hand (raw ADC): when the guided capture can't be done (a watering, real darkness), or a
+// stopgap until a better sensor. Same checks and live preview as the guided flow; saved as method "manual" with history.
+function ManualRange({ sensor, current, onDone, onCancel }: { sensor: Sensor; current: [number, number] | null; onDone: () => void; onCancel: () => void }) {
+  const m = MANUAL[sensor];
+  const [min, setMin] = useState(String(current?.[0] ?? m.defaults[0]));
+  const [max, setMax] = useState(String(current?.[1] ?? m.defaults[1]));
   const [check, setCheck] = useState<CalibrationSaveResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const btn = 'px-3 py-1.5 rounded-lg sans text-[11px] font-semibold cursor-pointer disabled:opacity-50';
-  const values = { darkRaw: Number(min), brightRaw: Number(max), manual: true };
-  const valid = min.trim() !== '' && max.trim() !== '' && Number.isFinite(values.darkRaw) && Number.isFinite(values.brightRaw);
+  const a = Number(min);
+  const b = Number(max);
+  const valid = min.trim() !== '' && max.trim() !== '' && Number.isFinite(a) && Number.isFinite(b);
 
   const run = async (confirm: boolean, dryRun: boolean) => {
     setBusy(true);
     setError(null);
     try {
-      const r = await api.saveLightCalibration({ ...values, confirm, dryRun });
+      const r =
+        sensor === 'soil'
+          ? await api.saveSoilCalibration({ dryRaw: a, wetRaw: b, manual: true, confirm, dryRun })
+          : await api.saveLightCalibration({ darkRaw: a, brightRaw: b, manual: true, confirm, dryRun });
       setCheck(r);
       if (r.saved) onDone();
     } catch (e: any) {
@@ -271,16 +302,14 @@ function ManualLight({ current, onDone, onCancel }: { current: { darkRaw: number
   const input = 'w-24 px-2 py-1 rounded-lg border border-[#D8D2C9] bg-white sans text-xs font-mono text-[#2D332A] focus:outline-none focus:border-[#356077]';
   return (
     <div className="space-y-2 pt-1">
-      <p className="sans text-[11px] text-[#2D332A]/70 leading-relaxed">
-        Raw LDR values (0–4095). <strong>Min</strong> reads as 0% (dark), <strong>max</strong> as 100% (your bright reference). Readings outside are clamped. Stored readings are never changed; only how they're read.
-      </p>
+      <p className="sans text-[11px] text-[#2D332A]/70 leading-relaxed">{m.help}</p>
       <div className="flex flex-wrap items-end gap-3">
         <label className="sans text-[11px] text-[#2D332A]/75 space-y-0.5">
-          <span className="block font-semibold">Min (dark)</span>
+          <span className="block font-semibold">{m.labels[0]}</span>
           <input type="number" inputMode="numeric" min={0} max={4095} value={min} onChange={(e) => setMin(e.target.value)} className={input} />
         </label>
         <label className="sans text-[11px] text-[#2D332A]/75 space-y-0.5">
-          <span className="block font-semibold">Max (bright)</span>
+          <span className="block font-semibold">{m.labels[1]}</span>
           <input type="number" inputMode="numeric" min={0} max={4095} value={max} onChange={(e) => setMax(e.target.value)} className={input} />
         </label>
         <div className="sans text-[11px] text-[#2D332A]/70 font-mono pb-1">
@@ -293,7 +322,7 @@ function ManualLight({ current, onDone, onCancel }: { current: { darkRaw: number
       {check?.warnings.map((w) => (
         <div key={w} className="sans text-[11px] text-[#8F5E24]">⚠ {w}</div>
       ))}
-      <p className="sans text-[10.5px] text-[#2D332A]/55">{TEXT.light.unitNote}</p>
+      <p className="sans text-[10.5px] text-[#2D332A]/55">{TEXT[sensor].unitNote}</p>
       <div className="flex gap-2">
         <button disabled={busy || !valid || !check || check.errors.length > 0} onClick={() => run(true, false)} className={`${btn} bg-[#4A6741] text-white hover:bg-[#3D5535]`}>
           {check?.warnings.length ? 'Save anyway' : 'Save'}

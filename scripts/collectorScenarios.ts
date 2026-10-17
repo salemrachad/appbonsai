@@ -555,6 +555,25 @@ async function main() {
     check('L4 the guided calibration still works and replaces it', guided.saved && b.collector.getCalibration().light?.method === 'guided');
   }
 
+  console.log('\n— Soil dry / wet set by hand —');
+  {
+    const { CalibrationService } = await import('../server/calibration');
+    const b = new Bench();
+    await b.boot();
+    await b.run(3, () => ({ soil: 50, raw: 2800 }));
+    const svc = new CalibrationService(b.db, b.collector, { now: () => b.clock });
+    const swapped = await svc.saveSoil({ dryRaw: 2000, wetRaw: 3600, manual: true, confirm: true });
+    check('SM1 swapped dry/wet is refused, nothing saved', !swapped.saved && swapped.errors.length > 0 && b.collector.getCalibration().soil === null);
+    const ok = await svc.saveSoil({ dryRaw: 3600, wetRaw: 2000, manual: true, confirm: true });
+    const cal = b.collector.getCalibration().soil;
+    check('SM2 typed dry/wet saved as method "manual", with history', ok.saved && cal?.method === 'manual' && cal.dryRaw === 3600 && cal.wetRaw === 2000 && /by hand/.test(b.db.calibrationHistory(1)[0]?.note ?? ''), JSON.stringify(cal));
+    // The firmware says 90%; the typed range reads raw 2800 as 50%: a big jump on the soil scale
+    await b.run(5, () => ({ soil: 90, raw: 2800 }));
+    const pct = b.state().perception.readings.soilMoisture;
+    check('SM3 soil % now read with the typed range (raw 2800 -> 50%)', pct === 50, `${pct}%`);
+    check('SM4 the scale change is not a watering', b.waterings().length === 0, b.decision());
+  }
+
   console.log('\n— Outside weather (context only) —');
   {
     const b = new Bench();

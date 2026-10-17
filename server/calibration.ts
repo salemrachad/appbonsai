@@ -76,15 +76,18 @@ export class CalibrationService {
   }
 
   // dryRun: validate + preview only. Warnings need confirm: true; errors always block.
-  async saveSoil(input: { dryRaw: number; wetRaw: number; dry?: CaptureStats; wet?: CaptureStats; confirm?: boolean; dryRun?: boolean }): Promise<SaveResult> {
+  // manual: dry (high raw) / wet (low raw) typed in by hand, without the watering the guided flow needs
+  async saveSoil(input: { dryRaw: number; wetRaw: number; dry?: CaptureStats; wet?: CaptureStats; confirm?: boolean; dryRun?: boolean; manual?: boolean }): Promise<SaveResult> {
     const v = validateSoil(Number(input.dryRaw), Number(input.wetRaw), input.dry, input.wet);
     const preview = await this.preview('soil', (raw) => soilPercentFromRaw(raw, { dryRaw: input.dryRaw, wetRaw: input.wetRaw }));
     const ok = v.errors.length === 0 && (v.warnings.length === 0 || !!input.confirm) && !input.dryRun;
     if (ok) {
       this.collector.applyCalibration(
         'soil',
-        { dryRaw: Math.round(input.dryRaw), wetRaw: Math.round(input.wetRaw), savedAt: this.now(), method: 'guided' },
-        describe(input.dry, input.wet, 'dry', 'wet')
+        { dryRaw: Math.round(input.dryRaw), wetRaw: Math.round(input.wetRaw), savedAt: this.now(), method: input.manual ? 'manual' : 'guided' },
+        input.manual
+          ? `Set by hand: dry ${Math.round(input.dryRaw)} · wet ${Math.round(input.wetRaw)}`
+          : describe(input.dry, input.wet, 'dry', 'wet')
       );
     }
     return { ...v, saved: ok, preview, calibration: this.collector.getCalibration() };

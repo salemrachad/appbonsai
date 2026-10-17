@@ -231,6 +231,7 @@ A dot marks a group with a preview on, and **Reset all previews** clears every p
 | `POST /api/refresh` | Read the sensor now (push mode: re-evaluate; the device sends on its own interval) |
 | `POST /api/ingest` | Readings pushed by the ESP32 (`Authorization: Bearer <device token>`, protocol v1 in `docs/HOSTING.md`) |
 | `POST /api/calibration/light {darkRaw, brightRaw, manual?, dryRun?, confirm?}` | Light calibration; `manual: true` = min/max raw typed in Settings (stored as method `manual`, with history), same checks as the guided capture |
+| `POST /api/calibration/soil {dryRaw, wetRaw, manual?, dryRun?, confirm?}` | Soil calibration; `manual: true` = dry (high raw → 0 %) / wet (low raw → 100 %) typed in Settings, same checks as the guided capture; pauses watering detection like any soil calibration change |
 | `POST /api/collector/calibration {minutes}` | Pause watering detection while handling the probe (`0` resumes) |
 | `GET`/`PUT /api/config` | Collector settings |
 | `POST /api/hike/choose {day}` | Choose the week's hike day (one of the tree's two; 400 when the day can't be chosen) |
