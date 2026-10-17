@@ -1,6 +1,7 @@
 import React from 'react';
 import { BonsaiAvatar } from '../components/avatar/BonsaiAvatar';
 import { OutsidePanel } from '../components/scene/OutsidePanel';
+import { HikePanel } from '../components/scene/HikePanel';
 import { WeatherForeground } from '../components/scene/WeatherForeground';
 import type { PetSession } from '../components/avatar/usePetting';
 import { SensorCardGrid } from '../components/sensors/SensorCard';
@@ -21,10 +22,11 @@ interface HomeProps {
   outside?: OutsideWeather | null; // outside weather numbers (context; the look comes from the expression)
   inside?: { temperature: number | null; humidity: number | null }; // what the sensors measure inside
   air?: AirComparison | null; // inside vs outside by dew point
+  hikePreview?: boolean; // the hike shown is a developer preview
 }
 
 // The companion screen: shows what the engines concluded, never recalculates it.
-export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null }) => {
+export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null, hikePreview = false }) => {
   const msg = expression?.message;
 
   return (
@@ -38,6 +40,8 @@ export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, 
       <div className="flex flex-col gap-5">
         {/* The world outside the greenhouse, next to what the sensors measure inside (context only) */}
         <OutsidePanel weather={expression?.atmosphere.weather ?? null} outside={outside} inside={inside} air={air} />
+        {/* The week's hike, as the tree picked it from the forecast */}
+        {expression?.hike && <HikePanel plan={expression.hike.plan} preview={hikePreview} />}
 
         <div className="flex items-center gap-6 min-h-[150px]">
           <div className="shrink-0">

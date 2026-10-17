@@ -2,6 +2,7 @@ import type { HealthCondition, HealthModifier } from '../health/healthTypes';
 import type { PlantEventType } from '../history/historyTypes';
 import type { Season } from '../perception/season';
 import type { SeasonRule } from '../species/types';
+import type { HikePlan } from './hike';
 
 // Moods drive the face (subtly) on top of the condition's look; see expression/ExpressionEngine.ts.
 export type Mood =
@@ -85,7 +86,11 @@ export type DayLine =
   | 'weather_cold_outside'
   // The sun's real moments (perception.sun times): once a day each, when calm
   | 'sunrise_greeting'
-  | 'sunset_line';
+  | 'sunset_line'
+  // The weekly hike (behaviour/hike.ts): a pick is said once (again when the forecast moves it), the day once
+  | 'hike_picked'
+  | 'hike_moved'
+  | 'hike_today';
 
 // Lines about recent care, spoken at most once a day while the context lasts.
 export type CareLine = 'settling_in' | 'new_spot' | 'new_shape';
@@ -339,6 +344,7 @@ export interface PlantBehaviourState {
   voice: VoiceState; // the day's thoughts (the speech policy decides when one is said)
   // Where the day is relative to the real sunrise / sunset (null outside their windows)
   twilight: { event: 'sunrise' | 'sunset' | null; minutes: number | null };
+  hike?: HikePlan; // the week's hike pick (about the people, nothing reads it back; absent without a forecast)
   reasons: string[]; // why the engine chose this behaviour (developer panel)
   evaluatedAt: number;
 }

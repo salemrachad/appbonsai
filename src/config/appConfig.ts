@@ -235,6 +235,27 @@ export const APP_CONFIG = {
     weather: { rain: [0.03, -0.05], thunderstorm: [-0.05, 0.08], snow: [0.02, -0.04], clear: [0, 0.03], fog: [0, -0.03], windy: [0, 0.04] },
   },
 
+  // The weekly hike (behaviour/hike.ts): the tree picks the week's best forecast day for its people's hike.
+  // About the people, never the tree. Weeks run Monday to Sunday; the pick locks once its day arrives.
+  hike: {
+    forecastMs: 3 * 60 * 60 * 1000, // daily forecast refresh (it changes slowly)
+    retryMs: 30 * 60 * 1000, // after a failed fetch
+    weeksKept: 6, // picks remembered (moves, locks)
+    // Day score, 100 = perfect: penalties per unit
+    score: {
+      comfortableMax: [16, 25], // °C, the day's high
+      perDegreeCold: 2.5,
+      perDegreeHot: 3,
+      perRainChance: 0.5, // per % chance
+      perRainMm: 5,
+      rainMmCap: 30,
+      gustsFrom: 35, // km/h
+      perGust: 0.8,
+      sky: { clear: 0, partly_cloudy: 0, overcast: 3, fog: 8, drizzle: 8, rain: 15, heavy_rain: 25, snow: 25, thunderstorm: 35 },
+    },
+    quality: { great: 80, good: 60, fair: 40 }, // score from; below: poor
+  },
+
   history: {
     replayHours: 48, // fallback when no saved health memory exists: telemetry replayed on start
     maxGapMs: 15 * 60 * 1000, // short gap: readings this far apart still count as continuous observation

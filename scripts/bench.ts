@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, TreeSettings } from '../src/settings/settings';
 import { normalizeESP32Payload } from '../src/telemetry/telemetryNormalizer';
 import { skyFromCode, type OutsideObservation } from '../src/telemetry/outsideWeather';
 import type { TelemetryFetchResult } from '../src/telemetry/types';
+import type { DayForecast } from '../src/telemetry/hikeForecast';
 
 export const MIN = 60 * 1000;
 export const HOUR = 60 * MIN;
@@ -37,6 +38,8 @@ export class Bench {
   payload: Record<string, unknown> = {};
   // Fake outside weather (WMO code, °C). null = Open-Meteo unreachable. Never the real network in tests.
   weather: { code: number; temp?: number; gusts?: number } | null = null;
+  // Fake daily forecast for the hike pick (empty: none). Never the real network in tests.
+  hikeDays: DayForecast[] = [];
   collector!: LivingCollector;
   logs: string[] = [];
   constructor(public db = new AppDatabase(':memory:')) {
@@ -69,6 +72,7 @@ export class Bench {
       now: () => this.clock,
       fetchTelemetry: this.fetch,
       fetchOutsideWeather: this.fetchWeather,
+      fetchHikeForecast: async (_s, now) => ({ fetchedAt: now, days: this.hikeDays }),
       autoSchedule: false,
       log: (m) => this.logs.push(m),
     });

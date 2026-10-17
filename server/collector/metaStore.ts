@@ -1,4 +1,5 @@
 import type { MoodMemory } from '../../src/behaviour/behaviourTypes';
+import type { HikeMemory } from '../../src/behaviour/hike';
 import type { MessageMemory } from '../../src/behaviour/speech';
 import type { HealthMemory } from '../../src/health/HealthEngine';
 import type { TreeSettings } from '../../src/settings/settings';
@@ -21,6 +22,7 @@ export interface MetaValues {
   message_memory: MessageMemory; // what the tree said and when (speech.ts)
   mood_memory: MoodMemory; // where the mood was: it drifts from there (behaviour/mood.ts)
   watering_detection_suppressed_until: number;
+  hike_memory: HikeMemory; // the latest daily forecast and the week's hike picks (behaviour/hike.ts)
 }
 
 export class MetaStore {

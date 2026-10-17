@@ -9,6 +9,8 @@ import { meet } from '../behaviour/encounters';
 import { dragonflyRoute } from '../behaviour/dragonfly';
 import { APP_CONFIG } from '../config/appConfig';
 import type { OutsideSky } from '../telemetry/outsideWeather';
+import type { HikeForecast } from '../telemetry/hikeForecast';
+import { addDays, dateKey, INITIAL_HIKE_MEMORY, planHike, weekOf, type HikeMemory, type HikePlan } from '../behaviour/hike';
 import type { PlantHealthState } from '../health/healthTypes';
 import { midSeasonState, type Season } from '../perception/season';
 import { ACTIVE_SPECIES } from '../species';
@@ -35,11 +37,14 @@ export type SlothPreview = { pose: 'hanging' | 'climbing' | 'sleeping'; branch: 
 export type DragonflyPreview = { presence: 'hovering' | 'perched'; perch: 'left_tip' | 'right_tip' | 'crown_tip' | 'left_top' };
 // A weather preview swaps only the outside weather layer (a sky, or 'windy' for a clear windy day).
 export type WeatherPreview = OutsideSky | 'windy';
+// A hike preview runs the real planner on a sample forecast: a day picked later this week, a pick the
+// forecast moved, or today as hike day (the boots by the pot). Behaviour responds too (the announcement).
+export type HikePreview = 'announced' | 'moved' | 'today';
 
 export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previews: DevPreviews, latitude: number | null = null) {
-  const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth } = previews;
+  const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth, hike: previewHike } = previews;
   return useMemo<{ behaviour: PlantBehaviourState | null; expression: ExpressionState | null }>(() => {
-    let r = evaluate(snapshot, display, previewSeason, latitude, previewTwilight);
+    let r = evaluate(snapshot, display, previewSeason, latitude, previewTwilight, previewHike);
     if (previewVisitor?.mode === 'traces' && r.expression) {
       r = { behaviour: r.behaviour, expression: { ...r.expression, visitor: null, squirrelTraces: previewVisitor.traces ?? 'nibbled_leaf' } };
     } else if (previewVisitor && previewVisitor.mode !== 'traces' && r.expression && r.behaviour) {
@@ -117,13 +122,13 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
       r = { behaviour: r.behaviour, expression: { ...r.expression, atmosphere: { ...r.expression.atmosphere, weather, twilight } } };
     }
     return r;
-  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy, previewTwilight, previewDragonfly, previewSloth]);
+  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy, previewTwilight, previewDragonfly, previewSloth, previewHike]);
 }
 
-function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previewSeason: Season | null, latitude: number | null, previewTwilight: TwilightPreview | null = null) {
+function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previewSeason: Season | null, latitude: number | null, previewTwilight: TwilightPreview | null = null, previewHike: HikePreview | null = null) {
   {
     if (!snapshot || !display) return { behaviour: null, expression: null };
-    if ((!display.isOverride && !previewSeason && !previewTwilight) || !snapshot.perception) return { behaviour: snapshot.behaviour, expression: snapshot.expression };
+    if ((!display.isOverride && !previewSeason && !previewTwilight && !previewHike) || !snapshot.perception) return { behaviour: snapshot.behaviour, expression: snapshot.expression };
     const now = Date.now();
     let perception = previewSeason
       ? { ...snapshot.perception, season: midSeasonState(previewSeason, latitude) }
@@ -144,7 +149,35 @@ function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | n
       events: [],
       species: ACTIVE_SPECIES,
       now,
+      // The live pick stays, unless a hike is previewed
+      hike: previewHike ? sampleHikePlan(previewHike, now) : snapshot.behaviour?.hike ?? null,
     });
     return { behaviour, expression: expressBehaviour({ behaviour, health: display, perception, now }) };
   }
+}
+
+// The real planner on a sample two weeks: a plain fair forecast with one fine day (moved: first another one).
+// Late in the week there may be no later day left: then this week's hike is already behind us (yesterday)
+// and the preview shows next week's pick.
+export function sampleHikePlan(kind: HikePreview, now: number): HikePlan | null {
+  const today = dateKey(now);
+  const monday = weekOf(today);
+  const left = 6 - Math.round((new Date(`${today}T12:00`).getTime() - new Date(`${monday}T12:00`).getTime()) / 86400000); // days after today this week
+  const forecast = (fine: string): HikeForecast => ({
+    fetchedAt: now,
+    days: Array.from({ length: 14 }, (_, i) => {
+      const date = addDays(monday, i);
+      return date === fine
+        ? { date, code: 1, sky: 'clear', tMax: 22, tMin: 13, rainChance: 5, rainMm: 0, gustsMax: 18 }
+        : { date, code: 3, sky: 'overcast', tMax: 18, tMin: 12, rainChance: 40, rainMm: 0.6, gustsMax: 30 };
+    }),
+  });
+  if (kind === 'today') return planHike({ ...INITIAL_HIKE_MEMORY, forecast: forecast(today) }, now).plan;
+  const need = kind === 'moved' ? 2 : 1;
+  const nextWeek = left < need;
+  const memory: HikeMemory = nextWeek ? { ...INITIAL_HIKE_MEMORY, weeks: { [monday]: { day: addDays(today, -1), movedFrom: null, locked: true } } } : INITIAL_HIKE_MEMORY;
+  const base = nextWeek ? addDays(monday, 7) : today;
+  if (kind === 'announced') return planHike({ ...memory, forecast: forecast(addDays(base, nextWeek ? 2 : Math.min(left, 2))) }, now).plan;
+  const first = planHike({ ...memory, forecast: forecast(addDays(base, nextWeek ? 4 : left)) }, now).memory;
+  return planHike({ ...first, forecast: forecast(addDays(base, 1)) }, now).plan;
 }

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { DEV_PRESETS } from '../health/developerOverrides';
 import { SEASONS, type Season } from '../perception/season';
 import { OUTSIDE_SKIES } from '../telemetry/outsideWeather';
-import type { CanopyPreview, DragonflyPreview, DreyPreview, SlothPreview, TwilightPreview, VisitorPreview, WeatherPreview } from './usePlantBehaviour';
+import type { CanopyPreview, DragonflyPreview, DreyPreview, HikePreview, SlothPreview, TwilightPreview, VisitorPreview, WeatherPreview } from './usePlantBehaviour';
 
 // Every developer preview in one place: what is previewed, how the URL hash starts one, the toast when one
 // changes and the line Home shows while previewing. Previews only change what is shown; nothing is written.
@@ -16,10 +16,11 @@ export interface DevPreviews {
   canopy: CanopyPreview | null;
   drey: DreyPreview | null;
   weather: WeatherPreview | null;
+  hike: HikePreview | null; // the week's hike pick (announced, moved, or today with the boots)
 }
 export type SetPreview = <K extends keyof DevPreviews>(key: K, value: DevPreviews[K]) => void;
 
-export const NO_PREVIEWS: DevPreviews = { preset: null, season: null, visitor: null, sloth: null, dragonfly: null, twilight: null, canopy: null, drey: null, weather: null };
+export const NO_PREVIEWS: DevPreviews = { preset: null, season: null, visitor: null, sloth: null, dragonfly: null, twilight: null, canopy: null, drey: null, weather: null, hike: null };
 
 // The URL hash can start any combination, e.g. #preview=very_dry&season=winter&visitor=hiding:crown (handy for screenshots)
 export function previewsFromHash(hash: string): DevPreviews {
@@ -80,6 +81,11 @@ export function previewsFromHash(hash: string): DevPreviews {
       const r = m(/weather=([a-z_]+)/);
       return r && (r[1] === 'windy' || (OUTSIDE_SKIES as string[]).includes(r[1])) ? (r[1] as WeatherPreview) : null;
     })(),
+    // #hike=today (the boots by the pot), #hike=announced or #hike=moved
+    hike: (() => {
+      const r = m(/hike=(today|announced|moved)/);
+      return r ? (r[1] as HikePreview) : null;
+    })(),
   };
 }
 
@@ -108,6 +114,8 @@ const toastFor = <K extends keyof DevPreviews>(key: K, v: DevPreviews[K]): strin
       return v ? `Drey: ${v}` : 'Back to the real drey';
     case 'weather':
       return v ? `Outside: ${(v as string).replace('_', ' ')}` : 'Back to the real weather';
+    case 'hike':
+      return v ? (v === 'today' ? 'Hike day: boots out' : `Hike ${v}`) : 'Back to the real hike plan';
     default:
       return null;
   }
@@ -127,6 +135,7 @@ function labelOf(p: DevPreviews): string | null {
       p.canopy && `Canopy ${Math.round(p.canopy.fullness * 100)}%${p.canopy.refilling ? ' refilling' : ''}`,
       p.twilight && `${p.twilight.event === 'sunrise' ? 'Sunrise' : 'Sunset'} ${p.twilight.minutes >= 0 ? '+' : ''}${p.twilight.minutes} min`,
       p.weather && `Outside: ${p.weather.replace('_', ' ')}`,
+      p.hike && (p.hike === 'today' ? 'Hike day' : `Hike ${p.hike}`),
     ]
       .filter(Boolean)
       .join(' · ') || null

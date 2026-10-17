@@ -112,6 +112,10 @@ export const DAY_LINES: Record<DayLine, Lines> = {
   weather_fog: ['Foggy outside this morning.', 'The world is grey with fog out there.', 'Fog outside. Soft light today.'],
   weather_snow: ['Snow outside!', 'It is snowing out there.', 'Snow falling outside. Warm enough in here.'],
   weather_cold_outside: ['Cold out there. Sheltered in here.', 'It is cold outside today.', 'Freezing out there. Glad to be inside.'],
+  // The week's hike ({day}: "Saturday", or "next Saturday" once this week's hike is behind us)
+  hike_picked: ['Best day for a hike: {day}. 🥾', 'I picked {day} for your hike. 🥾', 'The forecast says {day} is the day for a hike. 🥾'],
+  hike_moved: ['The forecast changed: the hike moves to {day}. 🥾', 'New plan: {day} looks better for the hike now. 🥾', 'Change of plans, the hike is on {day}. 🥾'],
+  hike_today: ['Today is hike day! Your boots are ready. 🥾', 'Hike day. Enjoy the trail, both of you. 🥾', 'A good day for the hills. Have a lovely hike. 🥾'],
 };
 
 // About recent care. Context, never health claims the sensors can't prove.
@@ -256,6 +260,7 @@ export interface RenderInput {
   season?: Season;
   seasonalCare?: SeasonalCare | null; // how the time of year changes the meaning of a care reaction
   musing?: { id: MusingId; facts: Record<string, number>; variant: number } | null; // a thought of the day, while shown
+  hikeDay?: string | null; // the week's hike day in words, for the hike day lines
 }
 
 // Facts that stand for words (an index into these lists)
@@ -276,7 +281,7 @@ export function renderMessage(r: RenderInput): { text: string; tip: string } {
   let text = pick(lines);
   text = text.replace('{concern}', (r.concern && CONCERN_PHRASE[`${r.concern.metric}:${r.concern.status}`]) ?? 'something feels a little off');
   if (r.isEstimate && r.intent === 'thirst') text = `I think ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
-  if (r.dayLine) text = `${pick(DAY_LINES[r.dayLine])} ${text}`;
+  if (r.dayLine) text = `${pick(DAY_LINES[r.dayLine]).replace('{day}', r.hikeDay ?? 'one day this week')} ${text}`;
   if (r.careLine) text = `${text} ${pick(CARE_LINES[r.careLine])}`;
   if (r.observation) text = `${text} ${pick(OBSERVATION_LINES[r.observation.id]).replace('{hours}', String(r.observation.hours ?? ''))}`;
   if (r.seasonalCare) text = `${text} ${pick(SEASONAL_CARE_LINES[r.seasonalCare])}`;

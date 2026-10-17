@@ -6,6 +6,7 @@ import { FoliageDefs, PadBranchlets, PadLeaves, PADS, paletteFor } from './Folia
 import { PetSession, usePetting } from './usePetting';
 import { Dragonfly, dragonflyAt, useDragonflyFlight } from './Dragonfly';
 import { Sloth, slothAt, slothRiderAt } from './Sloth';
+import { HikingBoots } from './HikingBoots';
 import { Drey, SquirrelTraces, useVisitorPlay, Visitor, visitorAt } from './Visitor';
 
 interface BonsaiAvatarProps {
@@ -365,6 +366,8 @@ const BonsaiAvatarView: React.FC<BonsaiAvatarProps> = ({ expression, onClick, on
           <path d="M 125,429 L 120,439 L 136,439 L 132,429 Z" fill="#2E1D13" />
           <path d="M 308,429 L 304,439 L 320,439 L 315,429 Z" fill="#2E1D13" />
         </g>
+        {/* Hike day: two pairs of hiking boots on the ground by the stand */}
+        <HikingBoots show={!!expression?.hike?.boots} />
 
         {/* A squirrel's tail now and then over the back of the pot (its traces, before it visits) */}
         <SquirrelTraces traces={expression?.squirrelTraces ?? null} layer="behind_pot" />

@@ -17,6 +17,8 @@ import type { SensorCalibration } from '../../src/telemetry/calibration';
 import { assessDataQuality } from '../../src/telemetry/dataQuality';
 import { normalizeTelemetryEndpoint } from '../../src/telemetry/ESP32TelemetryProvider';
 import { fetchOutsideWeather, type OutsideObservation } from '../../src/telemetry/outsideWeather';
+import { fetchHikeForecast, type HikeForecast } from '../../src/telemetry/hikeForecast';
+import { INITIAL_HIKE_MEMORY, planHike, type HikeMemory } from '../../src/behaviour/hike';
 import { telemetryManager } from '../../src/telemetry/telemetryManager';
 import type { HourlyTelemetryPoint, LiveReading, PlantTelemetry, TelemetryFetchResult, TelemetrySource, TimelineEvent } from '../../src/telemetry/types';
 import type { AppDatabase } from '../database';
@@ -45,6 +47,7 @@ export interface CollectorOptions {
   now?: () => number; // clock (scenario tests run simulated time)
   fetchTelemetry?: (settings: TreeSettings) => Promise<TelemetryFetchResult>;
   fetchOutsideWeather?: (settings: TreeSettings, now: number) => Promise<{ observation: OutsideObservation; raw: unknown }>;
+  fetchHikeForecast?: (settings: TreeSettings, now: number) => Promise<HikeForecast>;
   autoSchedule?: boolean; // false: only poll when pollNow() is called (tests)
   log?: (msg: string) => void;
 }
@@ -73,6 +76,9 @@ export class LivingCollector {
   private weatherTimer: ReturnType<typeof setTimeout> | undefined;
   private outside: OutsideObservation | null = null; // latest outside weather (context only)
   private outsideError: string | null = null;
+  private hikeTimer: ReturnType<typeof setTimeout> | undefined;
+  private hikeMemory: HikeMemory = INITIAL_HIKE_MEMORY; // the daily forecast + the week's hike picks
+  private hikeError: string | null = null;
   private polling: Promise<void> | null = null;
   private repoll = false;
   private messageMemory: MessageMemory = INITIAL_MESSAGE_MEMORY;
@@ -87,6 +93,7 @@ export class LivingCollector {
   private readonly now: () => number;
   private readonly fetchTelemetry: (settings: TreeSettings) => Promise<TelemetryFetchResult>;
   private readonly fetchOutside: (settings: TreeSettings, now: number) => Promise<{ observation: OutsideObservation; raw: unknown }>;
+  private readonly fetchHike: (settings: TreeSettings, now: number) => Promise<HikeForecast>;
   private readonly autoSchedule: boolean;
   private readonly log: (msg: string) => void;
 
@@ -94,6 +101,7 @@ export class LivingCollector {
     this.now = opts.now ?? Date.now;
     this.fetchTelemetry = opts.fetchTelemetry ?? ((s) => telemetryManager.getTelemetry(s));
     this.fetchOutside = opts.fetchOutsideWeather ?? fetchOutsideWeather;
+    this.fetchHike = opts.fetchHikeForecast ?? fetchHikeForecast;
     this.autoSchedule = opts.autoSchedule ?? true;
     this.log = opts.log ?? ((m) => console.log(m));
     this.meta = new MetaStore(db);
@@ -101,6 +109,8 @@ export class LivingCollector {
     this.watering = new WateringDetection(db, this.meta, this.log, (at) => this.store.watered(at));
     const speech = this.meta.get('message_memory');
     if (speech?.version === INITIAL_MESSAGE_MEMORY.version) this.messageMemory = { ...INITIAL_MESSAGE_MEMORY, ...speech };
+    const hike = this.meta.get('hike_memory');
+    if (hike?.version === INITIAL_HIKE_MEMORY.version) this.hikeMemory = hike;
   }
 
   private get settings(): TreeSettings {
@@ -115,12 +125,38 @@ export class LivingCollector {
     this.restore();
     this.outside = this.db.latestOutsideWeather();
     void this.pollWeather();
+    void this.pollHikeForecast();
     return this.pollNow();
   }
 
   stop() {
     clearTimeout(this.timer);
     clearTimeout(this.weatherTimer);
+    clearTimeout(this.hikeTimer);
+  }
+
+  // The daily forecast for the weekly hike pick: every few hours, about the people (never the tree).
+  // A failure keeps the last forecast (the plan shows its age) and retries sooner.
+  async pollHikeForecast(): Promise<void> {
+    clearTimeout(this.hikeTimer);
+    if (this.settings.latitude == null || this.settings.longitude == null) return;
+    let ok = false;
+    try {
+      const forecast = await this.fetchHike(this.settings, this.now());
+      ok = true;
+      if (this.hikeError) this.log('[collector] hike forecast back');
+      this.hikeError = null;
+      if (forecast.days.length) {
+        this.hikeMemory = { ...this.hikeMemory, forecast };
+        this.meta.set('hike_memory', this.hikeMemory);
+        if (this.state) this.evaluate(this.now());
+      }
+    } catch (err: any) {
+      const msg = err?.cause?.code ?? err?.message ?? String(err);
+      if (!this.hikeError) this.log(`[collector] hike forecast unavailable: ${msg}`);
+      this.hikeError = msg;
+    }
+    if (this.autoSchedule) this.hikeTimer = setTimeout(() => void this.pollHikeForecast(), ok ? APP_CONFIG.hike.forecastMs : APP_CONFIG.hike.retryMs);
   }
 
   // Outside weather: its own cadence (15 min) in every data source mode, independent of the ESP32.
@@ -380,6 +416,12 @@ export class LivingCollector {
     const episodes = this.db.episodesSince(now - 30 * DAY);
     // Attention goes only into relationship memory (never perception or health)
     const interactions = this.db.interactionsSince(now - 30 * DAY);
+    // The week's hike pick: follows the forecast until its day arrives, then locks (about the people)
+    const hike = planHike(this.hikeMemory, now);
+    if (hike.memory !== this.hikeMemory) {
+      this.hikeMemory = hike.memory;
+      this.meta.set('hike_memory', hike.memory);
+    }
     const behaviour = evaluateBehaviour({
       health,
       perception,
@@ -391,6 +433,7 @@ export class LivingCollector {
       location: this.location(),
       wanderers: { sloth: this.slothMemory(now, perception.history.cadenceMs) },
       moodMemory: this.meta.get('mood_memory'),
+      hike: hike.plan,
     });
     this.meta.set('mood_memory', behaviour.moodState.memory);
     // When to speak or stay quiet; persisted so refreshes and restarts don't replay lines
@@ -423,6 +466,9 @@ export class LivingCollector {
     if (changed('latitude') || changed('longitude')) {
       this.outside = null; // weather from the old place no longer describes this one
       void this.pollWeather();
+      this.hikeMemory = { ...this.hikeMemory, forecast: null }; // nor does its forecast (the picks stay)
+      this.meta.set('hike_memory', this.hikeMemory);
+      void this.pollHikeForecast();
     }
     // A new device or calibration changes the soil scale: that must never look like a watering
     if (changed('esp32EndpointUrl')) this.suppressWateringDetection();

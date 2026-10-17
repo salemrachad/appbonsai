@@ -2,7 +2,7 @@ import React from 'react';
 import { RotateCcw, Wrench } from 'lucide-react';
 import { DEV_PRESETS } from '../../health/developerOverrides';
 import type { DevPreviews, SetPreview } from '../../hooks/useDevPreviews';
-import type { CanopyPreview, DragonflyPreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
+import type { CanopyPreview, DragonflyPreview, HikePreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
 import { SEASONS, type Season } from '../../perception/season';
 
 interface StateTesterProps {
@@ -19,6 +19,13 @@ const WEATHER_PREVIEWS: { id: WeatherPreview; label: string }[] = [
   { id: 'snow', label: '🌨️ Snow' },
   { id: 'overcast', label: '☁️ Overcast' },
   { id: 'windy', label: '💨 Windy' },
+];
+
+const HIKE_PREVIEWS: { id: HikePreview | null; label: string }[] = [
+  { id: null, label: 'Live' },
+  { id: 'announced', label: '📣 Picked' },
+  { id: 'moved', label: '🔀 Moved' },
+  { id: 'today', label: '🥾 Hike day' },
 ];
 
 const SPOT_LABEL: Record<VisitorPreview['spot'], string> = { left_branch: 'Left', right_branch: 'Right', crown: 'Crown', trunk: 'Trunk', pot_rim: 'Pot' };
@@ -142,7 +149,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 // Preview any health state, time, weather and visitor. Presentation only: telemetry, the database, care
 // events and episodes are untouched. Grouped: tree health · time & season · outside · the tree over time · visitors.
 export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, onClearPreviews }) => {
-  const { preset: activePresetId, season: activeSeason, visitor: activeVisitor, drey: activeDrey, canopy: activeCanopy, twilight: activeTwilight, dragonfly: activeDragonfly, sloth: activeSloth, weather: activeWeather } = previews;
+  const { preset: activePresetId, season: activeSeason, visitor: activeVisitor, drey: activeDrey, canopy: activeCanopy, twilight: activeTwilight, dragonfly: activeDragonfly, sloth: activeSloth, weather: activeWeather, hike: activeHike } = previews;
   const onSelectPreset = (v: string | null) => onPreview('preset', v);
   const onSelectSeason = (v: Season | null) => onPreview('season', v);
   const onSelectVisitor = (v: VisitorPreview | null) => onPreview('visitor', v);
@@ -152,7 +159,8 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
   const onSelectDragonfly = (v: DragonflyPreview | null) => onPreview('dragonfly', v);
   const onSelectSloth = (v: SlothPreview | null) => onPreview('sloth', v);
   const onSelectWeather = (v: WeatherPreview | null) => onPreview('weather', v);
-  const anyActive = !!(activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeWeather);
+  const onSelectHike = (v: HikePreview | null) => onPreview('hike', v);
+  const anyActive = !!(activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeWeather || activeHike);
   const resetAll = onClearPreviews;
   return (
     <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
@@ -227,6 +235,17 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
           {WEATHER_PREVIEWS.map((w) => (
             <button key={w.id} onClick={() => onSelectWeather(w.id)} className={chip(activeWeather === w.id)}>
               {w.label}
+            </button>
+          ))}
+        </Row>
+      </Group>
+
+      {/* The week's hike: the real planner on a sample forecast (the announcement, a moved pick, the boots) */}
+      <Group title="Hike" icon="🥾" active={!!activeHike}>
+        <Row label="Plan">
+          {HIKE_PREVIEWS.map((h) => (
+            <button key={h.id ?? 'live'} id={`test-hike-btn-${h.id ?? 'live'}`} onClick={() => onSelectHike(h.id)} className={chip(activeHike === h.id)}>
+              {h.label}
             </button>
           ))}
         </Row>

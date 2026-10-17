@@ -13,6 +13,10 @@ import { FICUS } from '../src/species/ficus';
 import { absoluteHumidity, calculateVPD, dewPoint } from '../src/telemetry/telemetryNormalizer';
 import { skyFromCode, type OutsideObservation } from '../src/telemetry/outsideWeather';
 import type { PlantTelemetry } from '../src/telemetry/types';
+import type { DayForecast, HikeForecast } from '../src/telemetry/hikeForecast';
+import { dateKey, hikeScore, INITIAL_HIKE_MEMORY, planHike, type HikeMemory, type HikePlan } from '../src/behaviour/hike';
+import { sampleHikePlan } from '../src/hooks/usePlantBehaviour';
+import { decideSpeech, INITIAL_MESSAGE_MEMORY, type MessageMemory } from '../src/behaviour/speech';
 
 const LOC = { latitude: 33.97, longitude: 35.73 };
 const MIN = 60000;
@@ -507,6 +511,66 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   s.transitions = 0;
   const o2 = s.run(at(16), 60, (i) => ({ soil: i % 2 ? 36 : 39 }));
   check('K2 between enter (35) and exit (40): stays thirsty', o2.h.condition === 'thirsty' && s.transitions === 0, show(o2));
+}
+
+// HK. The weekly hike: the best forecast day of the week, moved by the forecast until it arrives, then locked
+{
+  // June 15 2026 is a Monday. One day's forecast, from a plain good day
+  const day = (date: string, x: Partial<DayForecast> = {}): DayForecast => ({ date, code: 1, sky: 'clear', tMax: 22, tMin: 14, rainChance: 10, rainMm: 0, gustsMax: 20, ...x });
+  const week = (overrides: Record<string, Partial<DayForecast>>): HikeForecast => ({
+    fetchedAt: at(6),
+    days: Array.from({ length: 14 }, (_, i) => {
+      const date = `2026-06-${String(15 + i).padStart(2, '0')}`;
+      return day(date, overrides[date] ?? { rainChance: 40, code: 3, sky: 'overcast' });
+    }),
+  });
+  const dayAt = (d: number, h = 10) => new Date(2026, 5, d, h).getTime();
+  let mem: HikeMemory = { ...INITIAL_HIKE_MEMORY, forecast: week({ '2026-06-20': {} }) };
+  const p1 = planHike(mem, dayAt(15));
+  mem = p1.memory;
+  check('HK1 the best forecast day of the week is picked', p1.plan?.day === '2026-06-20' && !p1.plan.today && !p1.plan.locked && p1.plan.quality === 'great', `${p1.plan?.day} ${p1.plan?.quality}`);
+  mem = { ...mem, forecast: week({ '2026-06-18': {}, '2026-06-20': { code: 63, sky: 'heavy_rain', rainChance: 90, rainMm: 12 } }) };
+  const p2 = planHike(mem, dayAt(16));
+  mem = p2.memory;
+  check('HK2 the forecast changes: the pick moves and remembers where from', p2.plan?.day === '2026-06-18' && p2.plan.movedFrom === '2026-06-20', `${p2.plan?.day} from ${p2.plan?.movedFrom}`);
+  const p3 = planHike(mem, dayAt(18, 8));
+  mem = p3.memory;
+  mem = { ...mem, forecast: week({ '2026-06-18': { code: 61, sky: 'rain', rainChance: 70 }, '2026-06-20': { tMax: 21 } }) };
+  const p3b = planHike(mem, dayAt(18, 15));
+  mem = p3b.memory;
+  check('HK3 its day arrives: today, locked; a better forecast elsewhere no longer moves it', p3.plan?.today === true && p3b.plan?.day === '2026-06-18' && p3b.plan.locked, `${p3b.plan?.day} locked=${p3b.plan?.locked}`);
+  const p4 = planHike({ ...mem, forecast: week({ '2026-06-27': {} }) }, dayAt(19));
+  check('HK4 once this week\'s hike is behind us, next week\'s pick (tentative)', p4.plan?.nextWeek === true && p4.plan.day === '2026-06-27' && !p4.plan.locked, `${p4.plan?.day} next=${p4.plan?.nextWeek}`);
+  const p5 = planHike({ ...INITIAL_HIKE_MEMORY, forecast: week({ '2026-06-15': {}, '2026-06-19': { tMax: 27 } }) }, dayAt(17));
+  check('HK5 days already passed never compete', p5.plan?.day === '2026-06-19', String(p5.plan?.day));
+  check('HK5b no forecast: no plan', planHike(INITIAL_HIKE_MEMORY, dayAt(15)).plan === null);
+  check('HK5c a storm scores far below a mild dry day', hikeScore(day('x', { code: 95, sky: 'thunderstorm', rainChance: 80, rainMm: 15 })) < 20 && hikeScore(day('x')) >= 90);
+
+  // The tree announces it: calm and by day, once per pick, again when the forecast moves it
+  const s = new Sim();
+  const o = s.run(at(9), 60, () => ({ soil: 60 }));
+  const say = (plan: HikePlan | null, memory: MessageMemory, now: number) => {
+    const b = evaluateBehaviour({ health: o.h, perception: o.p, episodes: [], events: [], species: FICUS, now, hike: plan });
+    const sp = decideSpeech({ behaviour: b, severity: o.h.severity, memory, now });
+    return { b, sp, x: expressBehaviour({ behaviour: b, health: o.h, perception: o.p, speech: sp.decision, now }) };
+  };
+  const plan = (x: Partial<HikePlan>): HikePlan => ({ ...p1.plan!, ...x });
+  const a = say(plan({}), INITIAL_MESSAGE_MEMORY, at(10));
+  check('HK6 calm by day: the pick is announced with its weekday', a.b.dayLine === 'hike_picked' && a.x.message.text.includes('Saturday'), a.x.message.text);
+  const a2 = say(plan({}), a.sp.memory, at(10, 30));
+  const moved = say(plan({ day: '2026-06-18', movedFrom: '2026-06-20' }), a2.sp.memory, at(11));
+  check('HK6b said once; a moved pick is news again', !a2.sp.decision.reason.startsWith('the hike') && moved.b.dayLine === 'hike_moved' && moved.x.message.text.includes('Thursday'), `${a2.sp.decision.reason} | ${moved.x.message.text}`);
+  const today = say(plan({ day: '2026-06-15', today: true, locked: true }), INITIAL_MESSAGE_MEMORY, at(10));
+  check('HK7 hike day: the boots are out and the tree says so', today.x.hike?.boots === true && today.b.dayLine === 'hike_today' && a.x.hike?.boots === false, today.x.message.text);
+  const none = say(null, INITIAL_MESSAGE_MEMORY, at(10));
+  check('HK7b without a forecast nothing about a hike appears', none.x.hike === undefined && none.b.hike === undefined && !String(none.b.dayLine).startsWith('hike'));
+  // The developer previews show what they say on every weekday (late in the week: next week's pick)
+  const wrong = Array.from({ length: 7 }, (_, i) => dayAt(15 + i)).flatMap((t) => {
+    const [picked, movedPlan, hikeDay] = (['announced', 'moved', 'today'] as const).map((k) => sampleHikePlan(k, t));
+    const ok = !!picked && !picked.today && !!movedPlan?.movedFrom && !movedPlan.today && hikeDay?.today === true;
+    return ok ? [] : [dateKey(t)];
+  });
+  check('HK8 hike previews: picked / moved / hike day on every weekday', wrong.length === 0, wrong.join(', '));
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');

@@ -6,6 +6,7 @@ import type { PerceptionState } from '../perception/perceptionTypes';
 import type { Season } from '../perception/season';
 import { spotByPerch } from '../behaviour/encounters';
 import { GRIP_WORDS } from '../behaviour/sloth';
+import { weekdayName } from '../behaviour/hike';
 import type { HabitatEncounter } from '../behaviour/behaviourTypes';
 import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gaze, Gesture, SceneId, TouchKind, TouchResponse, DragonflyPresentation, DreyLook, SlothPresentation, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
 import { APP_CONFIG } from '../config/appConfig';
@@ -487,6 +488,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     seasonalCare: r?.seasonal ?? null,
     season: perception.season.id,
     musing: s.musing ?? null,
+    hikeDay: b.hike ? `${b.hike.nextWeek ? 'next ' : ''}${weekdayName(b.hike.day)}` : null,
   });
   let tip = rendered.tip;
   if (modifiers.includes('sensor_uncertain')) {
@@ -556,6 +558,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     sloth: met.sloth,
     encounters: h?.encounters ?? [],
     drey,
+    ...(b.hike ? { hike: { boots: b.hike.today, plan: b.hike } } : {}),
     atmosphere: {
       theme: night ? 'night' : 'day',
       phase: perception.sun.phase,
@@ -583,7 +586,11 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
       onceStatus: s.onceStatus,
     },
     intensity: b.expressionIntensity,
-    layers: { epidermal: describeBody(avatar, b, leafDroop, motion, met.visitor, drey, met.dragonfly, met.sloth), wording: rendered.text, diffraction },
+    layers: {
+      epidermal: [...describeBody(avatar, b, leafDroop, motion, met.visitor, drey, met.dragonfly, met.sloth), ...(b.hike?.today ? ['two pairs of hiking boots by the pot (hike day)'] : [])],
+      wording: rendered.text,
+      diffraction,
+    },
   };
 }
 

@@ -368,6 +368,15 @@
 }
 .traces-tail { animation: traces-tail 16s ease-in-out infinite; }
 
+/* Hike day: the boots are set down by the stand, a little bounce as they land */
+@keyframes hike-boots-in {
+  0% { transform: translateY(-14px); opacity: 0; }
+  60% { transform: translateY(1px); opacity: 1; }
+  80% { transform: translateY(-2px); }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.hike-boots-in { animation: hike-boots-in 0.9s cubic-bezier(.3,.7,.4,1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   [class*="animate-tree-"], .trunk-breathe, .leaf-quiver, .leaf-fresh, [class*="gesture-"],
   .animate-leaf-fall, .animate-drip, .animate-drip-fast, .animate-ripple, .animate-breath, .animate-firefly,
@@ -377,7 +386,7 @@
   .dew-glint, .dew-fall, .night-mist-1, .night-mist-2, .mist-drift-1, .mist-drift-2,
   .visitor-ripple, .visitor-shaking, .visitor-flick, .traces-tail, .drey-tail, .drey-twitch, .drey-zzz,
   .df-wings-fly, .df-perch, .df-hover, .df-hover-here, .df-fly, .df-dart,
-  .sloth-hang, .sloth-climb, .sloth-sleep, .sloth-look, .sloth-blink, .sloth-regrip, .sloth-slowblink {
+  .sloth-hang, .sloth-climb, .sloth-sleep, .sloth-look, .sloth-blink, .sloth-regrip, .sloth-slowblink, .hike-boots-in {
     animation: none !important;
   }
   .dew-fall { opacity: 0; } /* a still frame shows no drop in mid-air */

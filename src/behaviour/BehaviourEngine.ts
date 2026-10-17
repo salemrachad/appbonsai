@@ -30,6 +30,7 @@ import { applyEncounters } from './encounters';
 import { evaluateVoice } from './voice';
 import { evaluateHabitat, seasonEnergyAt } from './habitat';
 import { computeRelationship } from './relationship';
+import type { HikePlan } from './hike';
 import { HOUR, MIN } from '../lib/time';
 
 const THIRST: HealthCondition[] = ['thirsty', 'very_dry', 'hot_and_dry'];
@@ -51,6 +52,7 @@ export interface BehaviourInput {
   location?: { latitude: number | null; longitude: number | null };
   wanderers?: { sloth?: SlothMemory };
   moodMemory?: MoodMemory | null; // where the mood was (persisted by the collector): it drifts from there
+  hike?: HikePlan | null; // the week's hike pick (the collector plans it from the forecast): a day line, the boots
 }
 
 const CARE_REACTION: Partial<Record<PlantEvent['type'], ReactionKind>> = {
@@ -275,7 +277,7 @@ const isStressEpisode = (e: BehaviourEpisode) => seriousStress(e.condition) || e
 
 // "Given what is happening, what happened recently, and how the human has cared for the tree,
 // how should the companion behave?" Deterministic: history, duration, context, relationship.
-export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, moodMemory = null }: BehaviourInput): PlantBehaviourState {
+export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, moodMemory = null, hike = null }: BehaviourInput): PlantBehaviourState {
   const reasons: string[] = [];
   const condition = health.condition;
 
@@ -486,6 +488,10 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   }
   // Outside weather in contrast with a calm inside (context only: the sensors say how the tree is)
   if (!dayLine && tod !== 'night' && CALM.includes(condition) && !reaction) dayLine = outsideLine(perception);
+  // The week's hike: the pick (again when the forecast moves it) and the day itself, by day when calm
+  if (!dayLine && hike && perception.sun.isDay && CALM.includes(condition) && !reaction) {
+    dayLine = hike.today ? 'hike_today' : hike.movedFrom ? 'hike_moved' : 'hike_picked';
+  }
   if (dayLine) reasons.push(`Time of day: ${dayLine.replace(/_/g, ' ')}`);
 
   // ---- Care line (once a day while the context lasts; not during serious stress) ----
@@ -542,6 +548,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     canopy,
     voice,
     twilight,
+    ...(hike ? { hike } : {}),
     reasons,
     evaluatedAt: now,
   };

@@ -90,8 +90,14 @@ export function stableVariant(seed: string, count: number): number {
 
 // A weather contrast line (calm tree, outside turned) not yet said today
 // (the sun's real moments are news the same way: the sun just rose, or is about to set)
+// (and so is the week's hike: a new pick, a pick the forecast moved, the day itself)
 const weatherNews = (b: PlantBehaviourState, m: MessageMemory, now: number) =>
-  !!b.dayLine && /^(weather_|sunrise_|sunset_)/.test(b.dayLine) && m.dayLinesSaid[b.dayLine] !== localDate(now);
+  !!b.dayLine && /^(weather_|sunrise_|sunset_|hike_)/.test(b.dayLine) && m.dayLinesSaid[b.dayLine] !== lineStamp(b, now);
+
+// When a day line counts as said: season lines once per season, a hike pick once per picked day,
+// the others once per day
+const lineStamp = (b: PlantBehaviourState, now: number) =>
+  b.dayLine?.startsWith('season_') ? b.season.key : (b.dayLine === 'hike_picked' || b.dayLine === 'hike_moved') && b.hike ? `${b.hike.week}:${b.hike.day}` : localDate(now);
 
 const localDate = (t: number) => {
   const d = new Date(t);
@@ -160,7 +166,11 @@ export function decideSpeech({
   } else if (weatherNews(b, m, now) && sinceSpoken >= SPEECH.minGapMs) {
     // Outside weather turned (rain, a storm, fog, snow, a cold snap): one word about it, once a day
     speakNow = true;
-    reason = b.dayLine!.startsWith('weather_') ? `outside: ${b.dayLine!.replace('weather_', '').replace(/_/g, ' ')}` : `the sun: ${b.dayLine!.replace(/_/g, ' ')}`;
+    reason = b.dayLine!.startsWith('weather_')
+      ? `outside: ${b.dayLine!.replace('weather_', '').replace(/_/g, ' ')}`
+      : b.dayLine!.startsWith('hike_')
+      ? `the hike: ${b.dayLine!.replace('hike_', '')} (${b.hike?.day ?? '?'})`
+      : `the sun: ${b.dayLine!.replace(/_/g, ' ')}`;
   } else if (
     nextThought &&
     sinceSpoken >= visibleFor &&
@@ -193,8 +203,7 @@ export function decideSpeech({
       observation = obs;
       next.onceFlags = [...m.onceFlags, flag].slice(-SPEECH.maxOnceFlags);
     }
-    // Season lines are said once per season, the others once per day
-    const stamp = b.dayLine?.startsWith('season_') ? b.season.key : localDate(now);
+    const stamp = lineStamp(b, now);
     if (b.dayLine && m.dayLinesSaid[b.dayLine] !== stamp) {
       dayLine = b.dayLine;
       next.dayLinesSaid = { ...m.dayLinesSaid, [b.dayLine]: stamp };

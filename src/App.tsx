@@ -272,6 +272,7 @@ export default function App() {
         onPetSession={recordPetSession}
         outside={perception?.outside ?? null}
         air={perception?.air ?? null}
+        hikePreview={!!previews.hike}
         // Inside vs outside only with the real sensor (in weather mode the 'inside' values ARE the outside estimate)
         inside={perception?.source === 'esp32_sensor' ? { temperature: perception.readings.temperature, humidity: perception.readings.humidity } : { temperature: null, humidity: null }}
       />

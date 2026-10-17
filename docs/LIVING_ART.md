@@ -381,6 +381,27 @@ tree's world, but **not its condition**: the ESP32 inside says how the tree is. 
   real sensor), and notes when the glass may fog. These are facts, never health.
 - **Open:** tuning `skyFactor` against this LDR on real grey days; outside forecasts ("rain tonight").
 
+### The weekly hike [Implemented, V1]
+
+The tree looks out for its people too: once a week it picks the day with the best forecast for their hike.
+Evidence class *context*, about the people, **never the tree**: health, vitality, mood and the habitat never
+read it.
+
+- **Source:** Open-Meteo's daily forecast (14 days) at the tree's location, every 3 h
+  (`telemetry/hikeForecast.ts`, kept in `meta.hike_memory`). A failed fetch keeps the last forecast, and
+  the panel shows how old it is.
+- **The pick** (`behaviour/hike.ts`, numbers in `APP_CONFIG.hike`): weeks run Monday to Sunday, and only
+  the week's remaining days compete. A day scores 0-100: a comfortable high (16-25 °C), little chance of
+  rain, no storm, snow or gale. It follows the forecast until its day arrives, then locks. Once it has
+  passed, next week's pick shows.
+- **Wording:** the tree announces a new pick once ("Best day for a hike: Saturday.") and again when the
+  forecast moves it ("The forecast changed: the hike moves to Thursday."), and greets the day itself.
+  Only calm and by day; a stressed tree talks about itself.
+- **Art:** on hike day two pairs of hiking boots stand on the ground by the stand, one each side
+  (`avatar/HikingBoots.tsx`). Home shows the plan under the Outside panel with the week at a glance.
+- **Tested:** `npm run test:scenarios` HK1–HK8.
+- **Open:** preferring weekends, and remembering hikes that happened in the diary.
+
 ### Visitors and habitat (the squirrel) [Implemented, V1]
 
 A squirrel that visits the digital tree is **art, not biology**, and not a pet. It is shown only because

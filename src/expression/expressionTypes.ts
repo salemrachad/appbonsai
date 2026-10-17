@@ -1,6 +1,7 @@
 // The visual vocabulary of the bonsai character, and the instructions the Expression Engine
 // gives the avatar. The avatar only draws these; it never sees health or sensor values.
 
+import type { HikePlan } from '../behaviour/hike';
 import type { Season } from '../perception/season';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 
@@ -272,6 +273,9 @@ export interface ExpressionState {
   sloth: SlothPresentation | null;
   encounters: ('squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth')[]; // visitors meeting right now (art)
   drey: DreyLook;
+  // The week's hike (from behaviour.hike): the plan Home announces, and on the day two pairs of hiking
+  // boots by the pot (theirs). Absent without a forecast.
+  hike?: { boots: boolean; plan: HikePlan };
   atmosphere: {
     theme: 'day' | 'night';
     phase: string;
