@@ -489,7 +489,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     season: perception.season.id,
     musing: s.musing ?? null,
     hikeDay: b.hike ? `${b.hike.nextWeek ? 'next ' : ''}${weekdayName(b.hike.day)}` : null,
-    hikeDays: b.hike?.options.length ? `${b.hike.nextWeek ? 'next ' : ''}${b.hike.options.map(weekdayName).join(' or ')}` : null,
+    hikeDays: b.hike?.options?.length ? `${b.hike.nextWeek ? 'next ' : ''}${b.hike.options.map(weekdayName).join(' or ')}` : null,
   });
   let tip = rendered.tip;
   if (modifiers.includes('sensor_uncertain')) {

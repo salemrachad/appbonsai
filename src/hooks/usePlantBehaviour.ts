@@ -10,7 +10,7 @@ import { dragonflyRoute } from '../behaviour/dragonfly';
 import { APP_CONFIG } from '../config/appConfig';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 import type { HikeForecast } from '../telemetry/hikeForecast';
-import { addDays, chooseHikeDay, dateKey, INITIAL_HIKE_MEMORY, planHike, weekOf, type HikeMemory, type HikePlan } from '../behaviour/hike';
+import { addDays, chooseHikeDay, withHikeDefaults, dateKey, INITIAL_HIKE_MEMORY, planHike, weekOf, type HikeMemory, type HikePlan } from '../behaviour/hike';
 import type { PlantHealthState } from '../health/healthTypes';
 import { midSeasonState, type Season } from '../perception/season';
 import { ACTIVE_SPECIES } from '../species';
@@ -150,7 +150,7 @@ function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | n
       species: ACTIVE_SPECIES,
       now,
       // The live pick stays, unless a hike is previewed
-      hike: previewHike ? sampleHikePlan(previewHike, now, previewHikeChoice) : snapshot.behaviour?.hike ?? null,
+      hike: previewHike ? sampleHikePlan(previewHike, now, previewHikeChoice) : withHikeDefaults(snapshot.behaviour?.hike) ?? null,
     });
     return { behaviour, expression: expressBehaviour({ behaviour, health: display, perception, now }) };
   }

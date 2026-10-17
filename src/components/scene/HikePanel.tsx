@@ -1,6 +1,6 @@
 import React from 'react';
 import { Mountain } from 'lucide-react';
-import { hikeQuality, weekdayName, type HikePlan, type HikeQuality } from '../../behaviour/hike';
+import { hikeQuality, weekdayName, withHikeDefaults, type HikePlan, type HikeQuality } from '../../behaviour/hike';
 import { WEATHER_ICON } from './WeatherChip';
 
 const ago = (ms: number) => {
@@ -23,7 +23,8 @@ const SKY_WORD: Record<HikePlan['forecast']['sky'], string> = {
 // The week's hike as the tree picked it (expression.hike.plan): the day, its forecast, and the week at a
 // glance. The tree offers two days (plan.options); tapping one on the strip chooses it (onChoose).
 // Facts from the forecast; the tree's pick follows it until the day arrives, a chosen day holds.
-export const HikePanel: React.FC<{ plan: HikePlan; preview?: boolean; onChoose?: (day: string) => void }> = ({ plan, preview = false, onChoose }) => {
+export const HikePanel: React.FC<{ plan: HikePlan; preview?: boolean; onChoose?: (day: string) => void }> = ({ plan: raw, preview = false, onChoose }) => {
+  const plan = withHikeDefaults(raw);
   const f = plan.forecast;
   const Icon = WEATHER_ICON[f.sky];
   const name = weekdayName(plan.day);

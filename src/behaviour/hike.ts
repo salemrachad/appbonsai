@@ -159,6 +159,11 @@ export function planHike(memory: HikeMemory, now: number): { plan: HikePlan | nu
   };
 }
 
+// A plan from an older server (before the two days on offer) lacks options and chosen: one day, not chosen
+export function withHikeDefaults<T extends HikePlan | null | undefined>(plan: T): T {
+  return plan && (!plan.options || plan.chosen === undefined) ? { ...plan, options: plan.options ?? [plan.day], chosen: plan.chosen ?? false } : plan;
+}
+
 // The people choose a day of the week's hike (one of the tree's two, on the calendar). Any remaining day of
 // this week or next with a forecast is accepted; null when the day can't be chosen.
 export function chooseHikeDay(memory: HikeMemory, day: string, now: number): HikeMemory | null {
