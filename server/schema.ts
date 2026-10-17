@@ -1,7 +1,7 @@
 // SQLite schema for the local Appbonsai database (data/appbonsai.db).
 // All timestamps are INTEGER milliseconds since the Unix epoch (UTC).
 
-export const SCHEMA_VERSION = 7; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather, 7: devices
+export const SCHEMA_VERSION = 8; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather, 7: devices, 8: trees + devices.tree_id
 
 export const SCHEMA_SQL = `
 -- Raw observations: the permanent truth. Health can be re-evaluated from these later.
@@ -93,10 +93,18 @@ CREATE TABLE IF NOT EXISTS outside_weather (
 );
 CREATE INDEX IF NOT EXISTS idx_outside_weather_ts ON outside_weather(timestamp);
 
+-- The tree this database belongs to: one row, made with the database (later: one Durable Object per tree, so
+-- readings, events and episodes need no tree id). Its name, species and location are its settings (meta).
+CREATE TABLE IF NOT EXISTS trees (
+  id         TEXT    PRIMARY KEY,             -- tree_<uuid>
+  created_at INTEGER NOT NULL
+);
+
 -- ESP32s allowed to push readings (POST /api/ingest). Only the token's SHA-256 is kept: the token itself is
 -- shown once when the device is added (npm run device -- add <id>). boot + last_seq drop retried readings.
 CREATE TABLE IF NOT EXISTS devices (
   id           TEXT    PRIMARY KEY,           -- the chip's id, as the firmware reports it
+  tree_id      TEXT,                          -- the tree it measures: a replaced device keeps the tree's history
   token_hash   TEXT    NOT NULL,
   label        TEXT,
   created_at   INTEGER NOT NULL,
@@ -122,4 +130,5 @@ export const MIGRATIONS: { version: number; sql: string; check?: { table: string
   },
   { version: 6, sql: 'ALTER TABLE outside_weather ADD COLUMN sunrise_at INTEGER', check: { table: 'outside_weather', column: 'sunrise_at' } },
   { version: 6, sql: 'ALTER TABLE outside_weather ADD COLUMN sunset_at INTEGER', check: { table: 'outside_weather', column: 'sunset_at' } },
+  { version: 8, sql: 'ALTER TABLE devices ADD COLUMN tree_id TEXT', check: { table: 'devices', column: 'tree_id' } },
 ];

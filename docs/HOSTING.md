@@ -22,9 +22,13 @@ For now: one prototype, one account, one tree. The design must still allow for m
 1. **Push protocol**: the server side (`POST /api/ingest`, the `devices` table, `npm run device`, Settings → "The
    ESP32 sends its readings", scenarios PU1–PU10) and firmware 1.1.0 (device id, push settings at `/settings`, a
    6 h RAM buffer). Firmware 1.2.0 can be updated over Wi-Fi (below). Running against the laptop since 2026-10-17.
-2. **Database interface + `tree_id`**: the collector talks to an interface, not to `node:sqlite` directly, and every
-   table gets a `tree_id` (a tree is not a device: a replaced sensor keeps the tree's history). The golden master
-   must stay identical.
+2. **Database interface + the tree** (done 2026-10-18): `AppDatabase` keeps all the SQL but runs it through a
+   `SqlDriver` (`exec`, `all`, `close`); `server/nodeSqlite.ts` is the laptop's driver, and a Durable Object's
+   `ctx.storage.sql.exec` will be another (it is synchronous too). The SQL avoids what only node:sqlite has
+   (`RETURNING` instead of changes / lastInsertRowid). A `trees` table holds the database's one tree, and
+   `devices.tree_id` links each device to it (a tree is not a device: a replaced sensor keeps the tree's history).
+   Readings, events and episodes carry no tree id: with one Durable Object per tree each tree already has its own
+   database (decided 2026-10-18, instead of a `tree_id` on every table). The golden master stayed identical.
 3. **The collector as one step per reading** with all its state saved (today the 24 h of readings and the watering
    detector context live in memory). A Durable Object is unloaded between requests, so a step must load a compact
    state, not re-read 1,440 rows each time.

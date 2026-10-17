@@ -1,12 +1,13 @@
 // Collector-level scenarios (npm run test:collector): watering detection, data quality, outages,
 // restarts, long gaps and DB migration, on the shared test bench (scripts/bench.ts).
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { AppDatabase } from '../server/database';
 import { addDevice } from '../server/devices';
 import { handleIngest } from '../server/ingest';
+import { openDatabase } from '../server/nodeSqlite';
 import { SCHEMA_VERSION } from '../server/schema';
 import { APP_CONFIG } from '../src/config/appConfig';
 import { Bench, check, cond, epList, finish, HOUR, MIN, START } from './bench';
@@ -334,6 +335,10 @@ async function main() {
     const missing = handleIngest(b.db, b.collector, { body: { v: 1, device_id: b.device.id, readings: b.device.buffer } }, b.clock);
     check('PU2 wrong token, unknown device, no token: 401, nothing stored', [wrong, unknown, missing].every((r) => r.status === 401) && b.db.telemetryStats().count === n);
     check('PU2b the token is kept only as a hash', b.db.devices()[0].tokenHash !== b.device.token && !JSON.stringify(b.db.devices()).includes(b.device.token));
+    check('PU2c the device belongs to this tree', b.db.devices()[0].treeId === b.db.tree().id);
+    b.db.insertDevice({ id: 'other-tree-esp32', treeId: 'tree_someone-else', tokenHash: createHash('sha256').update('other-token').digest('hex'), label: null, createdAt: b.clock });
+    const otherTree = b.send({ device_id: 'other-tree-esp32' }, 'other-token');
+    check('PU2d another tree\'s device, right token: 401, nothing stored', otherTree.status === 401 && b.db.telemetryStats().count === n, JSON.stringify(otherTree.body));
     check('PU3 another protocol version: 400', b.send({ v: 2 }).status === 400);
     check('PU3b no readings: 400', b.send({ readings: [] }).status === 400);
     check('PU3c too many readings in one request: 413', b.send({ readings: Array.from({ length: APP_CONFIG.push.maxReadings + 1 }, () => ({})) }).status === 413);
@@ -476,12 +481,32 @@ async function main() {
       CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO meta VALUES ('schema_version', '1');
       INSERT INTO behaviour_episodes (started_at, last_seen_at, condition, engine_version) VALUES (1, 1, 'comfortable', 'living-2.0');`);
     old.close();
-    const db = new AppDatabase(file);
+    const db = openDatabase(file);
     const ep = db.openEpisode();
     check('M1 v1 database upgraded: unobserved_ms added, old rows kept', ep?.unobservedMs === 0 && db.getMeta<number>('schema_version') === SCHEMA_VERSION);
     check('M2 old database gains the interactions table, empty', db.interactionCount() === 0 && db.getMeta<number>('schema_version') === SCHEMA_VERSION);
     check('M3 old database gains the outside_weather table, empty', db.latestOutsideWeather() === null && db.outsideWeatherSince(0).length === 0);
     check('M4 old database gains the devices table, empty', db.devices().length === 0);
+    const tree = db.tree();
+    check('M5 old database gains its tree, and keeps it', /^tree_[0-9a-f-]{36}$/.test(tree.id), tree.id);
+    db.close();
+    const again = openDatabase(file);
+    check('M5b reopened: the same tree, still one', again.tree().id === tree.id);
+    again.close();
+    for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
+  }
+
+  {
+    // A v7 database (devices, no trees): its devices belong to the tree it gains, and still push
+    const file = path.join(os.tmpdir(), `appbonsai-migrate-v7-${Date.now()}.db`);
+    const old = new DatabaseSync(file);
+    old.exec(`CREATE TABLE devices (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL, label TEXT, created_at INTEGER NOT NULL, last_seen_at INTEGER, firmware TEXT, boot TEXT, last_seq INTEGER);
+      CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO meta VALUES ('schema_version', '7');
+      INSERT INTO devices (id, token_hash, label, created_at) VALUES ('old-esp32', '${'0'.repeat(64)}', 'balcony', 1);`);
+    old.close();
+    const db = openDatabase(file);
+    const d = db.getDevice('old-esp32');
+    check('M6 v7 database: its device is linked to the new tree, nothing else changed', d?.treeId === db.tree().id && d.label === 'balcony' && db.getMeta<number>('schema_version') === SCHEMA_VERSION, JSON.stringify(d));
     db.close();
     for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
   }

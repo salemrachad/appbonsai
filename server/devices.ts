@@ -12,11 +12,12 @@ const hashToken = (token: string) => createHash('sha256').update(token).digest('
 
 const newToken = () => randomBytes(24).toString('base64url');
 
-// Returns the token (the only time it exists in clear), or null if the id is taken or invalid
+// Adds it to this database's tree. Returns the token (the only time it exists in clear), or null if the id is
+// taken or invalid
 export function addDevice(db: AppDatabase, id: string, label: string | null, now = Date.now()): string | null {
   if (!isDeviceId(id)) return null;
   const token = newToken();
-  return db.insertDevice({ id, tokenHash: hashToken(token), label, createdAt: now }) ? token : null;
+  return db.insertDevice({ id, treeId: db.tree().id, tokenHash: hashToken(token), label, createdAt: now }) ? token : null;
 }
 
 // A new token for a device (the old one stops working at once)
@@ -25,12 +26,13 @@ export function rotateDeviceToken(db: AppDatabase, id: string): string | null {
   return db.setDeviceToken(id, hashToken(token)) ? token : null;
 }
 
-// "Authorization: Bearer <token>" for this device id. Unknown device and wrong token look the same.
+// "Authorization: Bearer <token>" for this device id, which must measure this tree. Unknown device, another
+// tree's device and wrong token all look the same.
 export function authenticateDevice(db: AppDatabase, id: unknown, authorization: string | undefined): DeviceRecord | null {
   if (!isDeviceId(id)) return null;
   const token = /^Bearer\s+(\S+)$/i.exec(authorization ?? '')?.[1];
   const device = db.getDevice(id);
-  if (!token || !device) return null;
+  if (!token || !device || device.treeId !== db.tree().id) return null;
   const a = Buffer.from(hashToken(token), 'hex');
   const b = Buffer.from(device.tokenHash, 'hex');
   return a.length === b.length && timingSafeEqual(a, b) ? device : null;

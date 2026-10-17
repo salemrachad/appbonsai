@@ -1,7 +1,8 @@
 // Shared test bench for the scenario scripts: the real LivingCollector with an in-memory SQLite DB,
 // the real normalizer and engines, a fake ESP32 and a simulated clock.
 import { LivingCollector } from '../server/collector';
-import { AppDatabase } from '../server/database';
+import type { AppDatabase } from '../server/database';
+import { openDatabase } from '../server/nodeSqlite';
 import { addDevice } from '../server/devices';
 import { handleIngest } from '../server/ingest';
 import { DEFAULT_SETTINGS, TreeSettings } from '../src/settings/settings';
@@ -44,7 +45,7 @@ export class Bench {
   hikeDays: DayForecast[] = [];
   collector!: LivingCollector;
   logs: string[] = [];
-  constructor(public db = new AppDatabase(':memory:')) {
+  constructor(public db: AppDatabase = openDatabase(':memory:')) {
     const settings: TreeSettings = {
       ...DEFAULT_SETTINGS,
       dataSource: 'esp32_sensor',

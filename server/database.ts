@@ -1,15 +1,27 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import type { BehaviourEpisode, HourlyBucket, Interaction, InteractionKind, PlantEvent, PlantEventType, TelemetryRecord } from '../src/history/historyTypes';
 import type { HealthCondition, Severity } from '../src/health/healthTypes';
 import type { OutsideObservation } from '../src/telemetry/outsideWeather';
 import { MIGRATIONS, SCHEMA_SQL, SCHEMA_VERSION } from './schema';
 
-// Thin data-access layer over node:sqlite (built into Node 22.5+, no native build step).
-// Plain SQL, no ORM.
+// Thin data-access layer: plain SQLite SQL, no ORM, over a driver. On the laptop the driver is node:sqlite
+// (nodeSqlite.ts); in a Cloudflare Durable Object it will be the object's own SQLite (ctx.storage.sql), which
+// is also synchronous. So nothing here may import a Node module, and the SQL sticks to what both run:
+// RETURNING instead of the driver's changes / lastInsertRowid, no transactions, no PRAGMA except table_info.
 
-type Row = Record<string, any>;
+export type Row = Record<string, any>;
+export type SqlValue = null | number | bigint | string;
+
+export interface SqlDriver {
+  readonly path: string; // where the data lives, for status pages
+  exec(sql: string): void; // several statements, no parameters (the schema)
+  all(sql: string, ...params: SqlValue[]): Row[]; // one statement; writes return their RETURNING rows
+  close(): void;
+}
+
+export interface TreeRecord {
+  id: string;
+  createdAt: number;
+}
 const json = <T>(s: string | null | undefined, fallback: T): T => {
   try {
     return s ? (JSON.parse(s) as T) : fallback;
@@ -86,6 +98,7 @@ const toEpisode = (r: Row): BehaviourEpisode => ({
 
 export interface DeviceRecord {
   id: string;
+  treeId: string | null; // the tree it measures (a replaced device keeps the tree's history)
   tokenHash: string;
   label: string | null;
   createdAt: number;
@@ -97,6 +110,7 @@ export interface DeviceRecord {
 
 const toDevice = (r: Row): DeviceRecord => ({
   id: r.id,
+  treeId: r.tree_id ?? null,
   tokenHash: r.token_hash,
   label: r.label,
   createdAt: r.created_at,
@@ -107,26 +121,21 @@ const toDevice = (r: Row): DeviceRecord => ({
 });
 
 export class AppDatabase {
-  readonly db: DatabaseSync;
-  readonly path: string;
-  private statements = new Map<string, StatementSync>();
-
-  // Compile each SQL statement once and reuse it (prepare() on every call was a noticeable share of a poll)
-  private prepare(sql: string): StatementSync {
-    let st = this.statements.get(sql);
-    if (!st) this.statements.set(sql, (st = this.db.prepare(sql)));
-    return st;
+  constructor(private sql: SqlDriver) {
+    sql.exec(SCHEMA_SQL);
+    this.migrate();
+    this.ensureTree();
   }
 
-  // ':memory:' gives a throwaway database (scenario tests).
-  constructor(dbPath: string) {
-    const memory = dbPath === ':memory:';
-    this.path = memory ? dbPath : path.resolve(dbPath);
-    if (!memory) fs.mkdirSync(path.dirname(this.path), { recursive: true });
-    this.db = new DatabaseSync(this.path);
-    this.db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;');
-    this.db.exec(SCHEMA_SQL);
-    this.migrate();
+  get path(): string {
+    return this.sql.path;
+  }
+
+  private all(sql: string, ...params: SqlValue[]): Row[] {
+    return this.sql.all(sql, ...params);
+  }
+  private get(sql: string, ...params: SqlValue[]): Row | undefined {
+    return this.sql.all(sql, ...params)[0];
   }
 
   // Bring an older database up to SCHEMA_VERSION. Each step is skipped if already applied.
@@ -136,34 +145,45 @@ export class AppDatabase {
       // Column checks run regardless of the stored version: the version number alone can be wrong
       // (e.g. a half-applied upgrade), the actual table shape can't
       if (m.version <= current && !m.check) continue;
-      const has = m.check && (this.db.prepare(`PRAGMA table_info(${m.check.table})`).all() as Row[]).some((c) => c.name === m.check!.column);
-      if (!has) this.db.exec(m.sql);
+      const has = m.check && this.all(`PRAGMA table_info(${m.check.table})`).some((c) => c.name === m.check!.column);
+      if (!has) this.sql.exec(m.sql);
     }
     this.setMeta('schema_version', SCHEMA_VERSION);
   }
 
+  // A database holds one tree (later: one Durable Object per tree). It gets its id when the database is made;
+  // devices from before trees existed belong to it.
+  private ensureTree() {
+    if (!this.get('SELECT id FROM trees LIMIT 1')) this.all('INSERT INTO trees (id, created_at) VALUES (?, ?)', `tree_${crypto.randomUUID()}`, Date.now());
+    this.all('UPDATE devices SET tree_id = (SELECT id FROM trees ORDER BY created_at LIMIT 1) WHERE tree_id IS NULL');
+  }
+
   close() {
-    this.db.close();
+    this.sql.close();
+  }
+
+  // ---- the tree (its name, species and location are its settings, in meta) ----
+  tree(): TreeRecord {
+    const r = this.get('SELECT id, created_at FROM trees ORDER BY created_at LIMIT 1')!;
+    return { id: r.id, createdAt: r.created_at };
   }
 
   // ---- meta ----
   getMeta<T>(key: string): T | null {
-    const r = this.prepare('SELECT value FROM meta WHERE key = ?').get(key) as Row | undefined;
+    const r = this.get('SELECT value FROM meta WHERE key = ?', key);
     return r ? json<T | null>(r.value, null) : null;
   }
   setMeta(key: string, value: unknown) {
-    this.prepare('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, JSON.stringify(value));
+    this.all('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
   }
 
   // ---- telemetry ----
   insertTelemetry(t: Omit<TelemetryRecord, 'id'>, rawJson: unknown): number | null {
-    const res = this.prepare(
+    const r = this.get(
         `INSERT OR IGNORE INTO telemetry
          (timestamp, source, device_id, soil_moisture, api_soil_moisture, soil_raw, temperature, humidity,
           light_percent, light_raw, radiation, wifi_rssi, data_quality, raw_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         t.timestamp,
         t.source,
         t.deviceId,
@@ -179,32 +199,33 @@ export class AppDatabase {
         t.dataQuality,
         rawJson === undefined ? null : JSON.stringify(rawJson)
       );
-    return res.changes > 0 ? Number(res.lastInsertRowid) : null;
+    return r ? Number(r.id) : null;
   }
 
   telemetrySince(source: string | null, since: number, until = Number.MAX_SAFE_INTEGER): TelemetryRecord[] {
     const rows = source
-      ? this.prepare(`SELECT ${TELEMETRY_COLUMNS} FROM telemetry WHERE source = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp`).all(source, since, until)
-      : this.prepare(`SELECT ${TELEMETRY_COLUMNS} FROM telemetry WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp`).all(since, until);
-    return (rows as Row[]).map(toTelemetry);
+      ? this.all(`SELECT ${TELEMETRY_COLUMNS} FROM telemetry WHERE source = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp`, source, since, until)
+      : this.all(`SELECT ${TELEMETRY_COLUMNS} FROM telemetry WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp`, since, until);
+    return rows.map(toTelemetry);
   }
 
   latestTelemetry(source: string | null, limit: number): TelemetryRecord[] {
     const rows = source
-      ? this.prepare(`SELECT ${TELEMETRY_COLUMNS} FROM telemetry WHERE source = ? ORDER BY timestamp DESC LIMIT ?`).all(source, limit)
-      : this.prepare(`SELECT ${TELEMETRY_COLUMNS} FROM telemetry ORDER BY timestamp DESC LIMIT ?`).all(limit);
-    return (rows as Row[]).map(toTelemetry);
+      ? this.all(`SELECT ${TELEMETRY_COLUMNS} FROM telemetry WHERE source = ? ORDER BY timestamp DESC LIMIT ?`, source, limit)
+      : this.all(`SELECT ${TELEMETRY_COLUMNS} FROM telemetry ORDER BY timestamp DESC LIMIT ?`, limit);
+    return rows.map(toTelemetry);
   }
 
   hourlyBuckets(source: string, since: number): HourlyBucket[] {
-    const rows = this.prepare(
+    const rows = this.all(
         `SELECT (timestamp / 3600000) * 3600000 AS hour_start, COUNT(*) AS n,
                 AVG(soil_moisture) AS soil, MIN(soil_moisture) AS min_soil, AVG(temperature) AS temp,
                 AVG(humidity) AS hum, AVG(COALESCE(light_percent, radiation)) AS light
          FROM telemetry WHERE source = ? AND timestamp >= ?
-         GROUP BY hour_start ORDER BY hour_start`
-      )
-      .all(source, since) as Row[];
+         GROUP BY hour_start ORDER BY hour_start`,
+        source,
+        since
+      );
     const r1 = (v: number | null) => (v === null ? null : Math.round(v * 10) / 10);
     return rows.map((r) => ({
       hourStart: r.hour_start,
@@ -218,31 +239,30 @@ export class AppDatabase {
   }
 
   telemetryStats(): { count: number; oldest: number | null } {
-    const r = this.prepare('SELECT COUNT(*) AS n, MIN(timestamp) AS oldest FROM telemetry').get() as Row;
+    const r = this.get('SELECT COUNT(*) AS n, MIN(timestamp) AS oldest FROM telemetry')!;
     return { count: r.n, oldest: r.oldest };
   }
 
   // ---- plant events ----
   insertEvent(e: { timestamp: number; type: PlantEventType; note: string | null; metadata: object }): PlantEvent | null {
-    const res = this.prepare('INSERT OR IGNORE INTO plant_events (timestamp, type, note, metadata_json) VALUES (?, ?, ?, ?)')
-      .run(e.timestamp, e.type, e.note, JSON.stringify(e.metadata ?? {}));
-    return res.changes > 0 ? this.getEvent(Number(res.lastInsertRowid)) : null;
+    const r = this.get('INSERT OR IGNORE INTO plant_events (timestamp, type, note, metadata_json) VALUES (?, ?, ?, ?) RETURNING *', e.timestamp, e.type, e.note, JSON.stringify(e.metadata ?? {}));
+    return r ? toEvent(r) : null;
   }
   getEvent(id: number): PlantEvent | null {
-    const r = this.prepare('SELECT * FROM plant_events WHERE id = ?').get(id) as Row | undefined;
+    const r = this.get('SELECT * FROM plant_events WHERE id = ?', id);
     return r ? toEvent(r) : null;
   }
   updateEvent(id: number, note: string | null, metadata: object) {
-    this.prepare('UPDATE plant_events SET note = ?, metadata_json = ? WHERE id = ?').run(note, JSON.stringify(metadata), id);
+    this.all('UPDATE plant_events SET note = ?, metadata_json = ? WHERE id = ?', note, JSON.stringify(metadata), id);
   }
   deleteEvent(id: number): boolean {
-    return this.prepare('DELETE FROM plant_events WHERE id = ?').run(id).changes > 0;
+    return this.all('DELETE FROM plant_events WHERE id = ? RETURNING id', id).length > 0;
   }
   eventsSince(since: number, limit = 1000): PlantEvent[] {
-    return (this.prepare('SELECT * FROM plant_events WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?').all(since, limit) as Row[]).map(toEvent);
+    return this.all('SELECT * FROM plant_events WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?', since, limit).map(toEvent);
   }
   eventCount(): number {
-    return (this.prepare('SELECT COUNT(*) AS n FROM plant_events').get() as Row).n;
+    return this.get('SELECT COUNT(*) AS n FROM plant_events')!.n;
   }
 
   // ---- interactions (attention, not care) ----
@@ -254,52 +274,58 @@ export class AppDatabase {
     mergeMs: number,
     allowNew = true
   ): { interaction: Interaction; merged: boolean } | null {
-    const prev = this.prepare('SELECT * FROM interactions WHERE kind = ? AND ended_at >= ? AND started_at <= ? ORDER BY ended_at DESC LIMIT 1')
-      .get(i.kind, i.startedAt - mergeMs, i.endedAt) as Row | undefined;
+    const prev = this.get('SELECT * FROM interactions WHERE kind = ? AND ended_at >= ? AND started_at <= ? ORDER BY ended_at DESC LIMIT 1', i.kind, i.startedAt - mergeMs, i.endedAt);
     if (prev) {
       const meta = json<Record<string, unknown>>(prev.metadata_json, {});
       const activeMs = (Number(meta.activeMs) || 0) + i.activeMs;
-      this.prepare('UPDATE interactions SET started_at = MIN(started_at, ?), ended_at = MAX(ended_at, ?), count = count + ?, metadata_json = ? WHERE id = ?')
-        .run(i.startedAt, i.endedAt, i.count, JSON.stringify({ ...meta, activeMs }), prev.id);
-      return { interaction: toInteraction(this.prepare('SELECT * FROM interactions WHERE id = ?').get(prev.id) as Row), merged: true };
+      const r = this.get(
+        'UPDATE interactions SET started_at = MIN(started_at, ?), ended_at = MAX(ended_at, ?), count = count + ?, metadata_json = ? WHERE id = ? RETURNING *',
+        i.startedAt,
+        i.endedAt,
+        i.count,
+        JSON.stringify({ ...meta, activeMs }),
+        prev.id
+      )!;
+      return { interaction: toInteraction(r), merged: true };
     }
     if (!allowNew) return null;
-    const res = this.prepare('INSERT INTO interactions (kind, started_at, ended_at, count, metadata_json) VALUES (?, ?, ?, ?, ?)')
-      .run(i.kind, i.startedAt, i.endedAt, i.count, JSON.stringify({ activeMs: i.activeMs }));
-    return { interaction: toInteraction(this.prepare('SELECT * FROM interactions WHERE id = ?').get(Number(res.lastInsertRowid)) as Row), merged: false };
+    const r = this.get('INSERT INTO interactions (kind, started_at, ended_at, count, metadata_json) VALUES (?, ?, ?, ?, ?) RETURNING *', i.kind, i.startedAt, i.endedAt, i.count, JSON.stringify({ activeMs: i.activeMs }))!;
+    return { interaction: toInteraction(r), merged: false };
   }
   interactionsSince(since: number, kind?: InteractionKind): Interaction[] {
     const rows = kind
-      ? this.prepare('SELECT * FROM interactions WHERE kind = ? AND ended_at >= ? ORDER BY started_at DESC').all(kind, since)
-      : this.prepare('SELECT * FROM interactions WHERE ended_at >= ? ORDER BY started_at DESC').all(since);
-    return (rows as Row[]).map(toInteraction);
+      ? this.all('SELECT * FROM interactions WHERE kind = ? AND ended_at >= ? ORDER BY started_at DESC', kind, since)
+      : this.all('SELECT * FROM interactions WHERE ended_at >= ? ORDER BY started_at DESC', since);
+    return rows.map(toInteraction);
   }
   interactionCount(): number {
-    return (this.prepare('SELECT COUNT(*) AS n FROM interactions').get() as Row).n;
+    return this.get('SELECT COUNT(*) AS n FROM interactions')!.n;
   }
 
   // ---- outside weather (context only) ----
   insertOutsideWeather(o: OutsideObservation, raw: unknown) {
-    this.prepare(
-        'INSERT INTO outside_weather (timestamp, sky, code, temperature, humidity, precipitation, cloud_cover, wind, gusts, is_day, sunrise_at, sunset_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-      .run(o.at, o.sky, o.code, o.temperature, o.humidity, o.precipitation, o.cloudCover, o.wind, o.gusts, o.isDay === null ? null : o.isDay ? 1 : 0, o.sunrise ?? null, o.sunset ?? null, raw === undefined ? null : JSON.stringify(raw));
+    this.all(
+      'INSERT INTO outside_weather (timestamp, sky, code, temperature, humidity, precipitation, cloud_cover, wind, gusts, is_day, sunrise_at, sunset_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      o.at, o.sky, o.code, o.temperature, o.humidity, o.precipitation, o.cloudCover, o.wind, o.gusts, o.isDay === null ? null : o.isDay ? 1 : 0, o.sunrise ?? null, o.sunset ?? null, raw === undefined ? null : JSON.stringify(raw)
+    );
   }
   latestOutsideWeather(): OutsideObservation | null {
-    const r = this.prepare(`SELECT ${OUTSIDE_COLUMNS} FROM outside_weather ORDER BY timestamp DESC LIMIT 1`).get() as Row | undefined;
+    const r = this.get(`SELECT ${OUTSIDE_COLUMNS} FROM outside_weather ORDER BY timestamp DESC LIMIT 1`);
     return r ? toOutside(r) : null;
   }
   outsideWeatherSince(since: number): OutsideObservation[] {
-    return (this.prepare(`SELECT ${OUTSIDE_COLUMNS} FROM outside_weather WHERE timestamp >= ? ORDER BY timestamp ASC`).all(since) as Row[]).map(toOutside);
+    return this.all(`SELECT ${OUTSIDE_COLUMNS} FROM outside_weather WHERE timestamp >= ? ORDER BY timestamp ASC`, since).map(toOutside);
   }
 
   // ---- calibration history ----
   insertCalibrationHistory(e: { timestamp: number; sensor: string; old: unknown; next: unknown; note: string | null }) {
-    this.prepare('INSERT INTO calibration_history (timestamp, sensor, old_json, new_json, note) VALUES (?, ?, ?, ?, ?)')
-      .run(e.timestamp, e.sensor, e.old == null ? null : JSON.stringify(e.old), e.next == null ? null : JSON.stringify(e.next), e.note);
+    this.all(
+      'INSERT INTO calibration_history (timestamp, sensor, old_json, new_json, note) VALUES (?, ?, ?, ?, ?)',
+      e.timestamp, e.sensor, e.old == null ? null : JSON.stringify(e.old), e.next == null ? null : JSON.stringify(e.next), e.note
+    );
   }
   calibrationHistory(limit = 20): { id: number; timestamp: number; sensor: string; old: unknown; next: unknown; note: string | null }[] {
-    return (this.prepare('SELECT * FROM calibration_history ORDER BY timestamp DESC, id DESC LIMIT ?').all(limit) as Row[]).map((r) => ({
+    return this.all('SELECT * FROM calibration_history ORDER BY timestamp DESC, id DESC LIMIT ?', limit).map((r) => ({
       id: r.id,
       timestamp: r.timestamp,
       sensor: r.sensor,
@@ -310,62 +336,61 @@ export class AppDatabase {
   }
 
   // ---- devices (ESP32s that push) ----
-  insertDevice(d: { id: string; tokenHash: string; label: string | null; createdAt: number }): boolean {
-    return this.prepare('INSERT OR IGNORE INTO devices (id, token_hash, label, created_at) VALUES (?, ?, ?, ?)').run(d.id, d.tokenHash, d.label, d.createdAt).changes > 0;
+  insertDevice(d: { id: string; treeId: string; tokenHash: string; label: string | null; createdAt: number }): boolean {
+    return this.all('INSERT OR IGNORE INTO devices (id, tree_id, token_hash, label, created_at) VALUES (?, ?, ?, ?, ?) RETURNING id', d.id, d.treeId, d.tokenHash, d.label, d.createdAt).length > 0;
   }
   getDevice(id: string): DeviceRecord | null {
-    const r = this.prepare('SELECT * FROM devices WHERE id = ?').get(id) as Row | undefined;
+    const r = this.get('SELECT * FROM devices WHERE id = ?', id);
     return r ? toDevice(r) : null;
   }
   devices(): DeviceRecord[] {
-    return (this.prepare('SELECT * FROM devices ORDER BY created_at').all() as Row[]).map(toDevice);
+    return this.all('SELECT * FROM devices ORDER BY created_at').map(toDevice);
   }
   touchDevice(id: string, d: { lastSeenAt: number; firmware: string | null; boot: string | null; lastSeq: number | null }) {
-    this.prepare('UPDATE devices SET last_seen_at = ?, firmware = COALESCE(?, firmware), boot = ?, last_seq = ? WHERE id = ?').run(d.lastSeenAt, d.firmware, d.boot, d.lastSeq, id);
+    this.all('UPDATE devices SET last_seen_at = ?, firmware = COALESCE(?, firmware), boot = ?, last_seq = ? WHERE id = ?', d.lastSeenAt, d.firmware, d.boot, d.lastSeq, id);
   }
   setDeviceToken(id: string, tokenHash: string): boolean {
-    return this.prepare('UPDATE devices SET token_hash = ?, boot = NULL, last_seq = NULL WHERE id = ?').run(tokenHash, id).changes > 0;
+    return this.all('UPDATE devices SET token_hash = ?, boot = NULL, last_seq = NULL WHERE id = ? RETURNING id', tokenHash, id).length > 0;
   }
   deleteDevice(id: string): boolean {
-    return this.prepare('DELETE FROM devices WHERE id = ?').run(id).changes > 0;
+    return this.all('DELETE FROM devices WHERE id = ? RETURNING id', id).length > 0;
   }
 
   // ---- behaviour episodes ----
   openEpisode(): BehaviourEpisode | null {
-    const r = this.prepare('SELECT * FROM behaviour_episodes WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1').get() as Row | undefined;
+    const r = this.get('SELECT * FROM behaviour_episodes WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1');
     return r ? toEpisode(r) : null;
   }
   insertEpisode(e: { startedAt: number; condition: HealthCondition; modifiers: HealthCondition[]; peakSeverity: Severity; engineVersion: string }): BehaviourEpisode {
-    const res = this.prepare(
-        'INSERT INTO behaviour_episodes (started_at, ended_at, last_seen_at, condition, modifiers_json, peak_severity, engine_version) VALUES (?, NULL, ?, ?, ?, ?, ?)'
-      )
-      .run(e.startedAt, e.startedAt, e.condition, JSON.stringify(e.modifiers), e.peakSeverity, e.engineVersion);
-    return toEpisode(this.prepare('SELECT * FROM behaviour_episodes WHERE id = ?').get(Number(res.lastInsertRowid)) as Row);
+    const r = this.get(
+      'INSERT INTO behaviour_episodes (started_at, ended_at, last_seen_at, condition, modifiers_json, peak_severity, engine_version) VALUES (?, NULL, ?, ?, ?, ?, ?) RETURNING *',
+      e.startedAt, e.startedAt, e.condition, JSON.stringify(e.modifiers), e.peakSeverity, e.engineVersion
+    )!;
+    return toEpisode(r);
   }
   touchEpisode(id: number, lastSeenAt: number, modifiers: HealthCondition[], peakSeverity: Severity, addUnobservedMs = 0) {
-    this.prepare('UPDATE behaviour_episodes SET last_seen_at = ?, modifiers_json = ?, peak_severity = ?, unobserved_ms = unobserved_ms + ? WHERE id = ?')
-      .run(lastSeenAt, JSON.stringify(modifiers), peakSeverity, Math.round(addUnobservedMs), id);
+    this.all(
+      'UPDATE behaviour_episodes SET last_seen_at = ?, modifiers_json = ?, peak_severity = ?, unobserved_ms = unobserved_ms + ? WHERE id = ?',
+      lastSeenAt, JSON.stringify(modifiers), peakSeverity, Math.round(addUnobservedMs), id
+    );
   }
   deleteEpisode(id: number) {
-    this.prepare('DELETE FROM behaviour_episodes WHERE id = ?').run(id);
+    this.all('DELETE FROM behaviour_episodes WHERE id = ?', id);
   }
   reopenEpisode(id: number) {
-    this.prepare('UPDATE behaviour_episodes SET ended_at = NULL WHERE id = ?').run(id);
+    this.all('UPDATE behaviour_episodes SET ended_at = NULL WHERE id = ?', id);
   }
   lastClosedEpisode(): BehaviourEpisode | null {
-    const r = this.prepare('SELECT * FROM behaviour_episodes WHERE ended_at IS NOT NULL ORDER BY ended_at DESC LIMIT 1').get() as Row | undefined;
+    const r = this.get('SELECT * FROM behaviour_episodes WHERE ended_at IS NOT NULL ORDER BY ended_at DESC LIMIT 1');
     return r ? toEpisode(r) : null;
   }
   closeEpisode(id: number, endedAt: number) {
-    this.prepare('UPDATE behaviour_episodes SET ended_at = ?, last_seen_at = MAX(last_seen_at, ?) WHERE id = ?').run(endedAt, endedAt, id);
+    this.all('UPDATE behaviour_episodes SET ended_at = ?, last_seen_at = MAX(last_seen_at, ?) WHERE id = ?', endedAt, endedAt, id);
   }
   episodesSince(since: number): BehaviourEpisode[] {
-    return (
-      this.prepare('SELECT * FROM behaviour_episodes WHERE COALESCE(ended_at, last_seen_at) >= ? ORDER BY started_at DESC')
-        .all(since) as Row[]
-    ).map(toEpisode);
+    return this.all('SELECT * FROM behaviour_episodes WHERE COALESCE(ended_at, last_seen_at) >= ? ORDER BY started_at DESC', since).map(toEpisode);
   }
   episodeCount(): number {
-    return (this.prepare('SELECT COUNT(*) AS n FROM behaviour_episodes').get() as Row).n;
+    return this.get('SELECT COUNT(*) AS n FROM behaviour_episodes')!.n;
   }
 }

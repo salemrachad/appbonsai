@@ -1,5 +1,5 @@
 import { APP_CONFIG } from '../src/config/appConfig';
-import { AppDatabase } from './database';
+import { openDatabase } from './nodeSqlite';
 import { addDevice, rotateDeviceToken } from './devices';
 
 // npm run device -- add <id> [label] | token <id> | list | remove <id>     (--local-dev: the dev database)
@@ -7,11 +7,11 @@ import { addDevice, rotateDeviceToken } from './devices';
 // Safe while the server runs (SQLite WAL); the server sees a new device at its next push.
 const args = process.argv.slice(2).filter((a) => a !== '--local-dev');
 const localDev = process.argv.includes('--local-dev') || process.env.APPBONSAI_MODE === 'local-dev';
-const db = new AppDatabase(process.env.APPBONSAI_DB ?? (localDev ? APP_CONFIG.server.devDbPath : APP_CONFIG.server.dbPath));
+const db = openDatabase(process.env.APPBONSAI_DB ?? (localDev ? APP_CONFIG.server.devDbPath : APP_CONFIG.server.dbPath));
 const [cmd, id, ...rest] = args;
 const t = (ms: number | null) => (ms ? new Date(ms).toLocaleString() : '–');
 
-console.log(`database ${db.path}\n`);
+console.log(`database ${db.path} · tree ${db.tree().id}\n`);
 if (cmd === 'add' && id) {
   const token = addDevice(db, id, rest.join(' ') || null);
   if (!token) {

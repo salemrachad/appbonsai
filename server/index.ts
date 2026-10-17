@@ -8,7 +8,7 @@ import { APP_CONFIG } from '../src/config/appConfig';
 import { CalibrationService } from './calibration';
 import { LivingCollector } from './collector';
 import { corsForLocalNetwork } from './cors';
-import { AppDatabase } from './database';
+import { openDatabase } from './nodeSqlite';
 import { calibrationRoutes } from './routes/calibration';
 import { eventRoutes } from './routes/events';
 import { historyRoutes } from './routes/history';
@@ -36,7 +36,7 @@ const distDir = path.resolve(process.cwd(), 'dist');
 const servesApp = !localDev && process.env.APPBONSAI_SERVE_APP !== 'false' && existsSync(path.join(distDir, 'index.html'));
 
 const startedAt = Date.now();
-const db = new AppDatabase(dbPath);
+const db = openDatabase(dbPath);
 const collector = new LivingCollector(db);
 const calibration = new CalibrationService(db, collector);
 const backend: BackendInfo = { mode, hostname: hostname(), host, port, dbPath: db.path, collector: 'this server', servesApp };
