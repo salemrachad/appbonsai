@@ -38,11 +38,45 @@ For now: one prototype, one account, one tree. The design must still allow for m
    due: the Durable Object's alarm. A cold start still reads the last 24 h of readings (~1,440 rows); with a push
    every minute the object mostly stays loaded, so that happens rarely. If it shows up in the read quota, keep the
    samples in the saved state instead.
-4. **Worker + Durable Object** running that step, the app served as static assets, Cloudflare Access in front. The
+4. **Worker + Durable Object** (built 2026-10-18, see "On Cloudflare" below). Originally: running that step, the
+   app served as static assets, Cloudflare Access in front. The
    ESP32's server URL changes to the Worker (HTTPS).
 
 Later (product): accounts and "add plant" with the barcode claim, Bluetooth Wi-Fi setup, OTA firmware updates,
 notifications, a capacitive soil probe (the FC-28 corrodes), more species.
+
+## On Cloudflare
+
+- **`worker/index.ts`**:
+  - **The front Worker** checks a password (HTTP Basic, the secret `APP_PASSWORD`; any user name), except for
+    `/api/ingest`, which has its device token. It then hands `/api/*` to the tree's Durable Object and the page to
+    the static assets (`dist/`). The hashed `/assets/*` files skip it (`run_worker_first` in `wrangler.jsonc`).
+    Without the secret it answers 503, so a fresh deploy exposes nothing.
+  - **`TreeObject`** (one per tree, `idFromName('ficus')` for now) holds its own SQLite through
+    `server/durableSqlite.ts`, the collector, and the same Express routes as the laptop (`server/app.ts`). The routes
+    run on a `node:http` server inside the isolate (`handleAsNodeRequest`). Its alarm is the collector's timer
+    (`nextWakeAt()` → `wake()`), and it waits for `collector.settled()` before answering. `/api/stream` is off there:
+    an open stream keeps the object awake and billed, so the browser polls `/api/current` with its ETag.
+- **Decided 2026-10-18: a password instead of Cloudflare Access for now.** It needs no Zero Trust setup and no
+  bypass rule for the ESP32. Accounts come with the product.
+- **Express in the Worker:** `express.json()` is replaced by a small JSON reader (`server/app.ts`). `iconv-lite`
+  (Express → body-parser) is aliased to `worker/shims/iconv-lite.ts`, because its bundled form fails to start in the
+  runtime.
+- **Commands:**
+  - `npm run cf:dev` runs the app, Worker and object locally on wrangler (password from the gitignored `.dev.vars`:
+    `APP_PASSWORD=...`; storage in `.wrangler/`).
+  - `npm run cf:deploy` builds and deploys.
+  - `npx wrangler secret put APP_PASSWORD` sets the password.
+  - `npm run cf:types` regenerates `worker/worker-configuration.d.ts` after a change to `wrangler.jsonc`.
+  - `npm run lint` also type-checks the Worker (`worker/tsconfig.json`).
+- **Setting up a new tree:** `PUT /api/config` with the settings (`dataSource: esp32_sensor`,
+  `esp32Transport: push`), then `POST /api/devices {id, label, token}` with the token the ESP32 already has. The
+  ESP32 then only needs its server address changed at `http://<device>/settings`.
+- **Checked locally (wrangler dev):**
+  - the password works on the page and the API, and assets stay public;
+  - a firmware-shaped push is accepted, a retry is dropped, a wrong token gets 401;
+  - after a restart (the object unloaded) the state is back without a new evaluation;
+  - the alarm notices a missing push on its own (90 s).
 
 ## Push protocol v1
 

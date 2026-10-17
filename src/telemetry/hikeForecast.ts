@@ -46,7 +46,7 @@ export async function fetchHikeForecast(settings: TreeSettings, now = Date.now()
     '&hourly=weather_code,temperature_2m,precipitation_probability,precipitation,wind_gusts_10m,uv_index&forecast_days=14&timezone=auto';
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Open-Meteo responded with status ${response.status}`);
-  const json = await response.json();
+  const json: any = await response.json(); // Open-Meteo JSON, read field by field below
   const d = json?.daily ?? {};
   // Hourly values grouped by their local date ("2026-10-18T08:00")
   const h = json?.hourly ?? {};

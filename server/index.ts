@@ -5,17 +5,10 @@ import { hostname } from 'node:os';
 import path from 'node:path';
 import type { BackendInfo } from '../src/api/types';
 import { APP_CONFIG } from '../src/config/appConfig';
-import { CalibrationService } from './calibration';
+import { apiApp } from './app';
 import { LivingCollector } from './collector';
 import { corsForLocalNetwork } from './cors';
 import { openDatabase } from './nodeSqlite';
-import { calibrationRoutes } from './routes/calibration';
-import { eventRoutes } from './routes/events';
-import { historyRoutes } from './routes/history';
-import { ingestRoutes } from './routes/ingest';
-import { interactionRoutes } from './routes/interactions';
-import { statusRoutes } from './routes/status';
-import { telemetryRoutes } from './routes/telemetry';
 
 // The Appbonsai server: polls the ESP32, stores everything in SQLite, runs the living loop
 // (perception → health → behaviour → expression) and serves it on /api (and the built app on /).
@@ -38,22 +31,12 @@ const servesApp = !localDev && process.env.APPBONSAI_SERVE_APP !== 'false' && ex
 const startedAt = Date.now();
 const db = openDatabase(dbPath);
 const collector = new LivingCollector(db);
-const calibration = new CalibrationService(db, collector);
 const backend: BackendInfo = { mode, hostname: hostname(), host, port, dbPath: db.path, collector: 'this server', servesApp };
 
 const app = express();
 app.use(compression()); // gzip: the bundle and /api/current are ~4× smaller on the phone
 app.use('/api', corsForLocalNetwork((process.env.APPBONSAI_CORS_ORIGINS ?? '').split(',')));
-app.use(express.json({ limit: '5mb' })); // browser history import can be a few MB
-
-app.use('/api', statusRoutes(db, collector, startedAt, backend));
-app.use('/api/events', eventRoutes(db, collector));
-app.use('/api/interactions', interactionRoutes(db, collector));
-app.use('/api/calibration', calibrationRoutes(calibration));
-app.use('/api/history', historyRoutes(db, collector));
-app.use('/api/telemetry', telemetryRoutes(db, collector));
-app.use('/api/ingest', ingestRoutes(db, collector));
-app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route' }));
+app.use(apiApp(db, collector, { startedAt, backend }));
 
 // Production: the built frontend (npm run build) from the same server, so the app and its API share an origin
 if (servesApp) {

@@ -22,5 +22,7 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  // The Worker has its own (Workers runtime types, no DOM): worker/tsconfig.json
+  "exclude": ["node_modules", "dist", "worker"]
 }

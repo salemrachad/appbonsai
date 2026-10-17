@@ -7,6 +7,7 @@ import { Row, Section } from './debugUi';
 // Which backend the UI is talking to, so it's never unclear whose collector and database these are.
 export function describeBackend(remote: boolean, mode: BackendInfo['mode'] | undefined) {
   if (mode === 'local-dev') return { title: 'Local Development', tone: 'dev' as const, db: 'Separate development database (not the Pi)' };
+  if (mode === 'cloud') return { title: 'Cloudflare (the tree’s Durable Object)', tone: 'pi' as const, db: 'The tree’s own database on Cloudflare (authoritative)' };
   if (remote) return { title: 'Raspberry Pi / Remote', tone: 'pi' as const, db: 'The Pi’s production database (authoritative)' };
   if (mode === 'production') return { title: 'Production server (same origin)', tone: 'pi' as const, db: 'This server’s production database' };
   return { title: 'Unknown (server not reachable or too old)', tone: 'unknown' as const, db: 'Unknown' };

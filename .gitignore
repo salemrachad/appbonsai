@@ -15,3 +15,7 @@ coverage/
 
 # Claude Code worktrees (isolated working copies of this repo)
 /.claude/worktrees/
+
+# Cloudflare: wrangler state and local secrets (npm run cf:dev reads APP_PASSWORD from .dev.vars)
+/.wrangler/
+.dev.vars*

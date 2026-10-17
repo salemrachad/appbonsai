@@ -163,6 +163,19 @@ export class LivingCollector {
     this.arm();
   }
 
+  // Background jobs (a poll, the weather, the forecast) still running. A Durable Object waits for them before it
+  // answers or goes idle: it may be unloaded as soon as it has nothing left to do.
+  private jobs = new Set<Promise<unknown>>();
+  private track<T>(p: Promise<T>): Promise<T> {
+    this.jobs.add(p);
+    const done = () => this.jobs.delete(p);
+    p.then(done, done);
+    return p;
+  }
+  async settled(): Promise<void> {
+    while (this.jobs.size) await Promise.allSettled([...this.jobs]);
+  }
+
   // When the next job is due (a Durable Object's alarm time)
   nextWakeAt(): number {
     return Math.min(this.due.poll, this.due.weather, this.due.hike);
@@ -177,7 +190,10 @@ export class LivingCollector {
 
   // The daily forecast for the weekly hike pick: every few hours, about the people (never the tree).
   // A failure keeps the last forecast (the plan shows its age) and retries sooner.
-  async pollHikeForecast(): Promise<void> {
+  pollHikeForecast(): Promise<void> {
+    return this.track(this.fetchHikeForecast());
+  }
+  private async fetchHikeForecast(): Promise<void> {
     this.due.hike = Infinity; // set again below
     if (this.settings.latitude == null || this.settings.longitude == null) return;
     let ok = false;
@@ -214,7 +230,10 @@ export class LivingCollector {
 
   // Outside weather: its own cadence (15 min) in every data source mode, independent of the ESP32.
   // Context only. A failure keeps the last observation, which goes stale on its own (never invented).
-  async pollWeather(): Promise<void> {
+  pollWeather(): Promise<void> {
+    return this.track(this.fetchWeather());
+  }
+  private async fetchWeather(): Promise<void> {
     this.due.weather = this.now() + APP_CONFIG.polling.weatherMs;
     this.arm();
     if (this.settings.latitude == null || this.settings.longitude == null) return this.saveRuntime();
@@ -451,7 +470,7 @@ export class LivingCollector {
       this.repoll = true;
       return this.polling.then(() => this.polling ?? undefined);
     }
-    this.polling = this.poll().finally(() => {
+    this.polling = this.track(this.poll()).finally(() => {
       this.polling = null;
       if (this.repoll) {
         this.repoll = false;

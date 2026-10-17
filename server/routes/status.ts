@@ -22,7 +22,7 @@ export function serverStatus(db: AppDatabase, collector: LivingCollector, starte
 }
 
 // GET /api/status, /api/current, /api/health, /api/behaviour, /api/config; POST /api/refresh
-export function statusRoutes(db: AppDatabase, collector: LivingCollector, startedAt: number, backend?: BackendInfo): Router {
+export function statusRoutes(db: AppDatabase, collector: LivingCollector, startedAt: number, backend?: BackendInfo, opts: { stream?: boolean } = {}): Router {
   const r = Router();
   const snapshot = (): LivingSnapshot => ({ serverTime: Date.now(), status: serverStatus(db, collector, startedAt, backend), ...collector.snapshot() });
 
@@ -45,7 +45,8 @@ export function statusRoutes(db: AppDatabase, collector: LivingCollector, starte
   // The same state pushed as Server-Sent Events: sent on connect, then only when it changes (after each
   // evaluation, or found by the slow check, since status counters like petting sessions change without one).
   // The browser makes no polls and sees a new reading at once; /current stays as its fallback.
-  r.get('/stream', (req, res) => {
+  r.get('/stream', (req, res, next) => {
+    if (opts.stream === false) return next(); // → 404: the browser falls back to polling /current
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     let sent: string | null = null;
     // compression buffers otherwise: flush every write (its gzip dictionary spans events, so repeats cost little)

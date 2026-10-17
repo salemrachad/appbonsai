@@ -1,0 +1,19 @@
+{
+  // The Worker and what it bundles from server/ and src/, with the Workers runtime types instead of the DOM
+  // (worker-configuration.d.ts: npx wrangler types worker/worker-configuration.d.ts after changing wrangler.jsonc)
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"], // the shared src/ code is written for the browser too
+    "types": ["node"],
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "jsx": "react-jsx",
+    "noEmit": true
+  },
+  "include": ["index.ts", "worker-configuration.d.ts"]
+}

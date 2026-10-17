@@ -1,0 +1,24 @@
+// Appbonsai on Cloudflare (docs/HOSTING.md): npm run cf:deploy (builds dist/ first)
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "appbonsai",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  // node:http server inside the Durable Object (Express), node:crypto, Buffer
+  "compatibility_flags": ["nodejs_compat"],
+  // Express → body-parser → iconv-lite, whose bundled form fails to start in the runtime (worker/shims)
+  "alias": { "iconv-lite": "./worker/shims/iconv-lite.ts" },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // The Worker checks the password first for everything but the hashed bundle files
+    "run_worker_first": ["/*", "!/assets/*"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "TREE", "class_name": "TreeObject" }]
+  },
+  // One SQLite-backed Durable Object class (the free plan only has these)
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TreeObject"] }],
+  "observability": { "enabled": true }
+}

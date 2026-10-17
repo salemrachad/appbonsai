@@ -13,10 +13,9 @@ const hashToken = (token: string) => createHash('sha256').update(token).digest('
 const newToken = () => randomBytes(24).toString('base64url');
 
 // Adds it to this database's tree. Returns the token (the only time it exists in clear), or null if the id is
-// taken or invalid
-export function addDevice(db: AppDatabase, id: string, label: string | null, now = Date.now()): string | null {
+// taken or invalid. token: keep the one the device already has (moving it to another server).
+export function addDevice(db: AppDatabase, id: string, label: string | null, now = Date.now(), token = newToken()): string | null {
   if (!isDeviceId(id)) return null;
-  const token = newToken();
   return db.insertDevice({ id, treeId: db.tree().id, tokenHash: hashToken(token), label, createdAt: now }) ? token : null;
 }
 

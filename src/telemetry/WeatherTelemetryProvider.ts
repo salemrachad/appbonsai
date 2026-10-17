@@ -19,7 +19,7 @@ export class WeatherTelemetryProvider implements ITelemetryProvider {
     // No fallback data: if Open-Meteo is unreachable the caller shows "Offline".
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Open-Meteo responded with status ${response.status}`);
-    const data = await response.json();
+    const data: any = await response.json(); // Open-Meteo JSON, read field by field below
 
     const currentRaw = data.current || {};
     const hourlyRaw = data.hourly || {};

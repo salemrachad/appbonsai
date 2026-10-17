@@ -79,7 +79,7 @@ export async function fetchOutsideWeather(settings: TreeSettings, now = Date.now
     '&current=weather_code,temperature_2m,relative_humidity_2m,precipitation,cloud_cover,wind_speed_10m,wind_gusts_10m,is_day&daily=sunrise,sunset&forecast_days=1&timezone=auto';
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Open-Meteo responded with status ${response.status}`);
-  const data = await response.json();
+  const data: any = await response.json(); // Open-Meteo JSON, read field by field below
   const c = data?.current ?? {};
   // Daily times come as local wall-clock strings ("2026-10-16T06:42") plus the location's UTC offset
   const offset = num(data?.utc_offset_seconds) ?? 0;
