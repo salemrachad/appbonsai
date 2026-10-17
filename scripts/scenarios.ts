@@ -14,7 +14,7 @@ import { absoluteHumidity, calculateVPD, dewPoint } from '../src/telemetry/telem
 import { skyFromCode, type OutsideObservation } from '../src/telemetry/outsideWeather';
 import type { PlantTelemetry } from '../src/telemetry/types';
 import type { DayForecast, HikeForecast } from '../src/telemetry/hikeForecast';
-import { dateKey, hikeScore, INITIAL_HIKE_MEMORY, planHike, type HikeMemory, type HikePlan } from '../src/behaviour/hike';
+import { chooseHikeDay, dateKey, hikeScore, INITIAL_HIKE_MEMORY, planHike, type HikeMemory, type HikePlan } from '../src/behaviour/hike';
 import { sampleHikePlan } from '../src/hooks/usePlantBehaviour';
 import { decideSpeech, INITIAL_MESSAGE_MEMORY, type MessageMemory } from '../src/behaviour/speech';
 
@@ -571,6 +571,24 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
     return ok ? [] : [dateKey(t)];
   });
   check('HK8 hike previews: picked / moved / hike day on every weekday', wrong.length === 0, wrong.join(', '));
+
+  // Two days on offer; the people choose one, and their choice holds whatever the forecast does
+  const two = week({ '2026-06-20': {}, '2026-06-17': { tMax: 20, rainChance: 20 } });
+  const o1 = planHike({ ...INITIAL_HIKE_MEMORY, forecast: two }, dayAt(15));
+  check('HK9 the tree offers its pick and the next best day', o1.plan?.options.join() === '2026-06-20,2026-06-17' && !o1.plan.chosen, String(o1.plan?.options));
+  const c1 = chooseHikeDay(o1.memory, '2026-06-17', dayAt(15))!;
+  const o2 = planHike(c1, dayAt(15));
+  const o3 = planHike({ ...o2.memory, forecast: week({ '2026-06-19': {}, '2026-06-17': { code: 61, sky: 'rain', rainChance: 70 } }) }, dayAt(16));
+  check('HK9b a chosen day holds against a better forecast elsewhere (not "moved")', o2.plan?.day === '2026-06-17' && o2.plan.chosen && o3.plan?.day === '2026-06-17' && o3.plan.chosen && o3.plan.movedFrom === null, `${o3.plan?.day} chosen=${o3.plan?.chosen}`);
+  check('HK9c past days, other weeks and days without a forecast cannot be chosen', !chooseHikeDay(o1.memory, '2026-06-14', dayAt(15)) && !chooseHikeDay(o1.memory, '2026-07-06', dayAt(15)) && !chooseHikeDay(INITIAL_HIKE_MEMORY, '2026-06-17', dayAt(15)) && !chooseHikeDay(o1.memory, 'soon', dayAt(15)));
+  const o4 = planHike({ ...o3.memory, forecast: week({ '2026-06-27': {} }) }, dayAt(18));
+  check('HK9d once the chosen day has passed, next week\'s two days show', o4.plan?.nextWeek === true && o4.plan.day === '2026-06-27' && !o4.plan.chosen && o4.plan.options.length === 2, `${o4.plan?.day} ${o4.plan?.options}`);
+  const offer = say(o1.plan, INITIAL_MESSAGE_MEMORY, at(10));
+  const chose = say(o2.plan, offer.sp.memory, at(11));
+  check('HK10 the tree names both days, then answers the choice', offer.x.message.text.includes('Saturday or Wednesday') && chose.b.dayLine === 'hike_chosen' && chose.sp.decision.reason.startsWith('the hike') && chose.x.message.text.includes('Wednesday'), `${offer.x.message.text} | ${chose.x.message.text}`);
+  const pv = sampleHikePlan('announced', dayAt(15));
+  const pvChosen = pv && sampleHikePlan('announced', dayAt(15), pv.options[1]);
+  check('HK10b previews offer two days and take a click', pv?.options.length === 2 && pvChosen?.chosen === true && pvChosen.day === pv.options[1], `${pv?.options} → ${pvChosen?.day}`);
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');

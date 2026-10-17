@@ -23,10 +23,11 @@ interface HomeProps {
   inside?: { temperature: number | null; humidity: number | null }; // what the sensors measure inside
   air?: AirComparison | null; // inside vs outside by dew point
   hikePreview?: boolean; // the hike shown is a developer preview
+  onChooseHike?: (day: string) => void; // a day chosen on the hike calendar
 }
 
 // The companion screen: shows what the engines concluded, never recalculates it.
-export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null, hikePreview = false }) => {
+export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null, hikePreview = false, onChooseHike }) => {
   const msg = expression?.message;
 
   return (
@@ -41,7 +42,7 @@ export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, 
         {/* The world outside the greenhouse, next to what the sensors measure inside (context only) */}
         <OutsidePanel weather={expression?.atmosphere.weather ?? null} outside={outside} inside={inside} air={air} />
         {/* The week's hike, as the tree picked it from the forecast */}
-        {expression?.hike && <HikePanel plan={expression.hike.plan} preview={hikePreview} />}
+        {expression?.hike && <HikePanel plan={expression.hike.plan} preview={hikePreview} onChoose={onChooseHike} />}
 
         <div className="flex items-center gap-6 min-h-[150px]">
           <div className="shrink-0">

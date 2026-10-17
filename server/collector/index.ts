@@ -18,7 +18,7 @@ import { assessDataQuality } from '../../src/telemetry/dataQuality';
 import { normalizeTelemetryEndpoint } from '../../src/telemetry/ESP32TelemetryProvider';
 import { fetchOutsideWeather, type OutsideObservation } from '../../src/telemetry/outsideWeather';
 import { fetchHikeForecast, type HikeForecast } from '../../src/telemetry/hikeForecast';
-import { INITIAL_HIKE_MEMORY, planHike, type HikeMemory } from '../../src/behaviour/hike';
+import { chooseHikeDay, INITIAL_HIKE_MEMORY, planHike, type HikeMemory } from '../../src/behaviour/hike';
 import { telemetryManager } from '../../src/telemetry/telemetryManager';
 import type { HourlyTelemetryPoint, LiveReading, PlantTelemetry, TelemetryFetchResult, TelemetrySource, TimelineEvent } from '../../src/telemetry/types';
 import type { AppDatabase } from '../database';
@@ -157,6 +157,17 @@ export class LivingCollector {
       this.hikeError = msg;
     }
     if (this.autoSchedule) this.hikeTimer = setTimeout(() => void this.pollHikeForecast(), ok ? APP_CONFIG.hike.forecastMs : APP_CONFIG.hike.retryMs);
+  }
+
+  // The people choose the week's hike day on the calendar (one of the tree's two). It holds whatever
+  // the forecast does; the tree says so.
+  chooseHike(day: string): boolean {
+    const next = chooseHikeDay(this.hikeMemory, day, this.now());
+    if (!next) return false;
+    this.hikeMemory = next;
+    this.meta.set('hike_memory', next);
+    if (this.state) this.evaluate(this.now());
+    return true;
   }
 
   // Outside weather: its own cadence (15 min) in every data source mode, independent of the ESP32.

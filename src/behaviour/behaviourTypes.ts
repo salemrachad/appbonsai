@@ -90,6 +90,7 @@ export type DayLine =
   // The weekly hike (behaviour/hike.ts): a pick is said once (again when the forecast moves it), the day once
   | 'hike_picked'
   | 'hike_moved'
+  | 'hike_chosen'
   | 'hike_today';
 
 // Lines about recent care, spoken at most once a day while the context lasts.

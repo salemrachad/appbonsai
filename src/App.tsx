@@ -174,6 +174,15 @@ export default function App() {
     },
     [previewing]
   );
+  // The week's hike: a day chosen on the calendar goes to the server (the stream brings the new plan back);
+  // while the hike is previewed it only changes the preview
+  const chooseHike = useCallback(
+    (day: string) => {
+      if (previews.hike) return setPreview('hikeChoice', day);
+      api.chooseHike(day).catch(() => notify(`Couldn't choose that day: ${BACKEND.label.toLowerCase()} unreachable or the day has passed`));
+    },
+    [previews.hike, setPreview, notify]
+  );
   const statusLabel = previewing
     ? 'Test mode'
     : serverOffline
@@ -273,6 +282,7 @@ export default function App() {
         outside={perception?.outside ?? null}
         air={perception?.air ?? null}
         hikePreview={!!previews.hike}
+        onChooseHike={chooseHike}
         // Inside vs outside only with the real sensor (in weather mode the 'inside' values ARE the outside estimate)
         inside={perception?.source === 'esp32_sensor' ? { temperature: perception.readings.temperature, humidity: perception.readings.humidity } : { temperature: null, humidity: null }}
       />

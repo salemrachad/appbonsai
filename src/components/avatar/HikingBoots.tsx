@@ -1,20 +1,22 @@
 import React from 'react';
 
-// Hike day (expression.hike.boots): two pairs of hiking boots on the ground by the stand, theirs. Drawn
-// only; the tree's state never depends on them. Each pair's toes point toward the tree.
+// Hike day (expression.hike.boots): two pairs of hiking boots on the ground by the stand, theirs, each with
+// a water bottle beside it. Drawn only; the tree's state never depends on them. Each pair's toes point
+// toward the tree; the bottle stands at the heels.
 
 interface BootColors {
   upper: string;
   dark: string; // toe rand, heel counter
   collar: string;
   lace: string;
+  bottle: string; // the water bottle next to the pair
 }
 
 const PAIRS: { x: number; scale: number; mirror: boolean; colors: BootColors; label: string }[] = [
   // The larger pair, left of the tree: tan leather, orange laces
-  { x: 30, scale: 1.25, mirror: false, colors: { upper: '#9A6B43', dark: '#5E3F27', collar: '#C9A27A', lace: '#E0823D' }, label: 'one pair' },
+  { x: 30, scale: 1.25, mirror: false, colors: { upper: '#9A6B43', dark: '#5E3F27', collar: '#C9A27A', lace: '#E0823D', bottle: '#4F7F6A' }, label: 'one pair' },
   // The smaller pair, right of the tree: slate and plum, teal laces
-  { x: 410, scale: 1.1, mirror: true, colors: { upper: '#6D5A72', dark: '#3E3346', collar: '#B9A7BC', lace: '#3FA39A' }, label: 'the other pair' },
+  { x: 410, scale: 1.1, mirror: true, colors: { upper: '#6D5A72', dark: '#3E3346', collar: '#B9A7BC', lace: '#3FA39A', bottle: '#D98A6C' }, label: 'the other pair' },
 ];
 
 // One boot, side view: heel at x=0, toe at x≈40, standing on y=0
@@ -41,15 +43,27 @@ const Boot: React.FC<{ c: BootColors }> = ({ c }) => (
   </g>
 );
 
+// A metal water bottle, standing on y=0 between x=-16 and x=-4: cap with a carry loop, a band, a highlight
+const Bottle: React.FC<{ color: string }> = ({ color }) => (
+  <g>
+    <path d="M -15.5,-2 L -15.5,-24 Q -15.5,-27.5 -12.5,-28.5 L -7.5,-28.5 Q -4.5,-27.5 -4.5,-24 L -4.5,-2 Q -4.5,0 -6.5,0 L -13.5,0 Q -15.5,0 -15.5,-2 Z" fill={color} />
+    <rect x="-15.5" y="-9" width="11" height="2.2" fill="#000" opacity="0.15" />
+    <path d="M -13.6,-24 L -13.6,-4" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" opacity="0.35" />
+    <rect x="-13" y="-33" width="6" height="4.8" rx="1.2" fill="#2B2724" />
+    <path d="M -11.5,-33 Q -10,-37.5 -8.5,-33" stroke="#2B2724" strokeWidth="1.3" fill="none" />
+  </g>
+);
+
 export const HikingBoots: React.FC<{ show: boolean }> = ({ show }) => {
   if (!show) return null;
   return (
     <g id="hiking-boots" pointerEvents="none">
-      <title>Hike day: the boots are out</title>
+      <title>Hike day: the boots and the water bottles are out</title>
       {PAIRS.map((p, i) => (
         <g key={p.label} transform={`translate(${p.x} 440) scale(${p.mirror ? -p.scale : p.scale} ${p.scale})`}>
           <g className="hike-boots-in" style={{ animationDelay: `${i * 180}ms` }}>
-            <ellipse cx="24" cy="0.5" rx="30" ry="3" fill="#000" opacity="0.12" />
+            <ellipse cx="18" cy="0.5" rx="36" ry="3" fill="#000" opacity="0.12" />
+            <Bottle color={p.colors.bottle} />
             {/* The back boot, a step behind and in shade */}
             <g transform="translate(12 -3)" style={{ filter: 'brightness(0.78)' }}>
               <Boot c={p.colors} />

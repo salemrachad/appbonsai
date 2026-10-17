@@ -394,12 +394,17 @@ read it.
   the week's remaining days compete. A day scores 0-100: a comfortable high (16-25 °C), little chance of
   rain, no storm, snow or gale. It follows the forecast until its day arrives, then locks. Once it has
   passed, next week's pick shows.
-- **Wording:** the tree announces a new pick once ("Best day for a hike: Saturday.") and again when the
-  forecast moves it ("The forecast changed: the hike moves to Thursday."), and greets the day itself.
+- **Two days, the people choose:** the tree offers its pick and the next best remaining day
+  (`plan.options`). Tapping one on the week strip chooses it (`POST /api/hike/choose`, `chooseHikeDay()`,
+  stored as `WeekPick.chosen`). A chosen day holds whatever the forecast does (it is theirs, not the
+  tree's); once it has passed, next week's two days show.
+- **Wording:** the tree offers the two days once ("Good days for a hike: Saturday or Wednesday. Pick one on
+  the calendar."), again when the forecast moves its pick ("The forecast changed: the hike moves to
+  Thursday."), answers a choice ("Wednesday it is!"), and greets the day itself.
   Only calm and by day; a stressed tree talks about itself.
-- **Art:** on hike day two pairs of hiking boots stand on the ground by the stand, one each side
-  (`avatar/HikingBoots.tsx`). Home shows the plan under the Outside panel with the week at a glance.
-- **Tested:** `npm run test:scenarios` HK1–HK8.
+- **Art:** on hike day two pairs of hiking boots stand on the ground by the stand, one each side, each with
+  a water bottle at its heels (`avatar/HikingBoots.tsx`). Home shows the plan under the Outside panel with the week at a glance.
+- **Tested:** `npm run test:scenarios` HK1–HK10.
 - **Open:** preferring weekends, and remembering hikes that happened in the diary.
 
 ### Visitors and habitat (the squirrel) [Implemented, V1]

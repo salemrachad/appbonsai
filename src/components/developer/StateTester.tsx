@@ -159,7 +159,10 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
   const onSelectDragonfly = (v: DragonflyPreview | null) => onPreview('dragonfly', v);
   const onSelectSloth = (v: SlothPreview | null) => onPreview('sloth', v);
   const onSelectWeather = (v: WeatherPreview | null) => onPreview('weather', v);
-  const onSelectHike = (v: HikePreview | null) => onPreview('hike', v);
+  const onSelectHike = (v: HikePreview | null) => {
+    onPreview('hike', v);
+    onPreview('hikeChoice', null); // a fresh sample week: nothing chosen yet
+  };
   const anyActive = !!(activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeWeather || activeHike);
   const resetAll = onClearPreviews;
   return (

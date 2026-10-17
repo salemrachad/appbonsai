@@ -490,7 +490,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (!dayLine && tod !== 'night' && CALM.includes(condition) && !reaction) dayLine = outsideLine(perception);
   // The week's hike: the pick (again when the forecast moves it) and the day itself, by day when calm
   if (!dayLine && hike && perception.sun.isDay && CALM.includes(condition) && !reaction) {
-    dayLine = hike.today ? 'hike_today' : hike.movedFrom ? 'hike_moved' : 'hike_picked';
+    dayLine = hike.today ? 'hike_today' : hike.chosen ? 'hike_chosen' : hike.movedFrom ? 'hike_moved' : 'hike_picked';
   }
   if (dayLine) reasons.push(`Time of day: ${dayLine.replace(/_/g, ' ')}`);
 

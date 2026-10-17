@@ -17,10 +17,11 @@ export interface DevPreviews {
   drey: DreyPreview | null;
   weather: WeatherPreview | null;
   hike: HikePreview | null; // the week's hike pick (announced, moved, or today with the boots)
+  hikeChoice: string | null; // a day clicked on the hike calendar while previewing (not in the hash)
 }
 export type SetPreview = <K extends keyof DevPreviews>(key: K, value: DevPreviews[K]) => void;
 
-export const NO_PREVIEWS: DevPreviews = { preset: null, season: null, visitor: null, sloth: null, dragonfly: null, twilight: null, canopy: null, drey: null, weather: null, hike: null };
+export const NO_PREVIEWS: DevPreviews = { preset: null, season: null, visitor: null, sloth: null, dragonfly: null, twilight: null, canopy: null, drey: null, weather: null, hike: null, hikeChoice: null };
 
 // The URL hash can start any combination, e.g. #preview=very_dry&season=winter&visitor=hiding:crown (handy for screenshots)
 export function previewsFromHash(hash: string): DevPreviews {
@@ -86,6 +87,7 @@ export function previewsFromHash(hash: string): DevPreviews {
       const r = m(/hike=(today|announced|moved)/);
       return r ? (r[1] as HikePreview) : null;
     })(),
+    hikeChoice: null,
   };
 }
 
@@ -116,6 +118,8 @@ const toastFor = <K extends keyof DevPreviews>(key: K, v: DevPreviews[K]): strin
       return v ? `Outside: ${(v as string).replace('_', ' ')}` : 'Back to the real weather';
     case 'hike':
       return v ? (v === 'today' ? 'Hike day: boots out' : `Hike ${v}`) : 'Back to the real hike plan';
+    case 'hikeChoice':
+      return v ? `Hike preview: you chose ${v}` : null;
     default:
       return null;
   }

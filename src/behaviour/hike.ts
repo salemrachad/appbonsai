@@ -9,6 +9,8 @@ import type { DayForecast, HikeForecast } from '../telemetry/hikeForecast';
 // - The pick follows the forecast until its day arrives; then it is locked for that week.
 // - Once this week's hike day has passed, next week's pick is shown (tentative, it follows the forecast).
 // - A changed pick remembers where it moved from, so the tree can say so.
+// - The tree offers two days a week: its pick and the next best. The people choose one on the calendar
+//   (chooseHikeDay); their choice holds whatever the forecast does.
 
 export type HikeQuality = 'great' | 'good' | 'fair' | 'poor';
 
@@ -24,7 +26,9 @@ export interface HikePlan {
   week: string; // the week's Monday, "2026-10-12"
   day: string; // the chosen date
   today: boolean; // hike day is today: the boots are out
-  locked: boolean; // its day has arrived: the forecast no longer moves it
+  locked: boolean; // its day has arrived, or the people chose it: the forecast no longer moves it
+  chosen: boolean; // the people chose this day (of the tree's two)
+  options: string[]; // the tree's two days for the week, its pick first (one when only one day is left)
   nextWeek: boolean; // this week's hike is behind us: next week's pick
   movedFrom: string | null; // the day it was picked before the forecast changed
   quality: HikeQuality;
@@ -37,6 +41,7 @@ export interface WeekPick {
   day: string;
   movedFrom: string | null;
   locked: boolean;
+  chosen?: string | null; // the day the people chose (it wins over the tree's pick)
 }
 
 // Persisted by the collector (meta.hike_memory)
@@ -91,32 +96,29 @@ export function planHike(memory: HikeMemory, now: number): { plan: HikePlan | nu
   const byDate = new Map(forecast.days.map((d) => [d.date, d]));
   const weeks = { ...memory.weeks };
 
-  // The best remaining day of a week (ties: the earlier day)
-  const pick = (week: string): string | null => {
-    let best: { date: string; score: number } | null = null;
-    for (let i = 0; i < 7; i++) {
-      const date = addDays(week, i);
-      const f = byDate.get(date);
-      if (date < today || !f) continue;
-      const score = hikeScore(f);
-      if (!best || score > best.score) best = { date, score };
-    }
-    return best?.date ?? null;
-  };
+  // The week's remaining days, best first (ties: the earlier day)
+  const ranked = (week: string): string[] =>
+    Array.from({ length: 7 }, (_, i) => addDays(week, i))
+      .filter((date) => date >= today && byDate.has(date))
+      .map((date) => ({ date, score: hikeScore(byDate.get(date)!) }))
+      .sort((a, b) => b.score - a.score || (a.date < b.date ? -1 : 1))
+      .map((d) => d.date);
+  const pick = (week: string): string | null => ranked(week)[0] ?? null;
   const choose = (week: string): WeekPick | null => {
     const prev = weeks[week];
     if (prev?.locked) return prev;
     const day = pick(week);
     if (!day) return prev ?? null;
-    const next: WeekPick = { day, movedFrom: prev && prev.day !== day ? prev.day : prev?.movedFrom ?? null, locked: day <= today };
+    const next: WeekPick = { ...prev, day, movedFrom: prev && prev.day !== day ? prev.day : prev?.movedFrom ?? null, locked: day <= today };
     weeks[week] = next;
     return next;
   };
 
+  const dayOf = (p: WeekPick) => p.chosen ?? p.day; // the people's choice wins
   let week = weekOf(today);
   let chosen = choose(week);
   let nextWeek = false;
-  if (!chosen || chosen.day < today) {
+  if (!chosen || dayOf(chosen) < today) {
     // This week's hike is behind us (or nothing is left to pick): next week's
     week = addDays(week, 7);
     chosen = choose(week);
@@ -127,8 +129,11 @@ export function planHike(memory: HikeMemory, now: number): { plan: HikePlan | nu
   for (const k of Object.keys(weeks)) if (k < keepFrom) delete weeks[k];
   const nextMemory = JSON.stringify(weeks) === JSON.stringify(memory.weeks) ? memory : { ...memory, weeks };
 
-  const f = chosen ? byDate.get(chosen.day) : undefined;
-  if (!chosen || !f) return { plan: null, memory: nextMemory };
+  const day = chosen && dayOf(chosen);
+  const f = day ? byDate.get(day) : undefined;
+  if (!chosen || !day || !f) return { plan: null, memory: nextMemory };
+  // The two days on offer: the tree's pick and the best other remaining day
+  const options = [...(chosen.day >= today ? [chosen.day] : []), ...ranked(week).filter((d) => d !== chosen!.day)].slice(0, 2);
   const week7 = Array.from({ length: 7 }, (_, i): HikeDayScore | null => {
     const date = addDays(week, i);
     const d = byDate.get(date);
@@ -138,11 +143,13 @@ export function planHike(memory: HikeMemory, now: number): { plan: HikePlan | nu
   return {
     plan: {
       week,
-      day: chosen.day,
-      today: chosen.day === today,
-      locked: chosen.locked,
+      day,
+      today: day === today,
+      locked: chosen.locked || !!chosen.chosen,
+      chosen: !!chosen.chosen,
+      options,
       nextWeek,
-      movedFrom: chosen.movedFrom,
+      movedFrom: chosen.chosen ? null : chosen.movedFrom,
       quality: hikeQuality(score),
       forecast: f,
       week7,
@@ -150,4 +157,16 @@ export function planHike(memory: HikeMemory, now: number): { plan: HikePlan | nu
     },
     memory: nextMemory,
   };
+}
+
+// The people choose a day of the week's hike (one of the tree's two, on the calendar). Any remaining day of
+// this week or next with a forecast is accepted; null when the day can't be chosen.
+export function chooseHikeDay(memory: HikeMemory, day: string, now: number): HikeMemory | null {
+  const today = dateKey(now);
+  const week = /^\d{4}-\d{2}-\d{2}$/.test(day) ? weekOf(day) : null;
+  const thisWeek = weekOf(today);
+  if (!week || day < today || (week !== thisWeek && week !== addDays(thisWeek, 7))) return null;
+  if (!memory.forecast?.days.some((d) => d.date === day)) return null;
+  const prev = memory.weeks[week] ?? { day, movedFrom: null, locked: false };
+  return { ...memory, weeks: { ...memory.weeks, [week]: { ...prev, chosen: day } } };
 }

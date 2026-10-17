@@ -74,6 +74,9 @@ export const api = {
   recordInteraction: (s: { kind: InteractionKind; startedAt: number; endedAt: number; count: number; activeMs: number }) =>
     call<Interaction>('/interactions', { method: 'POST', body: JSON.stringify(s), keepalive: true }),
 
+  // The week's hike: choose one of the tree's two days
+  chooseHike: (day: string) => call<LivingSnapshot>('/hike/choose', { method: 'POST', body: JSON.stringify({ day }) }),
+
   hourly: (hours = 24) => call<HourlyBucket[]>(`/history/hourly?hours=${hours}`),
   daily: (days = 7) => call<DailySummary[]>(`/history/daily?days=${days}`),
   diary: (days = 3) => call<DiaryItem[]>(`/history/diary?days=${days}`),

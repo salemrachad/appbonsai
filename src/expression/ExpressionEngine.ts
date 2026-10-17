@@ -489,6 +489,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     season: perception.season.id,
     musing: s.musing ?? null,
     hikeDay: b.hike ? `${b.hike.nextWeek ? 'next ' : ''}${weekdayName(b.hike.day)}` : null,
+    hikeDays: b.hike?.options.length ? `${b.hike.nextWeek ? 'next ' : ''}${b.hike.options.map(weekdayName).join(' or ')}` : null,
   });
   let tip = rendered.tip;
   if (modifiers.includes('sensor_uncertain')) {
@@ -587,7 +588,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     },
     intensity: b.expressionIntensity,
     layers: {
-      epidermal: [...describeBody(avatar, b, leafDroop, motion, met.visitor, drey, met.dragonfly, met.sloth), ...(b.hike?.today ? ['two pairs of hiking boots by the pot (hike day)'] : [])],
+      epidermal: [...describeBody(avatar, b, leafDroop, motion, met.visitor, drey, met.dragonfly, met.sloth), ...(b.hike?.today ? ['two pairs of hiking boots and two water bottles by the pot (hike day)'] : [])],
       wording: rendered.text,
       diffraction,
     },

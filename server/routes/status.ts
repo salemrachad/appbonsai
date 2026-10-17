@@ -90,6 +90,13 @@ export function statusRoutes(db: AppDatabase, collector: LivingCollector, starte
     res.json({ suppressedUntil: collector.suppressWateringDetection(minutes) || null });
   });
 
+  // The week's hike: the people choose one of the tree's two days on the calendar. {day: "2026-10-24"}
+  r.post('/hike/choose', (req, res) => {
+    const day = typeof req.body?.day === 'string' ? req.body.day : '';
+    if (!collector.chooseHike(day)) return res.status(400).json({ error: 'That day can no longer be chosen' });
+    res.json(snapshot());
+  });
+
   // Collector settings (endpoint, calibration, location, interval). The browser keeps its own copy.
   r.get('/config', (_req, res) => res.json(collector.getSettings()));
   r.put('/config', (req, res) => {

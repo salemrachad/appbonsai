@@ -94,10 +94,14 @@ export function stableVariant(seed: string, count: number): number {
 const weatherNews = (b: PlantBehaviourState, m: MessageMemory, now: number) =>
   !!b.dayLine && /^(weather_|sunrise_|sunset_|hike_)/.test(b.dayLine) && m.dayLinesSaid[b.dayLine] !== lineStamp(b, now);
 
-// When a day line counts as said: season lines once per season, a hike pick once per picked day,
-// the others once per day
+// When a day line counts as said: season lines once per season, a hike pick once per picked day (the
+// people's choice once per chosen day), the others once per day
 const lineStamp = (b: PlantBehaviourState, now: number) =>
-  b.dayLine?.startsWith('season_') ? b.season.key : (b.dayLine === 'hike_picked' || b.dayLine === 'hike_moved') && b.hike ? `${b.hike.week}:${b.hike.day}` : localDate(now);
+  b.dayLine?.startsWith('season_')
+    ? b.season.key
+    : (b.dayLine === 'hike_picked' || b.dayLine === 'hike_moved' || b.dayLine === 'hike_chosen') && b.hike
+    ? `${b.hike.week}:${b.hike.chosen ? 'chosen:' : ''}${b.hike.day}`
+    : localDate(now);
 
 const localDate = (t: number) => {
   const d = new Date(t);
