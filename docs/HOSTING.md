@@ -29,9 +29,15 @@ For now: one prototype, one account, one tree. The design must still allow for m
    `devices.tree_id` links each device to it (a tree is not a device: a replaced sensor keeps the tree's history).
    Readings, events and episodes carry no tree id: with one Durable Object per tree each tree already has its own
    database (decided 2026-10-18, instead of a `tree_id` on every table). The golden master stayed identical.
-3. **The collector as one step per reading** with all its state saved (today the 24 h of readings and the watering
-   detector context live in memory). A Durable Object is unloaded between requests, so a step must load a compact
-   state, not re-read 1,440 rows each time.
+3. **The collector as one step per reading** (done 2026-10-18): after every step the collector saves what a restart
+   would lose (`collector_runtime`: status, the last evaluation, the last two readings, the watering detector with
+   a rise waiting for confirmation, the timers' due times, the day's sloth memory; `collector_state`: the last
+   evaluated state). A resumed start in push mode evaluates nothing and fetches nothing that isn't due, so waking
+   up changes nothing: scenario RS1 restarts the collector before every push and gets the same state, status,
+   events and episodes every minute as one that never stops. One timer (`nextWakeAt()` → `wake()`) runs whatever is
+   due: the Durable Object's alarm. A cold start still reads the last 24 h of readings (~1,440 rows); with a push
+   every minute the object mostly stays loaded, so that happens rarely. If it shows up in the read quota, keep the
+   samples in the saved state instead.
 4. **Worker + Durable Object** running that step, the app served as static assets, Cloudflare Access in front. The
    ESP32's server URL changes to the Worker (HTTPS).
 

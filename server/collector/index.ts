@@ -26,7 +26,7 @@ import type { AppDatabase } from '../database';
 import { trackEpisode } from '../episodes';
 import { logCareEvent } from './careEvents';
 import { recordInteraction } from './interactions';
-import { MetaStore } from './metaStore';
+import { MetaStore, type SavedRuntime } from './metaStore';
 import { fromRecord, stamp, toLive } from './records';
 import { SettingsStore } from './settings';
 import { WateringDetection } from './watering';
@@ -60,6 +60,7 @@ interface PerceiveContext {
 }
 
 const dayStartOf = (t: number) => new Date(t).setHours(0, 0, 0, 0);
+const finiteOrNull = (n: number) => (Number.isFinite(n) ? n : null);
 
 // The living loop: ESP32 → SQLite → perception → health → episodes → behaviour → expression.
 // Runs only while the local server runs; nothing is collected when the PC is off.
@@ -73,11 +74,12 @@ export class LivingCollector {
   private previous: PlantTelemetry | null = null;
   private liveReadings: LiveReading[] = [];
   private forecast: { hourly: HourlyTelemetryPoint[]; timeline: TimelineEvent[] } = { hourly: [], timeline: [] };
+  // One timer for the three jobs, at whichever is due first. The due times are saved with the runtime, so a
+  // Durable Object can set its alarm from them (step 3); here a setTimeout calls wake().
   private timer: ReturnType<typeof setTimeout> | undefined;
-  private weatherTimer: ReturnType<typeof setTimeout> | undefined;
+  private due = { poll: Infinity, weather: 0, hike: 0 };
   private outside: OutsideObservation | null = null; // latest outside weather (context only)
   private outsideError: string | null = null;
-  private hikeTimer: ReturnType<typeof setTimeout> | undefined;
   private hikeMemory: HikeMemory = INITIAL_HIKE_MEMORY; // the daily forecast + the week's hike picks
   private hikeError: string | null = null;
   private polling: Promise<void> | null = null;
@@ -126,25 +128,57 @@ export class LivingCollector {
   }
 
   // ---- lifecycle ----
+  // A first start reads everything now. A resumed one (saved runtime: a restart, or a Durable Object waking up)
+  // carries on where the last step left off: it reads the sensor now only in pull mode (as a poll), and
+  // otherwise waits for what is due, so waking up changes nothing by itself.
   start(): Promise<void> {
-    this.startedAt = this.now();
-    this.restore();
+    const now = this.now();
+    this.startedAt = now;
+    const resumed = this.restore();
     this.outside = this.db.latestOutsideWeather();
-    void this.pollWeather();
-    void this.pollHikeForecast();
-    return this.pollNow();
+    if (!resumed) {
+      void this.pollWeather();
+      void this.pollHikeForecast();
+      return this.pollNow();
+    }
+    if (!this.pushMode()) return this.pollNow();
+    this.arm();
+    return Promise.resolve();
   }
 
   stop() {
     clearTimeout(this.timer);
-    clearTimeout(this.weatherTimer);
-    clearTimeout(this.hikeTimer);
+  }
+
+  // The timer: whatever is due runs now (each job sets its next due time), then it waits for the next one
+  wake() {
+    const now = this.now();
+    if (this.due.poll <= now) {
+      this.due.poll = Infinity; // set again when the poll is done
+      if (this.pushMode()) this.watchPush();
+      else void this.pollNow();
+    }
+    if (this.due.weather <= now) void this.pollWeather();
+    if (this.due.hike <= now) void this.pollHikeForecast();
+    this.arm();
+  }
+
+  // When the next job is due (a Durable Object's alarm time)
+  nextWakeAt(): number {
+    return Math.min(this.due.poll, this.due.weather, this.due.hike);
+  }
+
+  private arm() {
+    if (!this.autoSchedule) return; // tests drive the jobs themselves
+    clearTimeout(this.timer);
+    const at = this.nextWakeAt();
+    if (at < Infinity) this.timer = setTimeout(() => this.wake(), Math.max(0, at - this.now()));
   }
 
   // The daily forecast for the weekly hike pick: every few hours, about the people (never the tree).
   // A failure keeps the last forecast (the plan shows its age) and retries sooner.
   async pollHikeForecast(): Promise<void> {
-    clearTimeout(this.hikeTimer);
+    this.due.hike = Infinity; // set again below
     if (this.settings.latitude == null || this.settings.longitude == null) return;
     let ok = false;
     try {
@@ -162,7 +196,9 @@ export class LivingCollector {
       if (!this.hikeError) this.log(`[collector] hike forecast unavailable: ${msg}`);
       this.hikeError = msg;
     }
-    if (this.autoSchedule) this.hikeTimer = setTimeout(() => void this.pollHikeForecast(), ok ? APP_CONFIG.hike.forecastMs : APP_CONFIG.hike.retryMs);
+    this.due.hike = this.now() + (ok ? APP_CONFIG.hike.forecastMs : APP_CONFIG.hike.retryMs);
+    this.saveRuntime();
+    this.arm();
   }
 
   // The people choose the week's hike day on the calendar (one of the tree's two). It holds whatever
@@ -179,12 +215,13 @@ export class LivingCollector {
   // Outside weather: its own cadence (15 min) in every data source mode, independent of the ESP32.
   // Context only. A failure keeps the last observation, which goes stale on its own (never invented).
   async pollWeather(): Promise<void> {
-    clearTimeout(this.weatherTimer);
-    if (this.autoSchedule) this.weatherTimer = setTimeout(() => void this.pollWeather(), APP_CONFIG.polling.weatherMs);
-    if (this.settings.latitude == null || this.settings.longitude == null) return;
+    this.due.weather = this.now() + APP_CONFIG.polling.weatherMs;
+    this.arm();
+    if (this.settings.latitude == null || this.settings.longitude == null) return this.saveRuntime();
     try {
       const { observation, raw } = await this.fetchOutside(this.settings, this.now());
-      this.outside = observation;
+      // As stored (what a restart reads back): no sunrise / sunset is null
+      this.outside = { ...observation, sunrise: observation.sunrise ?? null, sunset: observation.sunset ?? null };
       this.db.insertOutsideWeather(observation, raw);
       if (this.outsideError) this.log('[collector] outside weather back');
       this.outsideError = null;
@@ -194,6 +231,7 @@ export class LivingCollector {
       this.outsideError = msg;
     }
     if (this.state) this.evaluate(this.now());
+    else this.saveRuntime();
   }
 
   // After importing old readings: rebuild state from the database.
@@ -243,13 +281,15 @@ export class LivingCollector {
   // ---- continuity across restarts ----
 
   // Resume where the tree was: saved health memory (hysteresis, vitality, recovery, uncertainty),
-  // the last 24 h of readings for perception, and the watering detector's recent context.
-  // Without a usable saved memory, fall back to replaying stored telemetry.
-  private restore() {
+  // the last 24 h of readings for perception, and the saved runtime (status, timers, the watering detector,
+  // the last evaluation). Without a usable saved memory, fall back to replaying stored telemetry.
+  // Returns whether it resumed (memory and runtime both usable).
+  private restore(): boolean {
     const now = this.now();
     const saved = this.meta.get('health_memory');
     const usable =
       saved && saved.engineVersion === APP_CONFIG.engineVersion && saved.source === this.source() && saved.memory?.version === HEALTH_MEMORY_VERSION;
+    const runtime = usable ? this.savedRuntime() : null;
     if (!usable) {
       this.replay(now);
     } else {
@@ -260,7 +300,42 @@ export class LivingCollector {
       if (rows.length) this.replayRows(rows, this.db.eventsSince(now - 30 * DAY));
       this.log(`[collector] resumed saved health memory from ${saved.memory.at ? new Date(saved.memory.at).toLocaleString() : 'never'}`);
     }
-    this.watering.restore(now, this.calibration);
+    if (!runtime) {
+      this.watering.restore(now, this.calibration);
+      return false;
+    }
+    this.status = { ...runtime.status };
+    this.evaluatedAt = runtime.evaluatedAt;
+    // The readings as they arrived, unless newer ones were caught up from the database since
+    if (runtime.latest && runtime.latest.timestamp === this.latest?.timestamp) this.latest = runtime.latest;
+    if (runtime.previous && runtime.previous.timestamp === this.previous?.timestamp) this.previous = runtime.previous;
+    this.due = { poll: runtime.due.poll ?? Infinity, weather: runtime.due.weather ?? 0, hike: runtime.due.hike ?? 0 };
+    this.slothCache = runtime.sloth;
+    this.watering.resume(runtime.watering);
+    const state = this.meta.get('collector_state');
+    if (state) this.state = { ...state, perception: { ...state.perception, recent: this.recent, outsideToday: [] } };
+    return true;
+  }
+
+  private savedRuntime(): SavedRuntime | null {
+    const r = this.meta.get('collector_runtime');
+    return r && r.engineVersion === APP_CONFIG.engineVersion && r.source === this.source() && r.calibration === JSON.stringify(this.calibration) ? r : null;
+  }
+
+  // After every step: what a restart would otherwise lose (see SavedRuntime)
+  private saveRuntime() {
+    this.meta.set('collector_runtime', {
+      engineVersion: APP_CONFIG.engineVersion,
+      source: this.source(),
+      calibration: JSON.stringify(this.calibration),
+      status: this.status,
+      evaluatedAt: this.evaluatedAt,
+      latest: this.latest,
+      previous: this.previous,
+      due: { poll: finiteOrNull(this.due.poll), weather: finiteOrNull(this.due.weather), hike: finiteOrNull(this.due.hike) },
+      watering: this.watering.saved(),
+      sloth: this.slothCache,
+    });
   }
 
   private loadRecent(now: number) {
@@ -335,10 +410,11 @@ export class LivingCollector {
   }
 
   // ---- polling ----
+  // The next poll in one interval. Push mode: nothing to fetch, the timer only notices a push that is overdue.
   private schedule() {
-    clearTimeout(this.timer);
-    // Push mode: nothing to fetch, the timer only notices a push that is overdue
-    if (this.autoSchedule) this.timer = setTimeout(() => (this.pushMode() ? this.watchPush() : void this.pollNow()), this.pollMs());
+    this.due.poll = this.now() + this.pollMs();
+    this.saveRuntime();
+    this.arm();
   }
 
   // Push mode's timer: a push overdue by more than the grace counts as a failed poll (the last reading goes
@@ -557,6 +633,8 @@ export class LivingCollector {
     }
     const expression = expressBehaviour({ behaviour, health, perception, speech: speech.decision, now });
     this.state = { perception, health, behaviour, expression };
+    this.meta.set('collector_state', { perception: { ...perception, recent: [], outsideToday: [] }, health, behaviour, expression });
+    this.saveRuntime();
     for (const fn of this.changeListeners) fn();
   }
 

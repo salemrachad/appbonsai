@@ -311,10 +311,12 @@ async function main() {
     push.usePush();
     await push.boot();
     let same = 0;
+    // The normalizer stamps updatedAt (display only) from the wall clock, which can tick between the two
+    const state = (b: Bench) => JSON.stringify(b.state(), (k, v) => (k === 'updatedAt' ? undefined : v));
     for (let i = 0; i < 200; i++) {
       await pull.poll(script(i));
       push.push(script(i));
-      if (JSON.stringify(pull.state()) === JSON.stringify(push.state())) same++;
+      if (state(pull) === state(push)) same++;
     }
     const pick = (b: Bench) => JSON.stringify({ eps: b.episodes().map((e) => [e.condition, e.startedAt, e.endedAt]), w: b.waterings().map((w) => [w.timestamp, w.metadata]) });
     check('PU1 same readings pushed or pulled: the same perception, health, behaviour and expression every minute', same === 200, `${same}/200 minutes identical, ${cond(pull)} / ${cond(push)}`);
@@ -436,6 +438,65 @@ async function main() {
     b.clock += APP_CONFIG.push.burstMs;
     const normal = b.push({ soil: 60 });
     check('PU10d afterwards back to the normal interval and stored', normal?.body.ok === true && normal.body.interval_s === 60 && b.db.telemetryStats().count === n + 1);
+  }
+
+  console.log('\n— Restarts between steps (a Durable Object waking up) —');
+  {
+    // The same pushes to a collector that never stops and to one restarted before every push. On Cloudflare a
+    // Durable Object is unloaded between requests, so every wake-up is a restart: it must change nothing.
+    // Drying to thirsty, a watering (a rise waiting for its confirmation across a restart), the device off for
+    // 20 min, outside weather every 15 min, petting, a care event logged by hand.
+    const script = (i: number) =>
+      i >= 150 && i < 170 ? null : { soil: i < 100 ? 60 - i * 0.35 : i < 102 ? 30 : i < 104 ? 75 : 74 - (i - 104) * 0.05, temp: 24 + (i % 90) / 15, hum: 60 + (i % 40) / 4 };
+    // The normalizer stamps updatedAt (display only) from the wall clock: not part of the comparison
+    const full = (b: Bench) =>
+      JSON.stringify(
+        {
+          ...b.collector.snapshot(),
+          status: b.collector.collectorStatus(),
+          next: b.collector.nextWakeAt(),
+          events: b.db.eventsSince(0),
+          episodes: b.episodes(),
+          meta: ['health_memory', 'message_memory', 'mood_memory', 'watering_detection_suppressed_until'].map((k) => b.db.getMeta(k)),
+        },
+        (k, v) => (k === 'updatedAt' ? undefined : v)
+      );
+    const steady = new Bench();
+    const restarted = new Bench();
+    for (const b of [steady, restarted]) {
+      b.weather = { code: 2, temp: 18 };
+      b.usePush();
+      await b.boot();
+    }
+    let same = 0;
+    let firstDiff = -1;
+    for (let i = 0; i < 260; i++) {
+      restarted.clock += MIN;
+      await restarted.boot();
+      steady.push(script(i));
+      restarted.push(script(i), { advance: 0 });
+      for (const b of [steady, restarted]) {
+        if (i % 15 === 0) await b.collector.pollWeather();
+        if (i === 60) b.collector.recordInteraction({ kind: 'pet', startedAt: b.clock - 30_000, endedAt: b.clock - 5_000, count: 6, activeMs: 20_000 });
+        if (i === 200) b.collector.logEvent('pruning', 'a light trim', b.clock);
+      }
+      if (full(steady) === full(restarted)) same++;
+      else if (firstDiff < 0) firstDiff = i;
+    }
+    check('RS1 restarted before every push: the same state, status, events and episodes every minute', same === 260, `${same}/260 identical${firstDiff >= 0 ? `, first difference at minute ${firstDiff}` : ''}`);
+    check('RS1b the scenario had its watering and its outage', restarted.waterings().length === 1 && restarted.logs.some((l) => l.includes('sensor back')), `${restarted.waterings().length} waterings`);
+
+    // Waking up by itself changes nothing: no evaluation, no new rows, the same snapshot
+    const before = full(restarted);
+    const rows = restarted.db.telemetryStats().count;
+    await restarted.boot();
+    check('RS2 a resumed start in push mode evaluates nothing and stores nothing', full(restarted) === before && restarted.db.telemetryStats().count === rows);
+    const due = restarted.db.getMeta<any>('collector_runtime').due;
+    check(
+      'RS3 the timers are saved with it (the alarm time): the overdue check one interval after the last push, the weather 15 min after its last fetch',
+      due.poll === restarted.clock + MIN && due.weather === restarted.clock - 4 * MIN + 15 * MIN && restarted.collector.nextWakeAt() === steady.collector.nextWakeAt(),
+      JSON.stringify(due)
+    );
   }
 
   console.log('\n— Attention (petting sessions) —');

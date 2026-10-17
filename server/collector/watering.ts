@@ -9,6 +9,14 @@ import type { MetaStore } from './metaStore';
 import { fromRecord } from './records';
 import { hhmmss } from '../../src/lib/time';
 
+// The detector as saved between steps: a restart (on Cloudflare: the object waking up) carries on with a rise
+// that is waiting for its confirmation
+export interface SavedWatering {
+  detector: DetectorState;
+  sessionEventId: number | null;
+  lastDecision: string | null;
+}
+
 // Sensor-detected waterings: runs the pure detector (perception/wateringDetector.ts) on each ESP32 reading
 // and turns its decisions into care events: a new watering, a longer session, or a merge with a watering
 // logged by hand. Also the detection pause while the probe is handled (calibration).
@@ -28,7 +36,18 @@ export class WateringDetection {
     return this.detector.suppressedUntil;
   }
 
-  // After a restart: the recent readings, a watering session still open, the pause
+  saved(): SavedWatering {
+    return { detector: this.detector, sessionEventId: this.sessionEventId, lastDecision: this.lastDecision };
+  }
+
+  // Carry on from the saved detector. The pause is the meta key's (it is written the moment it changes).
+  resume(s: SavedWatering) {
+    this.detector = { ...s.detector, suppressedUntil: this.meta.get('watering_detection_suppressed_until') ?? 0 };
+    this.sessionEventId = s.sessionEventId;
+    this.lastDecision = s.lastDecision;
+  }
+
+  // Without a saved detector: rebuilt from the recent readings, a watering session still open, the pause
   restore(now: number, calibration: SensorCalibration) {
     const window = this.db
       .telemetrySince('esp32_sensor', now - APP_CONFIG.watering.riseWindowMs, now)
