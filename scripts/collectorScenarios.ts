@@ -5,7 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { AppDatabase } from '../server/database';
+import { addDevice } from '../server/devices';
+import { handleIngest } from '../server/ingest';
 import { SCHEMA_VERSION } from '../server/schema';
+import { APP_CONFIG } from '../src/config/appConfig';
 import { Bench, check, cond, epList, finish, HOUR, MIN, START } from './bench';
 
 async function main() {
@@ -295,6 +298,141 @@ async function main() {
     check('C7 first readings make no zero-length episodes', b.episodes().every((e) => e.endedAt === null || e.endedAt - e.startedAt >= 1.5 * MIN), `${n}: ${epList(b)}`);
   }
 
+  console.log('\n— Push: the ESP32 sends its readings (POST /api/ingest) —');
+  {
+    // The same readings read by the server or sent by the device: the same tree
+    const script = (i: number) => ({ soil: i < 120 ? 60 - i * 0.25 : i < 122 ? 75 : 74, temp: 24 + (i % 50) / 25 });
+    // Both start before the device's first reading, as a server does
+    const pull = new Bench();
+    pull.online = false;
+    await pull.boot();
+    const push = new Bench();
+    push.usePush();
+    await push.boot();
+    let same = 0;
+    for (let i = 0; i < 200; i++) {
+      await pull.poll(script(i));
+      push.push(script(i));
+      if (JSON.stringify(pull.state()) === JSON.stringify(push.state())) same++;
+    }
+    const pick = (b: Bench) => JSON.stringify({ eps: b.episodes().map((e) => [e.condition, e.startedAt, e.endedAt]), w: b.waterings().map((w) => [w.timestamp, w.metadata]) });
+    check('PU1 same readings pushed or pulled: the same perception, health, behaviour and expression every minute', same === 200, `${same}/200 minutes identical, ${cond(pull)} / ${cond(push)}`);
+    check('PU1b same episodes and the same watering', pick(pull) === pick(push) && push.waterings().length === 1, `${epList(pull)} / ${epList(push)}`);
+    check('PU1d every pushed reading stored once, under the device id', push.db.telemetryStats().count === 200 && push.db.latestTelemetry(null, 1)[0].deviceId === 'bench-esp32', `${push.db.telemetryStats().count} rows`);
+  }
+
+  {
+    const b = new Bench();
+    b.usePush();
+    await b.boot();
+    b.push({ soil: 60 });
+    const n = b.db.telemetryStats().count;
+    b.clock += MIN;
+    b.device.buffer.push({ ...b.measure({ soil: 60 }), seq: 99, uptime_ms: b.clock - b.device.bootAt });
+    const wrong = b.send({}, 'not-the-token');
+    const unknown = b.send({ device_id: 'someone-else' });
+    const missing = handleIngest(b.db, b.collector, { body: { v: 1, device_id: b.device.id, readings: b.device.buffer } }, b.clock);
+    check('PU2 wrong token, unknown device, no token: 401, nothing stored', [wrong, unknown, missing].every((r) => r.status === 401) && b.db.telemetryStats().count === n);
+    check('PU2b the token is kept only as a hash', b.db.devices()[0].tokenHash !== b.device.token && !JSON.stringify(b.db.devices()).includes(b.device.token));
+    check('PU3 another protocol version: 400', b.send({ v: 2 }).status === 400);
+    check('PU3b no readings: 400', b.send({ readings: [] }).status === 400);
+    check('PU3c too many readings in one request: 413', b.send({ readings: Array.from({ length: APP_CONFIG.push.maxReadings + 1 }, () => ({})) }).status === 413);
+    const ok = b.send();
+    check('PU3d then the right request is taken', ok.status === 200 && ok.body.ok && ok.body.accepted === 1, JSON.stringify(ok.body));
+    check('PU4 the reply tells the device how often to send', ok.body.ok && ok.body.interval_s === 60 && ok.body.commands.length === 0);
+    b.collector.updateSettings({ telemetryIntervalMs: 2 * MIN });
+    const slower = b.push({ soil: 60 }, { advance: 2 * MIN });
+    check('PU4b a new interval in Settings reaches the device', slower?.body.ok === true && slower.body.interval_s === 120);
+  }
+
+  {
+    const b = new Bench(); // the server still reads the ESP32 itself
+    const token = addDevice(b.db, 'stray-esp32', null)!;
+    await b.boot();
+    const n = b.db.telemetryStats().count;
+    const r = handleIngest(b.db, b.collector, { authorization: `Bearer ${token}`, body: { v: 1, device_id: 'stray-esp32', readings: [b.measure({ soil: 50 })] } }, b.clock);
+    check('PU5 not set to receive pushes: 409, nothing stored (two collectors never feed one tree)', r.status === 409 && b.db.telemetryStats().count === n, JSON.stringify(r.body));
+  }
+
+  {
+    const b = new Bench();
+    b.usePush();
+    await b.boot();
+    b.pushRun(5, () => ({ soil: 60 }));
+    const last = b.db.latestTelemetry(null, 1)[0];
+    b.device.buffer = [{ ...b.measure({ soil: 60 }), seq: b.device.seq, uptime_ms: b.clock - b.device.bootAt + 5 }]; // the last one again
+    const retry = b.send();
+    check('PU6 a retried request (same boot, same seq) is dropped', retry.body.ok && retry.body.accepted === 0 && b.db.telemetryStats().count === 5 && b.db.latestTelemetry(null, 1)[0].id === last.id, JSON.stringify(retry.body));
+    b.reboot('boot-2');
+    const after = b.push({ soil: 60 });
+    check('PU6b after a reboot seq starts over and is taken', after?.body.ok === true && after.body.accepted === 1 && b.db.telemetryStats().count === 6);
+  }
+
+  {
+    const b = new Bench();
+    b.usePush();
+    await b.boot();
+    b.pushRun(100, () => ({ soil: 30 }));
+    b.pushRun(1, () => null);
+    const quiet = b.collector.collectorStatus();
+    b.pushRun(1, () => null);
+    const overdue = b.collector.collectorStatus();
+    b.pushRun(38, () => null);
+    const long = b.state().health;
+    b.pushRun(5, () => ({ soil: 30 }));
+    check('PU7 one missed minute is within the grace', quiet.lastError === null && quiet.consecutiveFailures === 0);
+    check('PU7b an overdue push counts as a failed poll', overdue.lastError !== null && overdue.consecutiveFailures === 1, `${overdue.lastError}`);
+    check('PU7c device off > 30 min: sensor_uncertain becomes primary (as in pull mode)', long.condition === 'sensor_uncertain', long.condition);
+    check('PU7d back: the biological state, the error cleared', b.state().health.condition === 'thirsty' && b.collector.collectorStatus().lastError === null && b.logs.some((l) => l.includes('sensor back')), cond(b));
+  }
+
+  {
+    const b = new Bench();
+    b.usePush();
+    await b.boot();
+    b.pushRun(100, () => ({ soil: 30 }));
+    b.pushRun(20, () => ({ soil: 29 }), { offline: true }); // Wi-Fi down: measured and kept
+    const held = b.state().health;
+    const res = b.push({ soil: 29 });
+    const rows = b.db.telemetrySince(null, START + 100 * MIN + 1);
+    const spaced = rows.every((r, i) => i === 0 || r.timestamp - rows[i - 1].timestamp === MIN);
+    check('PU8 Wi-Fi outage: held as uncertain while nothing arrives', held.modifiers.includes('sensor_uncertain') || held.condition === 'sensor_uncertain', `${held.condition} +${held.modifiers}`);
+    check('PU8b the buffered readings arrive in one request, each at the minute it was measured', res?.body.ok === true && res.body.accepted === 21 && rows.length === 21 && spaced, `${rows.length} rows, spaced ${spaced}, ${JSON.stringify(res?.body)}`);
+    check('PU8c the live state continues from the newest', b.state().health.condition === 'thirsty' && b.state().perception.readings.soilMoisture === 29, cond(b));
+    check('PU8d the outage stays unobserved time (not rewritten as thirst)', b.state().health.stress.dryHours < held.stress.dryHours + 0.1, `${held.stress.dryHours.toFixed(2)}h → ${b.state().health.stress.dryHours.toFixed(2)}h`);
+  }
+
+  {
+    const b = new Bench();
+    b.usePush();
+    await b.boot();
+    b.pushRun(3, () => ({ soil: 60 }));
+    const r = (t: number) => ({ ...b.measure({ soil: 60 }), seq: ++b.device.seq, t });
+    b.clock += MIN;
+    const res = b.send({ uptime_ms: undefined, readings: [r(b.clock + HOUR), r(b.clock - 30_000), r(b.clock)] });
+    const times = b.db.telemetrySince(null, b.clock - MIN).map((x) => x.timestamp);
+    check('PU9 device clock times: a future one is refused, the others kept', res.body.ok && res.body.accepted === 2 && res.body.errors.length === 1 && times.includes(b.clock - 30_000) && times.includes(b.clock), JSON.stringify(res.body));
+  }
+
+  {
+    // Calibration captures in push mode: the device is asked to send often, and the capture waits for it
+    const b = new Bench();
+    b.usePush();
+    await b.boot();
+    b.pushRun(3, () => ({ soil: 60, raw: 2600 }));
+    const n = b.db.telemetryStats().count;
+    const pending = b.collector.readRaw();
+    const reply = b.push({ soil: 60, raw: 2600 }, { advance: 3000 });
+    const raw = await pending;
+    const fast = b.push({ soil: 60, raw: 2610 }, { advance: 3000 });
+    check('PU10 a capture waits for the next pushed reading', raw.soilRaw === 2600, `${raw.soilRaw}`);
+    check('PU10b while capturing the device is asked to send every few seconds', reply?.body.ok === true && reply.body.interval_s === 3 && fast?.body.ok === true && fast.body.interval_s === 3);
+    check('PU10c capture readings are not polls: not stored as telemetry', b.db.telemetryStats().count === n, `${n} → ${b.db.telemetryStats().count}`);
+    b.clock += APP_CONFIG.push.burstMs;
+    const normal = b.push({ soil: 60 });
+    check('PU10d afterwards back to the normal interval and stored', normal?.body.ok === true && normal.body.interval_s === 60 && b.db.telemetryStats().count === n + 1);
+  }
+
   console.log('\n— Attention (petting sessions) —');
   {
     const b = new Bench();
@@ -343,6 +481,7 @@ async function main() {
     check('M1 v1 database upgraded: unobserved_ms added, old rows kept', ep?.unobservedMs === 0 && db.getMeta<number>('schema_version') === SCHEMA_VERSION);
     check('M2 old database gains the interactions table, empty', db.interactionCount() === 0 && db.getMeta<number>('schema_version') === SCHEMA_VERSION);
     check('M3 old database gains the outside_weather table, empty', db.latestOutsideWeather() === null && db.outsideWeatherSince(0).length === 0);
+    check('M4 old database gains the devices table, empty', db.devices().length === 0);
     db.close();
     for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
   }

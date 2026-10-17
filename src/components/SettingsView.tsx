@@ -30,6 +30,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [calibrationOffset, setCalibrationOffset] = useState(settings.calibrationOffset);
   const [esp32EndpointUrl, setEsp32EndpointUrl] = useState(settings.esp32EndpointUrl || '');
   const [telemetryIntervalMs, setTelemetryIntervalMs] = useState(settings.telemetryIntervalMs ?? APP_CONFIG.polling.telemetryMs);
+  const [esp32Transport, setEsp32Transport] = useState(settings.esp32Transport ?? 'pull');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +62,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       drainageRate,
       calibrationOffset,
       telemetryIntervalMs,
+      esp32Transport,
       esp32EndpointUrl: esp32EndpointUrl.trim() ? normalizeTelemetryEndpoint(esp32EndpointUrl) : undefined,
     };
     onUpdateSettings(updated);
@@ -85,6 +87,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       drainageRate,
       calibrationOffset,
       telemetryIntervalMs,
+      esp32Transport,
       esp32EndpointUrl: normalized,
     };
     onUpdateSettings(updated);
@@ -307,6 +310,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         esp32EndpointUrl={esp32EndpointUrl}
         setEsp32EndpointUrl={setEsp32EndpointUrl}
         telemetryIntervalMs={telemetryIntervalMs}
+        esp32Transport={esp32Transport}
+        setEsp32Transport={setEsp32Transport}
         setTelemetryIntervalMs={setTelemetryIntervalMs}
       />
 

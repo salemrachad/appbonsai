@@ -1,7 +1,7 @@
 // SQLite schema for the local Appbonsai database (data/appbonsai.db).
 // All timestamps are INTEGER milliseconds since the Unix epoch (UTC).
 
-export const SCHEMA_VERSION = 6; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather
+export const SCHEMA_VERSION = 7; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather, 7: devices
 
 export const SCHEMA_SQL = `
 -- Raw observations: the permanent truth. Health can be re-evaluated from these later.
@@ -92,6 +92,19 @@ CREATE TABLE IF NOT EXISTS outside_weather (
   raw_json      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_outside_weather_ts ON outside_weather(timestamp);
+
+-- ESP32s allowed to push readings (POST /api/ingest). Only the token's SHA-256 is kept: the token itself is
+-- shown once when the device is added (npm run device -- add <id>). boot + last_seq drop retried readings.
+CREATE TABLE IF NOT EXISTS devices (
+  id           TEXT    PRIMARY KEY,           -- the chip's id, as the firmware reports it
+  token_hash   TEXT    NOT NULL,
+  label        TEXT,
+  created_at   INTEGER NOT NULL,
+  last_seen_at INTEGER,                       -- last accepted push
+  firmware     TEXT,
+  boot         TEXT,                          -- the device's current boot (random per start)
+  last_seq     INTEGER                        -- highest reading seq accepted in that boot
+);
 
 -- Small key/value store: schema version, collector settings.
 CREATE TABLE IF NOT EXISTS meta (

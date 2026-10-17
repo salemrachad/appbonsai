@@ -16,6 +16,7 @@ import { ACTIVE_SPECIES } from '../../src/species';
 import type { SensorCalibration } from '../../src/telemetry/calibration';
 import { assessDataQuality } from '../../src/telemetry/dataQuality';
 import { normalizeTelemetryEndpoint } from '../../src/telemetry/ESP32TelemetryProvider';
+import { normalizeESP32Payload } from '../../src/telemetry/telemetryNormalizer';
 import { fetchOutsideWeather, type OutsideObservation } from '../../src/telemetry/outsideWeather';
 import { fetchHikeForecast, type HikeForecast } from '../../src/telemetry/hikeForecast';
 import { chooseHikeDay, INITIAL_HIKE_MEMORY, planHike, type HikeMemory } from '../../src/behaviour/hike';
@@ -82,6 +83,10 @@ export class LivingCollector {
   private polling: Promise<void> | null = null;
   private repoll = false;
   private messageMemory: MessageMemory = INITIAL_MESSAGE_MEMORY;
+  private startedAt = 0;
+  private evaluatedAt = 0; // the moment of the last evaluation (pushed backfill older than this isn't re-evaluated)
+  private burstUntil = 0; // push mode: the device is asked to send often until then (calibration captures)
+  private pushWaiters = new Set<(t: PlantTelemetry) => void>();
   private changeListeners = new Set<() => void>();
   private status: Pick<CollectorStatus, 'lastPollAt' | 'lastSuccessAt' | 'lastError' | 'consecutiveFailures'> = {
     lastPollAt: null,
@@ -122,6 +127,7 @@ export class LivingCollector {
 
   // ---- lifecycle ----
   start(): Promise<void> {
+    this.startedAt = this.now();
     this.restore();
     this.outside = this.db.latestOutsideWeather();
     void this.pollWeather();
@@ -198,6 +204,11 @@ export class LivingCollector {
 
   private source(): TelemetrySource {
     return this.settings.dataSource === 'weather_estimate' ? 'weather_estimate' : 'esp32_sensor';
+  }
+
+  // The ESP32 sends its readings (POST /api/ingest) instead of being read on the LAN
+  pushMode(): boolean {
+    return this.settings.dataSource === 'esp32_sensor' && this.settings.esp32Transport === 'push';
   }
 
   pollMs(): number {
@@ -326,7 +337,36 @@ export class LivingCollector {
   // ---- polling ----
   private schedule() {
     clearTimeout(this.timer);
-    if (this.autoSchedule) this.timer = setTimeout(() => void this.pollNow(), this.pollMs());
+    // Push mode: nothing to fetch, the timer only notices a push that is overdue
+    if (this.autoSchedule) this.timer = setTimeout(() => (this.pushMode() ? this.watchPush() : void this.pollNow()), this.pollMs());
+  }
+
+  // Push mode's timer: a push overdue by more than the grace counts as a failed poll (the last reading goes
+  // stale and the state is held, then uncertain), one per interval as in pull mode
+  watchPush() {
+    if (this.pushOverdue()) {
+      this.status.lastPollAt = this.now();
+      this.failed('no reading pushed by the device');
+      this.evaluate(this.now());
+    }
+    this.schedule();
+  }
+
+  private pushOverdue(): boolean {
+    return this.now() - (this.status.lastSuccessAt ?? this.startedAt) > this.pollMs() * APP_CONFIG.push.graceFactor;
+  }
+
+  private failed(error: string) {
+    this.status.lastError = error;
+    this.status.consecutiveFailures++;
+    if (this.status.consecutiveFailures === 1) this.log(`[collector] poll failed: ${this.status.lastError}`);
+  }
+
+  private succeeded(at: number) {
+    if (this.status.consecutiveFailures > 0) this.log(`[collector] sensor back after ${this.status.consecutiveFailures} failed polls`);
+    this.status.lastError = null;
+    this.status.consecutiveFailures = 0;
+    this.status.lastSuccessAt = at;
   }
 
   // Read now. If a poll is already running (maybe with old settings), read again right after it.
@@ -349,25 +389,31 @@ export class LivingCollector {
 
   private async poll() {
     this.status.lastPollAt = this.now();
+    if (this.pushMode()) {
+      // The device sends its readings: nothing to read here, only an overdue push to notice
+      if (this.pushOverdue()) this.failed('no reading pushed by the device');
+      this.evaluate(this.now());
+      return;
+    }
     let result: TelemetryFetchResult;
     try {
       result = await this.fetchTelemetry(this.store.forFetch());
     } catch (err: any) {
       // Never invent a reading: the last one goes stale and the tree's state is held, then uncertain
-      this.status.lastError = err?.cause?.code ?? err?.message ?? String(err);
-      this.status.consecutiveFailures++;
-      if (this.status.consecutiveFailures === 1) this.log(`[collector] poll failed: ${this.status.lastError}`);
+      this.failed(err?.cause?.code ?? err?.message ?? String(err));
       this.evaluate(this.now());
       return;
     }
 
     const t = result.current;
-    if (this.status.consecutiveFailures > 0) this.log(`[collector] sensor back after ${this.status.consecutiveFailures} failed polls`);
-    this.status.lastError = null;
-    this.status.consecutiveFailures = 0;
-    this.status.lastSuccessAt = t.timestamp;
+    this.succeeded(t.timestamp);
     if (t.source === 'weather_estimate') this.forecast = { hourly: result.hourly, timeline: result.timeline };
+    this.accept(t, result.raw, t.source === 'esp32_sensor' && this.settings.esp32EndpointUrl ? normalizeTelemetryEndpoint(this.settings.esp32EndpointUrl) : null);
+    this.evaluate(this.now());
+  }
 
+  // A new reading joins the history: stored, watering detection, the 24 h perception window, the live strip
+  private accept(t: PlantTelemetry, raw: unknown, deviceId: string | null) {
     // Source changed (auto mode fell back, or settings changed): history continuity starts over
     if (this.latest && this.latest.source !== t.source) {
       this.latest = null;
@@ -380,7 +426,7 @@ export class LivingCollector {
       {
         timestamp: t.timestamp,
         source: t.source,
-        deviceId: t.source === 'esp32_sensor' && this.settings.esp32EndpointUrl ? normalizeTelemetryEndpoint(this.settings.esp32EndpointUrl) : null,
+        deviceId,
         soilMoisture: t.soilMoisture,
         apiSoilMoisture: t.apiSoilMoisture ?? null,
         soilRaw: t.soilRaw ?? null,
@@ -392,7 +438,7 @@ export class LivingCollector {
         wifiRssi: t.wifiRssi ?? null,
         dataQuality: quality.confidence,
       },
-      result.raw
+      raw
     );
 
     if (t.source === 'esp32_sensor') this.watering.step(t, this.state?.health.condition ?? null, continuityGapMs(this.pollMs()));
@@ -402,8 +448,63 @@ export class LivingCollector {
     this.recent.push(toSample(t, ACTIVE_SPECIES, this.location()));
     if (this.recent.length > 3000) this.recent = this.recent.filter((s) => s.t >= t.timestamp - DAY);
     this.liveReadings = [...this.liveReadings, toLive(t)].slice(-APP_CONFIG.diagnostics.liveReadingsKept);
+  }
 
-    this.evaluate(this.now());
+  // Readings the device pushed (POST /api/ingest), with timestamps already on the server's clock. Each one
+  // newer than the last joins the history as a poll would. The tree is evaluated at a reading unless an
+  // evaluation already came after it: an outage's buffered readings fill the history, but the state that
+  // was held through the outage isn't rewritten.
+  ingest(deviceId: string, readings: { at: number; payload: unknown }[]): { accepted: number; errors: string[] } {
+    const errors: string[] = [];
+    let accepted = 0;
+    let evaluated = false;
+    const settings = this.store.forFetch();
+    for (const r of [...readings].sort((a, b) => a.at - b.at)) {
+      let t: PlantTelemetry;
+      try {
+        t = normalizeESP32Payload(r.payload, settings);
+      } catch (err: any) {
+        errors.push(err?.message ?? String(err));
+        continue;
+      }
+      t.timestamp = r.at;
+      for (const resolve of this.pushWaiters) resolve(t);
+      if (this.latest && t.timestamp <= this.latest.timestamp) continue; // a retry, or older than what the loop has seen
+      // While a calibration captures, the device sends every few seconds: those are captures, not polls
+      if (this.now() < this.burstUntil && this.latest && t.timestamp - this.latest.timestamp < this.pollMs() / 2) continue;
+      this.succeeded(t.timestamp);
+      this.accept(t, r.payload, deviceId);
+      accepted++;
+      if (t.timestamp > this.evaluatedAt) {
+        this.evaluate(t.timestamp);
+        evaluated = true;
+      }
+    }
+    if (accepted && !evaluated) this.evaluate(this.now());
+    return { accepted, errors };
+  }
+
+  // What the device is told after each push: how often to send (more often while a calibration captures).
+  // commands: reserved for later (e.g. a firmware update)
+  pushReply(): { interval_s: number; commands: string[] } {
+    const ms = this.now() < this.burstUntil ? APP_CONFIG.push.burstIntervalMs : this.pollMs();
+    return { interval_s: Math.round(ms / 1000), commands: [] };
+  }
+
+  // The next reading the device pushes (calibration captures in push mode)
+  private nextPushed(timeoutMs: number): Promise<PlantTelemetry> {
+    return new Promise((resolve, reject) => {
+      const done = (t: PlantTelemetry) => {
+        clearTimeout(timer);
+        this.pushWaiters.delete(done);
+        resolve(t);
+      };
+      const timer = setTimeout(() => {
+        this.pushWaiters.delete(done);
+        reject(new Error('No reading from the device yet: is it online and pushing?'));
+      }, timeoutMs);
+      this.pushWaiters.add(done);
+    });
   }
 
   // Pause watering detection while the probe is handled (calibration). minutes = 0 ends the pause.
@@ -422,6 +523,7 @@ export class LivingCollector {
       tempUnit: this.settings.temperatureUnit,
     });
     this.memory = memory;
+    this.evaluatedAt = now;
     this.meta.set('health_memory', { engineVersion: APP_CONFIG.engineVersion, source: this.source(), memory });
     trackEpisode(this.db, health, now, { pollMs: this.pollMs(), gapMs: perception.history.gapMs });
     const episodes = this.db.episodesSince(now - 30 * DAY);
@@ -483,7 +585,7 @@ export class LivingCollector {
     }
     // A new device or calibration changes the soil scale: that must never look like a watering
     if (changed('esp32EndpointUrl')) this.suppressWateringDetection();
-    if (changed('dataSource') || changed('esp32EndpointUrl') || changed('telemetryIntervalMs')) {
+    if (changed('dataSource') || changed('esp32EndpointUrl') || changed('telemetryIntervalMs') || changed('esp32Transport')) {
       void this.pollNow();
     } else if (this.state) {
       this.evaluate(this.now());
@@ -505,9 +607,16 @@ export class LivingCollector {
   }
 
   // One raw reading straight from the device (calibration captures; not stored as telemetry).
+  // Push mode: the device decides when it sends, so it is asked to send often for a while, and this waits
+  // for its next reading.
   async readRaw(): Promise<{ soilRaw: number | null; lightRaw: number | null; soilPercent: number; lightPercent: number | null; at: number }> {
-    const r = await this.fetchTelemetry(this.store.forFetch());
-    const t = r.current;
+    let t: PlantTelemetry;
+    if (this.pushMode()) {
+      this.burstUntil = this.now() + APP_CONFIG.push.burstMs;
+      t = await this.nextPushed(this.pollMs() + 15_000);
+    } else {
+      t = (await this.fetchTelemetry(this.store.forFetch())).current;
+    }
     return { soilRaw: t.soilRaw ?? null, lightRaw: t.lightRaw ?? null, soilPercent: t.soilMoisture, lightPercent: t.lightPercent ?? null, at: t.timestamp };
   }
 
@@ -538,7 +647,9 @@ export class LivingCollector {
   collectorStatus(): CollectorStatus {
     return {
       dataSource: this.settings.dataSource,
-      endpoint: this.settings.esp32EndpointUrl ? normalizeTelemetryEndpoint(this.settings.esp32EndpointUrl) : null,
+      transport: this.pushMode() ? 'push' : 'pull',
+      endpoint: !this.pushMode() && this.settings.esp32EndpointUrl ? normalizeTelemetryEndpoint(this.settings.esp32EndpointUrl) : null,
+      devices: this.db.devices().map(({ id, label, lastSeenAt, firmware }) => ({ id, label, lastSeenAt, firmware })),
       pollMs: this.pollMs(),
       ...this.status,
       wateringDetection: {

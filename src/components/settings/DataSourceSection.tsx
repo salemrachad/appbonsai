@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AlertCircle, Check, CheckCircle2, Code2, Copy, Cpu, ExternalLink, Wifi } from 'lucide-react';
 import { api } from '../../api/client';
 import type { ServerStatus } from '../../api/types';
+import { apiUrl } from '../../config/backend';
 import type { TreeSettings } from '../../settings/settings';
 import { ESP32TestResult, isRunningInIframe } from '../../telemetry/ESP32TelemetryProvider';
 import { telemetryManager } from '../../telemetry/telemetryManager';
@@ -19,6 +20,8 @@ interface DataSourceSectionProps {
   setEsp32EndpointUrl: (v: string) => void;
   telemetryIntervalMs: number;
   setTelemetryIntervalMs: (v: number) => void;
+  esp32Transport: 'pull' | 'push';
+  setEsp32Transport: (v: 'pull' | 'push') => void;
 }
 
 // Settings → where the readings come from: weather estimate or the ESP32, its address, Test Link (from the
@@ -33,7 +36,13 @@ export const DataSourceSection: React.FC<DataSourceSectionProps> = ({
   setEsp32EndpointUrl,
   telemetryIntervalMs,
   setTelemetryIntervalMs,
+  esp32Transport,
+  setEsp32Transport,
 }) => {
+  const push = esp32Transport === 'push';
+  // Where the device sends its readings (with "localhost" the device needs this computer's address instead)
+  const ingestUrl = new URL(apiUrl('/ingest'), window.location.href).href;
+  const devices = serverStatus?.collector.devices ?? [];
   const [serverTest, setServerTest] = useState<{ ok: boolean; text: string } | null>(null);
   const [showCodeGuide, setShowCodeGuide] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -148,10 +157,37 @@ export const DataSourceSection: React.FC<DataSourceSectionProps> = ({
       {/* ESP32 Physical Endpoint Configuration */}
       {dataSource === 'esp32_sensor' && (
         <div className="p-4 rounded-xl bg-white/80 border border-[#356077]/30 space-y-3 animate-fadeIn">
+          <div className="space-y-1.5">
+            <span className="sans text-xs font-bold text-[#2D332A]">How the readings arrive</span>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ['pull', 'The server reads the ESP32', 'On the same network, at its address below.'],
+                  ['push', 'The ESP32 sends its readings', 'To this server, with its device token. Works from anywhere.'],
+                ] as const
+              ).map(([value, title, note]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setEsp32Transport(value)}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    esp32Transport === value ? 'border-[#356077] bg-[#356077]/10 text-[#284B5D]' : 'border-[#EAE6E1] bg-white/60 text-[#2D332A]/70'
+                  }`}
+                >
+                  <span className="sans text-[11px] font-bold flex items-center justify-between gap-1">
+                    {title}
+                    {esp32Transport === value && <Check className="w-3.5 h-3.5 text-[#356077] shrink-0" />}
+                  </span>
+                  <span className="sans text-[10.5px] text-[#2D332A]/60">{note}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between">
             <span className="sans text-xs font-bold text-[#2D332A] flex items-center gap-1.5">
               <Wifi className="w-3.5 h-3.5 text-[#356077]" />
-              <span>ESP32 Wi-Fi / LAN Endpoint URL</span>
+              <span>ESP32 Wi-Fi / LAN Endpoint URL{push ? ' (optional: Test Link only)' : ''}</span>
             </span>
             <button
               type="button"
@@ -239,24 +275,47 @@ export const DataSourceSection: React.FC<DataSourceSectionProps> = ({
             </div>
           )}
 
-          {/* Local server: the collector that actually polls the ESP32 */}
+          {/* The Appbonsai server: the collector that reads the ESP32, or receives what it sends */}
           <div className="pt-3 border-t border-[#EAE6E1] space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="sans text-xs font-bold text-[#2D332A]">Local collector (Appbonsai server)</span>
-              <button
-                type="button"
-                onClick={handleTestFromServer}
-                disabled={!esp32EndpointUrl.trim()}
-                className="px-2.5 py-1 rounded-lg border border-[#356077]/40 text-[#356077] sans text-[11px] font-semibold hover:bg-[#356077]/10 cursor-pointer disabled:opacity-50"
-              >
-                Test from server
-              </button>
+              <span className="sans text-xs font-bold text-[#2D332A]">Collector (Appbonsai server)</span>
+              {!push && (
+                <button
+                  type="button"
+                  onClick={handleTestFromServer}
+                  disabled={!esp32EndpointUrl.trim()}
+                  className="px-2.5 py-1 rounded-lg border border-[#356077]/40 text-[#356077] sans text-[11px] font-semibold hover:bg-[#356077]/10 cursor-pointer disabled:opacity-50"
+                >
+                  Test from server
+                </button>
+              )}
             </div>
+            {push && (
+              <div className="space-y-1.5 sans text-[11px] text-[#2D332A]/75">
+                <p>
+                  The device sends to <code className="bg-neutral-100 px-1 py-0.5 rounded font-mono text-[10px] break-all">{ingestUrl}</code>
+                </p>
+                {devices.length ? (
+                  devices.map((d) => (
+                    <p key={d.id}>
+                      <span className="font-mono text-[10.5px]">{d.id}</span>
+                      {d.label ? ` · ${d.label}` : ''} ·{' '}
+                      {d.lastSeenAt ? `last push ${new Date(d.lastSeenAt).toLocaleTimeString()}` : 'nothing received yet'}
+                      {d.firmware ? ` · firmware ${d.firmware}` : ''}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-amber-900">
+                    No device added yet. On the server: <code className="bg-neutral-100 px-1 rounded font-mono text-[10px]">npm run device -- add &lt;device id&gt;</code>, then put the token in the device's setup page.
+                  </p>
+                )}
+              </div>
+            )}
             {serverTest && (
               <p className={`sans text-[11px] font-medium ${serverTest.ok ? 'text-emerald-800' : 'text-amber-900'}`}>{serverTest.text}</p>
             )}
             <label className="flex items-center justify-between gap-2 sans text-[11px] text-[#2D332A]/75">
-              <span>Read the ESP32 every</span>
+              <span>{push ? 'The ESP32 sends every' : 'Read the ESP32 every'}</span>
               <select
                 value={telemetryIntervalMs}
                 onChange={(e) => setTelemetryIntervalMs(Number(e.target.value))}
@@ -273,11 +332,13 @@ export const DataSourceSection: React.FC<DataSourceSectionProps> = ({
             <p className="sans text-[10.5px] text-[#2D332A]/50 leading-relaxed">
               {serverStatus
                 ? serverStatus.collector.lastError
-                  ? `Last poll failed: ${serverStatus.collector.lastError}`
+                  ? push
+                    ? `Nothing received lately (${serverStatus.collector.lastError})`
+                    : `Last poll failed: ${serverStatus.collector.lastError}`
                   : serverStatus.collector.lastSuccessAt
                   ? `Last reading ${new Date(serverStatus.collector.lastSuccessAt).toLocaleTimeString()} · ${serverStatus.counts.telemetry} readings stored`
                   : 'Waiting for the first reading'
-                : 'Appbonsai server not reachable. On the Pi it runs as a service; for local development use npm run dev:local.'}{' '}
+                : 'Appbonsai server not reachable. For local development use npm run dev:local.'}{' '}
               Readings are only collected while the server runs.
             </p>
           </div>

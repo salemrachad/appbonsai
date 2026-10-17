@@ -17,6 +17,15 @@ export const APP_CONFIG = {
     streamCheckMs: 15 * 1000, // /api/stream: slow change check (status counters) + keep-alive ping
   },
 
+  // The ESP32 sends its readings (POST /api/ingest) instead of being read on the LAN (docs/HOSTING.md)
+  push: {
+    graceFactor: 1.5, // no push for 1.5 intervals = a failed poll (then one per interval, as in pull mode)
+    maxReadings: 500, // per request: a device's outage buffer is sent in batches of at most this
+    burstIntervalMs: 3000, // while a calibration captures, the device is asked to send this often
+    burstMs: 2 * 60 * 1000,
+    maxClockSkewMs: 5 * 60 * 1000, // a device timestamp further than this from the server's clock is not trusted
+  },
+
   esp32: {
     telemetryPath: '/api/telemetry',
     fetchTimeoutMs: 4000,

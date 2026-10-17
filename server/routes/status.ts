@@ -10,7 +10,7 @@ export function serverStatus(db: AppDatabase, collector: LivingCollector, starte
   const c = collector.collectorStatus();
   return {
     ok: true,
-    backend: backend && { ...backend, collector: `this server collects (${c.dataSource}${c.endpoint ? ` from ${c.endpoint}` : ''})` },
+    backend: backend && { ...backend, collector: `this server collects (${c.dataSource}${c.transport === 'push' ? ', pushed by the device' : c.endpoint ? ` from ${c.endpoint}` : ''})` },
     startedAt,
     engineVersion: APP_CONFIG.engineVersion,
     dbPath: db.path,

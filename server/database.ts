@@ -84,6 +84,28 @@ const toEpisode = (r: Row): BehaviourEpisode => ({
   engineVersion: r.engine_version,
 });
 
+export interface DeviceRecord {
+  id: string;
+  tokenHash: string;
+  label: string | null;
+  createdAt: number;
+  lastSeenAt: number | null;
+  firmware: string | null;
+  boot: string | null;
+  lastSeq: number | null;
+}
+
+const toDevice = (r: Row): DeviceRecord => ({
+  id: r.id,
+  tokenHash: r.token_hash,
+  label: r.label,
+  createdAt: r.created_at,
+  lastSeenAt: r.last_seen_at,
+  firmware: r.firmware,
+  boot: r.boot,
+  lastSeq: r.last_seq,
+});
+
 export class AppDatabase {
   readonly db: DatabaseSync;
   readonly path: string;
@@ -285,6 +307,27 @@ export class AppDatabase {
       next: json(r.new_json, null),
       note: r.note,
     }));
+  }
+
+  // ---- devices (ESP32s that push) ----
+  insertDevice(d: { id: string; tokenHash: string; label: string | null; createdAt: number }): boolean {
+    return this.prepare('INSERT OR IGNORE INTO devices (id, token_hash, label, created_at) VALUES (?, ?, ?, ?)').run(d.id, d.tokenHash, d.label, d.createdAt).changes > 0;
+  }
+  getDevice(id: string): DeviceRecord | null {
+    const r = this.prepare('SELECT * FROM devices WHERE id = ?').get(id) as Row | undefined;
+    return r ? toDevice(r) : null;
+  }
+  devices(): DeviceRecord[] {
+    return (this.prepare('SELECT * FROM devices ORDER BY created_at').all() as Row[]).map(toDevice);
+  }
+  touchDevice(id: string, d: { lastSeenAt: number; firmware: string | null; boot: string | null; lastSeq: number | null }) {
+    this.prepare('UPDATE devices SET last_seen_at = ?, firmware = COALESCE(?, firmware), boot = ?, last_seq = ? WHERE id = ?').run(d.lastSeenAt, d.firmware, d.boot, d.lastSeq, id);
+  }
+  setDeviceToken(id: string, tokenHash: string): boolean {
+    return this.prepare('UPDATE devices SET token_hash = ?, boot = NULL, last_seq = NULL WHERE id = ?').run(tokenHash, id).changes > 0;
+  }
+  deleteDevice(id: string): boolean {
+    return this.prepare('DELETE FROM devices WHERE id = ?').run(id).changes > 0;
   }
 
   // ---- behaviour episodes ----

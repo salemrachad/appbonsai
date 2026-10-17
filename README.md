@@ -4,6 +4,10 @@ A digital living companion for one real Ficus bonsai. An ESP32 on the balcony me
 the Appbonsai server collects the readings into SQLite and runs the living loop
 (perception → health → behaviour → expression); a React app shows the tree.
 
+> **The Raspberry Pi is gone** (2026-10-17). The sections below about the Pi describe how it used to run. The
+> server is moving to Cloudflare with the ESP32 pushing its readings: see [docs/HOSTING.md](docs/HOSTING.md).
+> Until then, `npm run dev:local` is the only running stack.
+
 ## One collector, one database: the Raspberry Pi
 
 ```

@@ -12,6 +12,7 @@ import { AppDatabase } from './database';
 import { calibrationRoutes } from './routes/calibration';
 import { eventRoutes } from './routes/events';
 import { historyRoutes } from './routes/history';
+import { ingestRoutes } from './routes/ingest';
 import { interactionRoutes } from './routes/interactions';
 import { statusRoutes } from './routes/status';
 import { telemetryRoutes } from './routes/telemetry';
@@ -51,6 +52,7 @@ app.use('/api/interactions', interactionRoutes(db, collector));
 app.use('/api/calibration', calibrationRoutes(calibration));
 app.use('/api/history', historyRoutes(db, collector));
 app.use('/api/telemetry', telemetryRoutes(db, collector));
+app.use('/api/ingest', ingestRoutes(db, collector));
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API route' }));
 
 // Production: the built frontend (npm run build) from the same server, so the app and its API share an origin
@@ -71,8 +73,8 @@ const server = app.listen(port, host, () => {
     console.log('');
     console.log('  ┌──────────────────────────────────────────────────────────────────┐');
     console.log('  │  LOCAL DEVELOPMENT BACKEND: a separate collector and database.   │');
-    console.log('  │  It polls the ESP32 itself and writes its OWN history.           │');
-    console.log('  │  This is not the Raspberry Pi. Nothing here reaches the Pi.      │');
+    console.log('  │  It reads the ESP32 (or takes its pushes) and keeps its OWN      │');
+    console.log('  │  history in data/appbonsai-dev.db.                               │');
     console.log('  └──────────────────────────────────────────────────────────────────┘');
   }
   const shown = host === '0.0.0.0' ? `http://${hostname()}:${port}` : `http://${host}:${port}`;

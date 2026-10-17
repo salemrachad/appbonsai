@@ -12,7 +12,7 @@ physical bonsai → PERCEPTION → HEALTH → BEHAVIOUR → EXPRESSION → React
 
 **Read `docs/LIVING_ART.md` before changing perception, health, behaviour, expression or wording.** It holds the Living Art philosophy (the real tree is the artwork; the character interprets it), the biological principles with their evidence class, the three expression layers (epidermal / wording / diffraction), care and relationship rules, and what is implemented vs intended vs open.
 
-The project is local only: no cloud, no accounts. **The Raspberry Pi (`ender3.local`, `npm run server` under systemd) is the only authoritative collector and database.** The laptop normally runs only the Vite frontend against the Pi's API (`npm run dev`). See README.md for the three modes. It started from a Google AI Studio template (`README.md`, `metadata.json`, `.env.example`).
+**The Raspberry Pi that was the authoritative collector and database is gone** (2026-10-17: broken Wi-Fi, corrupted SD card, history lost). Don't plan around it. The server is moving to Cloudflare (Workers + one Durable Object per tree), with the ESP32 pushing its readings; it should later work as a product (accounts, "add plant", a barcode on the pot). **Read `docs/HOSTING.md`** for the decisions, the steps and the push protocol. Until then the only running stack is `npm run dev:local` on the laptop. README.md still describes the Pi modes. It started from a Google AI Studio template (`README.md`, `metadata.json`, `.env.example`).
 
 ## Commands
 
@@ -24,10 +24,11 @@ The project is local only: no cloud, no accounts. **The Raspberry Pi (`ender3.lo
 - `npm run check`: `lint` + `npm test`. Run it before every commit; refactors must pass it unchanged.
 - `npm test`: runs the three scenario suites and the golden master (there is no test framework; these are the regression checks). `scripts/bench.ts` is the shared bench: the real `LivingCollector`, in-memory SQLite, a fake ESP32 and a simulated clock.
   - `npm run test:scenarios` (`scripts/scenarios.ts`): pure engine checks: dry→thirsty→very dry, recovery, night vs too dark, brief vs sustained heat, watering reactions, outage overlay, dev override, season (date/latitude, energy, seasonal look, no jumps across boundaries all year, seasonal care reactions), every condition looking distinct, threshold hovering.
-  - `npm run test:collector` (`scripts/collectorScenarios.ts`): watering detection (spikes, probe pulled, gradual, sessions, manual merge, saturation, calibration pause), sensor reality checks, outages, restarts, long gaps, DB migration.
+  - `npm run test:collector` (`scripts/collectorScenarios.ts`): watering detection (spikes, probe pulled, gradual, sessions, manual merge, saturation, calibration pause), sensor reality checks, outages, restarts, long gaps, DB migration, push (PU1–PU10: pushed and pulled readings give an identical state every minute, auth, retries, overdue pushes, buffered backfill, device clocks, calibration bursts). The bench's fake ESP32 can push (`usePush()`, `push()`, `send()`).
   - `npm run test:behaviour` (`scripts/behaviourScenarios.ts`): talking vs silence, thirst escalation, relief, recovery stages, concern on wet soil, quiet nights, morning lines, once-per-episode lines across refresh/restart, variants, rewording safety, same condition with different history.
   - `npm run test:golden` (`scripts/golden.ts`): the **golden master**. A scripted three days (comfortable → thirsty → very dry → sensor watering → recovering, an outage, restarts, rain, petting, pruning, a heat spell, a manual watering, then a cold restart that replays 48 h) through the real collector, and the routes over HTTP. Each hourly checkpoint holds a digest of every poll's perception/health/behaviour/expression/… plus a readable summary; the routes (`/current`, diary, daily, hourly, episodes, events, interactions) and the collector log are stored in full. It must stay identical across refactors. `scripts/golden/env.ts` pins the timezone (Asia/Beirut), the locale and `Date` to the simulated clock, so it is the same on the laptop and the Pi. Only for an intended behaviour change: `npm run test:golden -- --update`, and review the `scripts/golden/golden.json` diff. `-- --dump <dir>` writes every checkpoint in full (dump two commits and diff them).
 - UI type-checking: `@types/react`/`@types/react-dom` are installed, so `npm run lint` checks `.tsx` props too. Still look at UI changes in the browser.
+- `npm run device -- add <id> [label]` / `token <id>` / `list` / `remove <id>` (`--local-dev` for the dev DB): the ESP32s allowed to push (`server/device.ts`). The token is printed once; only its SHA-256 is stored.
 - `npm run db:inspect`: read-only summary of `data/appbonsai.db` (counts, latest readings, episodes, events). `APPBONSAI_DB` points it (and the server) at another file.
 - `npm run lint`: type-check only (`tsc --noEmit`, covers `src/`, `server/`, `scripts/`). There is no ESLint.
 - `npm run build`: frontend production build (the server runs from source with tsx).
@@ -69,6 +70,7 @@ Each layer has one job. Keep them separate. Biological thresholds never go in Re
 
 Each poll (ESP32 every `telemetryIntervalMs`, 60 s by default and changeable in Settings; every 15 min in `weather_estimate` mode) does the following:
 1. Fetch with `telemetryManager` (injectable, with the clock, via `CollectorOptions` for tests). On failure it never invents a reading.
+   - **Push mode** (`esp32Transport: 'push'`, Settings → "The ESP32 sends its readings"): nothing is fetched. `POST /api/ingest` (`server/ingest.ts`: device token, protocol v1 in `docs/HOSTING.md`) hands the readings to `collector.ingest()`, which runs steps 2–4 for each one exactly as a poll (`accept()` is shared). The timer only calls `watchPush()`: a push overdue by 1.5 intervals is a failed poll. Buffered readings older than the last evaluation fill the history without being re-evaluated. `pushReply()` tells the device its interval (3 s while a calibration captures; `readRaw()` then waits for the next push and those captures aren't stored). A server not in push mode answers 409.
 2. Insert the raw observation into `telemetry`, including the device JSON in `raw_json`.
 3. Detect watering with `src/perception/wateringDetector.ts` (pure state machine, numbers in `appConfig.watering`):
    - A rise of `minRisePct` above the recent baseline (lowest reading in `riseWindowMs`, in one jump or accumulated) must be **confirmed** by the next reading.
@@ -208,6 +210,7 @@ A dot marks a group with a preview on, and **Reset all previews** clears every p
 - `behaviour_episodes`: opened when the primary condition changes and closed on transition (or at `last_seen_at` after a long gap), with `unobserved_ms`, `modifiers_json` (union seen, never `sensor_uncertain`), `peak_severity` and `engine_version`.
 - `outside_weather`: outside observations every 15 min (sky, WMO code, temp, humidity, precipitation, cloud, wind, gusts, raw JSON). Context only, never read by perception's health inputs.
 - `interactions`: attention sessions with the digital tree (V1: `kind = 'pet'`; free-text kind, validated by the API). Never care, never read by perception or health.
+- `devices`: ESP32s allowed to push: id, SHA-256 of the token, label, last push, firmware, `boot` + `last_seq` (retries are dropped).
 - `meta`: schema version, collector settings (`collector_settings`), saved health memory (`health_memory`), speech memory (`message_memory`), watering-detection pause (`watering_detection_suppressed_until`), the daily forecast and hike picks (`hike_memory`).
 - Migrations: `server/schema.ts` `MIGRATIONS`, applied on open. Steps with a column check always verify the actual table shape.
 
@@ -225,7 +228,8 @@ A dot marks a group with a preview on, and **Reset all previews** clears every p
 | `GET /api/current` | Everything the UI needs in one call: perception (without `recent` and `outsideToday`, which stay on the server), health, behaviour, expression, forecast, live readings, recent events and episodes. `ETag` = hash of all but `serverTime`; `If-None-Match` → 304 (CORS allows the header and exposes `ETag`) |
 | `GET /api/stream` | The same state as Server-Sent Events (`event: state`, `id` = the ETag): on connect, after every collector evaluation (`collector.onChange`) when it differs, and from a check every `polling.streamCheckMs` (15 s; status counters change without an evaluation, else a `: ping`). Each write is flushed through `compression` |
 | `GET /api/health`, `GET /api/behaviour` | Subsets of the current state |
-| `POST /api/refresh` | Read the sensor now |
+| `POST /api/refresh` | Read the sensor now (push mode: re-evaluate; the device sends on its own interval) |
+| `POST /api/ingest` | Readings pushed by the ESP32 (`Authorization: Bearer <device token>`, protocol v1 in `docs/HOSTING.md`) |
 | `POST /api/calibration/light {darkRaw, brightRaw, manual?, dryRun?, confirm?}` | Light calibration; `manual: true` = min/max raw typed in Settings (stored as method `manual`, with history), same checks as the guided capture |
 | `POST /api/collector/calibration {minutes}` | Pause watering detection while handling the probe (`0` resumes) |
 | `GET`/`PUT /api/config` | Collector settings |

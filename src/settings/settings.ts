@@ -26,6 +26,9 @@ export interface TreeSettings {
   soilRawWet?: number;
   lastSoilRaw?: number; // last raw value seen by Test Link (browser copy only; the server strips it)
   telemetryIntervalMs?: number; // how often the local server reads the ESP32
+  // How ESP32 readings reach the server: pull = the server reads esp32EndpointUrl on the LAN (default);
+  // push = the device sends them to POST /api/ingest with its device token (no LAN access needed)
+  esp32Transport?: 'pull' | 'push';
 }
 
 const SETTINGS_KEY = 'appbonsai_settings_v1';

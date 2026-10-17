@@ -33,7 +33,9 @@ export interface CalibrationSaveResult extends Validation {
 
 export interface CollectorStatus {
   dataSource: string;
-  endpoint: string | null;
+  transport?: 'pull' | 'push'; // missing on older servers (= pull)
+  endpoint: string | null; // pull mode: the ESP32 address the server reads
+  devices?: { id: string; label: string | null; lastSeenAt: number | null; firmware: string | null }[]; // devices allowed to push
   pollMs: number;
   lastPollAt: number | null;
   lastSuccessAt: number | null;

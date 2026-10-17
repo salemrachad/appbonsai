@@ -11,6 +11,7 @@
     "dev:local:api": "tsx watch --clear-screen=false server/index.ts --local-dev",
     "server": "tsx server/index.ts",
     "db:inspect": "tsx server/inspect.ts",
+    "device": "tsx server/device.ts",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",

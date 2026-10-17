@@ -3672,11 +3672,13 @@
     "collector": {
      "consecutiveFailures": 0,
      "dataSource": "esp32_sensor",
+     "devices": [],
      "endpoint": "http://bonsai.test/api/telemetry",
      "lastError": null,
      "lastPollAt": 1781762400000,
      "lastSuccessAt": 1781762400000,
      "pollMs": 60000,
+     "transport": "pull",
      "wateringDetection": {
       "lastDecision": "watering recorded: soil 14% → 76% (single jump, confirmed by 1 reading)",
       "suppressedUntil": null
