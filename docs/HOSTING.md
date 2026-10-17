@@ -19,8 +19,9 @@ For now: one prototype, one account, one tree. The design must still allow for m
 
 ## Steps
 
-1. **Push protocol** (done on the server side: `POST /api/ingest`, the `devices` table, `npm run device`, Settings
-   → "The ESP32 sends its readings", scenarios PU1–PU10). Next: the firmware.
+1. **Push protocol**: the server side (`POST /api/ingest`, the `devices` table, `npm run device`, Settings → "The
+   ESP32 sends its readings", scenarios PU1–PU10) and firmware 1.1.0 (device id, push settings at `/settings`, a
+   6 h RAM buffer). Left: flash it and run it against the laptop for a few days.
 2. **Database interface + `tree_id`**: the collector talks to an interface, not to `node:sqlite` directly, and every
    table gets a `tree_id` (a tree is not a device: a replaced sensor keeps the tree's history). The golden master
    must stay identical.

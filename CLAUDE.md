@@ -200,7 +200,7 @@ A dot marks a group with a preview on, and **Reset all previews** clears every p
 
 ### ESP32 firmware
 
-`firmware/appbonsai_esp32/appbonsai_esp32.ino` is the sketch running on the device: FC-28 soil probe on GPIO34, LDR on GPIO35, HTS221 over I²C (SDA 21, SCL 22). It serves `GET /api/telemetry` and `http://bonsai.local` over mDNS. If no Wi-Fi credentials are saved, it opens a setup access point called `Appbonsai-Setup`. **Don't change it when the task is frontend or server only.**
+`firmware/appbonsai_esp32/appbonsai_esp32.ino` is the sketch running on the device: FC-28 soil probe on GPIO34, LDR on GPIO35, HTS221 over I²C (SDA 21, SCL 22). It serves `GET /api/telemetry` (now with `device_id`, the chip's MAC in hex) and `http://bonsai.local` over mDNS. If no Wi-Fi credentials are saved, it opens a setup access point called `Appbonsai-Setup`. Firmware 1.1.0 can also **push** (protocol v1): with a server address and device token saved (`/settings`, or the setup page) it measures every `interval_s` from the server's reply, keeps up to 360 unsent readings in RAM, and sends them oldest first, at most 60 per request. HTTPS accepts any certificate for now (TODO before the cloud step: pin the root CA). It builds with the Arduino IDE's bundled `arduino-cli` (ESP32 core 3.3.12): `arduino-cli compile --fqbn esp32:esp32:esp32 firmware/appbonsai_esp32`; a struct used in function signatures must be declared before the first function (the Arduino build inserts its prototypes there). **Don't change it when the task is frontend or server only.**
 
 ### Persistence
 

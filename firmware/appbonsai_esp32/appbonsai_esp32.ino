@@ -2,6 +2,8 @@
 #include <WebServer.h>
 #include <Preferences.h>
 #include <ESPmDNS.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 
 #include <Wire.h>
 #include <Adafruit_HTS221.h>
@@ -23,7 +25,17 @@
 //   SCL -> GPIO22
 //   VIN -> 3V3
 //   GND -> GND
+//
+// Two ways the readings reach the Appbonsai server:
+//   pull: the server reads GET /api/telemetry on the LAN
+//   push: this device sends them to the server's
+//         POST /api/ingest (protocol v1, docs/HOSTING.md),
+//         set up at http://<device>/settings with the
+//         server address and the device token
+//         (npm run device -- add <device id>).
 // ======================================================
+
+const char* FIRMWARE_VERSION = "1.1.0";
 
 
 // ----------------------
@@ -64,6 +76,22 @@ const int LIGHT_BRIGHT_RAW = 3000;
 
 
 // ======================================================
+// PUSH
+// ======================================================
+
+// Readings kept while the server can't be reached:
+// 6 h at one a minute. In RAM, so lost on a restart.
+const int BUFFER_SIZE = 360;
+
+// Readings per request (the server takes up to 500)
+const int MAX_PER_PUSH = 60;
+
+// How often to measure and send. The server's reply
+// sets it (Settings in the app; 3 s while calibrating).
+unsigned long intervalMs = 60000;
+
+
+// ======================================================
 // OBJECTS
 // ======================================================
 
@@ -73,9 +101,84 @@ Preferences preferences;
 Adafruit_HTS221 hts;
 
 bool htsAvailable = false;
+bool online = false;
 
 String wifiSSID = "";
 String wifiPassword = "";
+
+String deviceId = "";
+String bootId = "";
+String pushUrl = "";
+String pushToken = "";
+
+
+// One measurement. Declared before any function: the
+// Arduino build puts its prototypes there.
+struct Reading {
+  uint32_t seq;
+  int64_t uptimeMs;
+  int soilRaw;
+  int soilPercent;
+  int lightRaw;
+  int lightPercent;
+  float temperature;
+  float humidity;
+  int rssi;
+};
+
+uint32_t nextSeq = 1;
+
+
+// ======================================================
+// DEVICE IDENTITY + TIME
+// ======================================================
+
+// The chip's own id (from its MAC): the device id
+// the server knows it by. Later printed on the barcode.
+String makeDeviceId() {
+
+  uint64_t mac = ESP.getEfuseMac();
+
+  char id[13];
+
+  snprintf(
+    id,
+    sizeof(id),
+    "%02x%02x%02x%02x%02x%02x",
+    (uint8_t)(mac),
+    (uint8_t)(mac >> 8),
+    (uint8_t)(mac >> 16),
+    (uint8_t)(mac >> 24),
+    (uint8_t)(mac >> 32),
+    (uint8_t)(mac >> 40)
+  );
+
+  return String(id);
+}
+
+
+// Milliseconds since this start. 64-bit, so it never
+// wraps (millis() does after 49 days). The server puts
+// readings on its own clock from this: no NTP needed.
+int64_t nowMs() {
+
+  return esp_timer_get_time() / 1000;
+}
+
+
+String int64ToString(int64_t v) {
+
+  char buf[24];
+
+  snprintf(
+    buf,
+    sizeof(buf),
+    "%lld",
+    (long long)v
+  );
+
+  return String(buf);
+}
 
 
 // ======================================================
@@ -143,6 +246,433 @@ int lightRawToPercent(int raw) {
 
 
 // ======================================================
+// READINGS
+// ======================================================
+
+Reading takeReading() {
+
+  Reading r;
+
+  r.seq = nextSeq++;
+  r.uptimeMs = nowMs();
+
+
+  // Soil
+
+  r.soilRaw = readSoilRaw();
+  r.soilPercent = soilRawToPercent(r.soilRaw);
+
+
+  // Light
+
+  r.lightRaw = readLightRaw();
+  r.lightPercent = lightRawToPercent(r.lightRaw);
+
+
+  // HTS221
+
+  r.temperature = NAN;
+  r.humidity = NAN;
+
+  if (htsAvailable) {
+
+    sensors_event_t humidityEvent;
+    sensors_event_t temperatureEvent;
+
+    hts.getEvent(
+      &humidityEvent,
+      &temperatureEvent
+    );
+
+    r.temperature = temperatureEvent.temperature;
+    r.humidity = humidityEvent.relative_humidity;
+  }
+
+
+  r.rssi = WiFi.RSSI();
+
+  return r;
+}
+
+
+// The reading as JSON: the fields GET /api/telemetry has
+// always served; a pushed one adds seq and uptime_ms.
+String readingJson(const Reading& r, bool forPush) {
+
+  String json = "{";
+
+
+  if (forPush) {
+
+    json += "\"seq\":";
+    json += String(r.seq);
+    json += ",";
+
+    json += "\"uptime_ms\":";
+    json += int64ToString(r.uptimeMs);
+    json += ",";
+  }
+
+
+  json += "\"soil_moisture\":";
+  json += String(r.soilPercent);
+  json += ",";
+
+
+  json += "\"soil_raw\":";
+  json += String(r.soilRaw);
+  json += ",";
+
+
+  json += "\"temperature\":";
+
+  if (htsAvailable && !isnan(r.temperature)) {
+    json += String(r.temperature, 1);
+  } else {
+    json += "null";
+  }
+
+  json += ",";
+
+
+  json += "\"humidity\":";
+
+  if (htsAvailable && !isnan(r.humidity)) {
+    json += String(r.humidity, 1);
+  } else {
+    json += "null";
+  }
+
+  json += ",";
+
+
+  json += "\"light_raw\":";
+  json += String(r.lightRaw);
+  json += ",";
+
+
+  json += "\"light_percent\":";
+  json += String(r.lightPercent);
+  json += ",";
+
+
+  // LDR is not calibrated in lux
+
+  json += "\"light_lux\":null,";
+
+
+  // Future sensor
+
+  json += "\"soil_temp\":null,";
+
+
+  // HTS status
+
+  json += "\"hts221_connected\":";
+
+  if (htsAvailable) {
+    json += "true";
+  } else {
+    json += "false";
+  }
+
+  json += ",";
+
+
+  json += "\"source\":\"esp32_sensor\",";
+
+
+  json += "\"wifi_rssi\":";
+  json += String(r.rssi);
+
+
+  if (!forPush) {
+
+    json += ",\"device_id\":\"";
+    json += deviceId;
+    json += "\"";
+  }
+
+
+  json += "}";
+
+  return json;
+}
+
+
+// ======================================================
+// BUFFER (readings not sent yet, oldest first)
+// ======================================================
+
+Reading buffer[BUFFER_SIZE];
+
+int bufferStart = 0;
+int bufferCount = 0;
+
+
+void bufferAdd(const Reading& r) {
+
+  // Full: the oldest reading makes room
+
+  if (bufferCount == BUFFER_SIZE) {
+
+    bufferStart = (bufferStart + 1) % BUFFER_SIZE;
+    bufferCount--;
+  }
+
+  buffer[(bufferStart + bufferCount) % BUFFER_SIZE] = r;
+  bufferCount++;
+}
+
+
+void bufferDrop(int n) {
+
+  n = min(n, bufferCount);
+
+  bufferStart = (bufferStart + n) % BUFFER_SIZE;
+  bufferCount -= n;
+}
+
+
+// ======================================================
+// PUSH TO THE SERVER
+// ======================================================
+
+int64_t lastReadingAt = -1;
+int64_t lastPushAt = -1;
+int lastPushCode = 0;
+int lastPushSent = 0;
+
+
+bool pushEnabled() {
+
+  return online && pushUrl.length() > 0 && pushToken.length() > 0;
+}
+
+
+// One request. Returns the HTTP status (negative: no
+// answer at all) and fills response with the body.
+int postJson(const String& body, String& response) {
+
+  HTTPClient http;
+  WiFiClient plainClient;
+  WiFiClientSecure secureClient;
+
+  bool started;
+
+  if (pushUrl.startsWith("https://")) {
+
+    // TODO (cloud step): trust only the server's root
+    // certificate. For now any certificate is accepted.
+    secureClient.setInsecure();
+
+    started = http.begin(secureClient, pushUrl);
+
+  } else {
+
+    started = http.begin(plainClient, pushUrl);
+  }
+
+  if (!started) {
+    return -1;
+  }
+
+
+  http.setTimeout(8000);
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", "Bearer " + pushToken);
+
+
+  int code = http.POST(body);
+
+  if (code > 0) {
+    response = http.getString();
+  }
+
+  http.end();
+
+  return code;
+}
+
+
+// Send what the buffer holds, oldest first, in requests
+// of up to MAX_PER_PUSH. Stops at the first failure: the
+// rest stays for the next interval.
+void pushBuffer() {
+
+  for (int round = 0; round < 10 && bufferCount > 0; round++) {
+
+    int n = min(bufferCount, MAX_PER_PUSH);
+
+
+    String body = "{\"v\":1,\"device_id\":\"";
+    body += deviceId;
+    body += "\",\"fw\":\"";
+    body += FIRMWARE_VERSION;
+    body += "\",\"boot\":\"";
+    body += bootId;
+    body += "\",\"readings\":[";
+
+    for (int i = 0; i < n; i++) {
+
+      if (i > 0) {
+        body += ",";
+      }
+
+      body += readingJson(buffer[(bufferStart + i) % BUFFER_SIZE], true);
+    }
+
+    // The device's time at sending: the server compares
+    // each reading's uptime_ms with it
+    body += "],\"uptime_ms\":";
+    body += int64ToString(nowMs());
+    body += "}";
+
+
+    String response = "";
+
+    int code = postJson(body, response);
+
+    lastPushAt = nowMs();
+    lastPushCode = code;
+
+
+    if (code == 200) {
+
+      bufferDrop(n);
+      lastPushSent = n;
+
+
+      // The server says how often to send from now on
+
+      int at = response.indexOf("\"interval_s\":");
+
+      if (at >= 0) {
+
+        long seconds = response.substring(at + 13).toInt();
+
+        if (seconds >= 2 && seconds <= 600) {
+          intervalMs = seconds * 1000UL;
+        }
+      }
+
+      continue;
+    }
+
+
+    Serial.print("Push failed: HTTP ");
+    Serial.print(code);
+    Serial.print(" ");
+    Serial.println(response);
+
+
+    // Bad data won't get better by sending it again
+
+    if (code == 400) {
+      bufferDrop(n);
+    }
+
+    // 401 wrong token, 409 server not set to receive,
+    // 5xx or no answer: keep the readings, try later
+
+    return;
+  }
+}
+
+
+// ======================================================
+// PUSH SETTINGS (server address + device token)
+// ======================================================
+
+void loadPushSettings() {
+
+  preferences.begin(
+    "appbonsai",
+    true
+  );
+
+  pushUrl = preferences.getString("push_url", "");
+  pushToken = preferences.getString("push_token", "");
+
+  preferences.end();
+}
+
+
+// Empty token = keep the current one
+void savePushSettings(String url, String token) {
+
+  url.trim();
+  token.trim();
+
+  preferences.begin(
+    "appbonsai",
+    false
+  );
+
+  preferences.putString("push_url", url);
+
+  if (token.length() > 0) {
+    preferences.putString("push_token", token);
+  }
+
+  preferences.end();
+
+  loadPushSettings();
+}
+
+
+String htmlAttr(String s) {
+
+  s.replace("&", "&amp;");
+  s.replace("<", "&lt;");
+  s.replace(">", "&gt;");
+  s.replace("\"", "&quot;");
+  s.replace("'", "&#39;");
+
+  return s;
+}
+
+
+String pushStatusText() {
+
+  if (pushUrl.length() == 0 || pushToken.length() == 0) {
+    return "Push off (no server address or token)";
+  }
+
+  String text = "Push to " + htmlAttr(pushUrl) + "<br>";
+
+  if (lastPushAt < 0) {
+
+    text += "Nothing sent yet";
+
+  } else {
+
+    text += "Last push ";
+    text += int64ToString((nowMs() - lastPushAt) / 1000);
+    text += " s ago: ";
+
+    if (lastPushCode == 200) {
+      text += "OK, " + String(lastPushSent) + " reading(s)";
+    } else if (lastPushCode == 401) {
+      text += "wrong token or unknown device";
+    } else if (lastPushCode == 409) {
+      text += "the server is not set to receive pushed readings";
+    } else if (lastPushCode < 0) {
+      text += "server not reachable";
+    } else {
+      text += "HTTP " + String(lastPushCode);
+    }
+  }
+
+  text += "<br>Waiting to send: " + String(bufferCount);
+  text += " · every " + String(intervalMs / 1000) + " s";
+
+  return text;
+}
+
+
+// ======================================================
 // CORS + LOCAL NETWORK ACCESS
 // ======================================================
 
@@ -176,116 +706,10 @@ void addCorsHeaders() {
 
 void handleTelemetry() {
 
-  // Soil
+  // A reading on request does not use up a seq
 
-  int soilRaw = readSoilRaw();
-  int soilPercent = soilRawToPercent(soilRaw);
-
-
-  // Light
-
-  int lightRaw = readLightRaw();
-  int lightPercent = lightRawToPercent(lightRaw);
-
-
-  // HTS221
-
-  float temperature = NAN;
-  float humidity = NAN;
-
-  if (htsAvailable) {
-
-    sensors_event_t humidityEvent;
-    sensors_event_t temperatureEvent;
-
-    hts.getEvent(
-      &humidityEvent,
-      &temperatureEvent
-    );
-
-    temperature = temperatureEvent.temperature;
-    humidity = humidityEvent.relative_humidity;
-  }
-
-
-  // JSON
-
-  String json = "{";
-
-
-  json += "\"soil_moisture\":";
-  json += String(soilPercent);
-  json += ",";
-
-
-  json += "\"soil_raw\":";
-  json += String(soilRaw);
-  json += ",";
-
-
-  json += "\"temperature\":";
-
-  if (htsAvailable && !isnan(temperature)) {
-    json += String(temperature, 1);
-  } else {
-    json += "null";
-  }
-
-  json += ",";
-
-
-  json += "\"humidity\":";
-
-  if (htsAvailable && !isnan(humidity)) {
-    json += String(humidity, 1);
-  } else {
-    json += "null";
-  }
-
-  json += ",";
-
-
-  json += "\"light_raw\":";
-  json += String(lightRaw);
-  json += ",";
-
-
-  json += "\"light_percent\":";
-  json += String(lightPercent);
-  json += ",";
-
-
-  // LDR is not calibrated in lux
-
-  json += "\"light_lux\":null,";
-
-
-  // Future sensor
-
-  json += "\"soil_temp\":null,";
-
-
-  // HTS status
-
-  json += "\"hts221_connected\":";
-
-  if (htsAvailable) {
-    json += "true";
-  } else {
-    json += "false";
-  }
-
-  json += ",";
-
-
-  json += "\"source\":\"esp32_sensor\",";
-
-
-  json += "\"wifi_rssi\":";
-  json += String(WiFi.RSSI());
-
-
-  json += "}";
+  Reading r = takeReading();
+  nextSeq--;
 
 
   addCorsHeaders();
@@ -293,7 +717,7 @@ void handleTelemetry() {
   server.send(
     200,
     "application/json",
-    json
+    readingJson(r, false)
   );
 }
 
@@ -320,30 +744,8 @@ void handleOptions() {
 
 void handleRoot() {
 
-  int soilRaw = readSoilRaw();
-  int soilPercent = soilRawToPercent(soilRaw);
-
-  int lightRaw = readLightRaw();
-  int lightPercent = lightRawToPercent(lightRaw);
-
-
-  float temperature = NAN;
-  float humidity = NAN;
-
-
-  if (htsAvailable) {
-
-    sensors_event_t humidityEvent;
-    sensors_event_t temperatureEvent;
-
-    hts.getEvent(
-      &humidityEvent,
-      &temperatureEvent
-    );
-
-    temperature = temperatureEvent.temperature;
-    humidity = humidityEvent.relative_humidity;
-  }
+  Reading r = takeReading();
+  nextSeq--;
 
 
   String html = "";
@@ -420,13 +822,13 @@ void handleRoot() {
 
   html += "<div class='value'>";
 
-  html += String(soilPercent);
+  html += String(r.soilPercent);
 
   html += "%</div>";
 
   html += "<div class='raw'>RAW: ";
 
-  html += String(soilRaw);
+  html += String(r.soilRaw);
 
   html += "</div>";
 
@@ -441,9 +843,9 @@ void handleRoot() {
 
   html += "<div class='value'>";
 
-  if (htsAvailable && !isnan(temperature)) {
+  if (htsAvailable && !isnan(r.temperature)) {
 
-    html += String(temperature, 1);
+    html += String(r.temperature, 1);
 
     html += " °C";
 
@@ -465,9 +867,9 @@ void handleRoot() {
 
   html += "<div class='value'>";
 
-  if (htsAvailable && !isnan(humidity)) {
+  if (htsAvailable && !isnan(r.humidity)) {
 
-    html += String(humidity, 1);
+    html += String(r.humidity, 1);
 
     html += " %";
 
@@ -489,25 +891,42 @@ void handleRoot() {
 
   html += "<div class='value'>";
 
-  html += String(lightPercent);
+  html += String(r.lightPercent);
 
   html += "%</div>";
 
   html += "<div class='raw'>RAW: ";
 
-  html += String(lightRaw);
+  html += String(r.lightRaw);
 
   html += "</div>";
 
   html += "</div>";
+
+
+  // PUSH
+
+  html += "<p class='raw'>";
+
+  html += pushStatusText();
+
+  html += "<br><a href='/settings'>Push settings</a></p>";
 
 
   html +=
-    "<p class='raw'>ESP32 Live Sensor</p>";
+    "<p class='raw'>ESP32 Live Sensor · firmware ";
+
+  html += FIRMWARE_VERSION;
+
+  html += "</p>";
 
   html += "<p class='raw'>";
 
   html += WiFi.localIP().toString();
+
+  html += " · device id ";
+
+  html += deviceId;
 
   html += "</p>";
 
@@ -526,6 +945,156 @@ void handleRoot() {
     "text/html",
     html
   );
+}
+
+
+// ======================================================
+// PUSH SETTINGS PAGE
+// ======================================================
+
+// Anyone on this Wi-Fi can open it, like the status page.
+// The token itself is never shown.
+String pushFieldsHtml() {
+
+  String html = "";
+
+  html +=
+    "<p>Server address (push)<br>"
+    "<small>e.g. http://192.168.1.20:3000/api/ingest</small></p>";
+
+  html +=
+    "<input "
+    "name='push_url' "
+    "value='";
+
+  html += htmlAttr(pushUrl);
+
+  html +=
+    "' "
+    "style='width:100%;padding:12px;'>";
+
+
+  html += "<p>Device token<br><small>";
+
+  html +=
+    pushToken.length() > 0
+      ? "Set. Leave empty to keep it."
+      : "From: npm run device -- add " + deviceId;
+
+  html += "</small></p>";
+
+  html +=
+    "<input "
+    "name='push_token' "
+    "type='password' "
+    "autocomplete='off' "
+    "style='width:100%;padding:12px;'>";
+
+  return html;
+}
+
+
+void handleSettingsPage() {
+
+  String html = "";
+
+  html += "<!DOCTYPE html>";
+  html += "<html>";
+
+  html += "<head>";
+
+  html +=
+    "<meta name='viewport' "
+    "content='width=device-width,initial-scale=1'>";
+
+  html += "<title>Appbonsai Push</title>";
+
+  html += "</head>";
+
+
+  html +=
+    "<body style='"
+    "font-family:Arial;"
+    "background:#f4f1e8;"
+    "padding:30px;'>";
+
+
+  html +=
+    "<div style='"
+    "background:white;"
+    "max-width:400px;"
+    "margin:auto;"
+    "padding:25px;"
+    "border-radius:20px;'>";
+
+
+  html += "<h2>🌳 Push settings</h2>";
+
+  html += "<p>Device id: <b>";
+
+  html += deviceId;
+
+  html += "</b></p>";
+
+  html += "<p style='font-size:13px;color:#777;'>";
+
+  html += pushStatusText();
+
+  html += "</p>";
+
+
+  html +=
+    "<form method='POST' action='/settings'>";
+
+  html += pushFieldsHtml();
+
+  html +=
+    "<br><br>"
+    "<button "
+    "type='submit' "
+    "style='padding:14px;width:100%;'>"
+    "Save"
+    "</button>";
+
+  html += "</form>";
+
+  html +=
+    "<p style='font-size:13px;color:#777;'>"
+    "An empty server address turns push off.</p>";
+
+  html += "<p><a href='/'>Back</a></p>";
+
+  html += "</div>";
+
+  html += "</body>";
+
+  html += "</html>";
+
+
+  server.send(
+    200,
+    "text/html",
+    html
+  );
+}
+
+
+void handleSaveSettings() {
+
+  savePushSettings(
+    server.arg("push_url"),
+    server.arg("push_token")
+  );
+
+
+  // Send a reading right away to show it works
+
+  lastReadingAt = -1;
+
+
+  server.sendHeader("Location", "/settings");
+
+  server.send(303, "text/plain", "");
 }
 
 
@@ -600,6 +1169,13 @@ void handleSetupPage() {
 
 
   html +=
+    "<p style='font-size:13px;color:#777;'>"
+    "Optional, also later at http://bonsai.local/settings:</p>";
+
+  html += pushFieldsHtml();
+
+
+  html +=
     "<br><br>"
     "<button "
     "type='submit' "
@@ -609,6 +1185,12 @@ void handleSetupPage() {
 
 
   html += "</form>";
+
+  html += "<p style='font-size:13px;color:#777;'>Device id: ";
+
+  html += deviceId;
+
+  html += "</p>";
 
   html += "</div>";
 
@@ -655,6 +1237,15 @@ void handleSaveWifi() {
 
 
   preferences.end();
+
+
+  if (server.arg("push_url").length() > 0) {
+
+    savePushSettings(
+      server.arg("push_url"),
+      server.arg("push_token")
+    );
+  }
 
 
   server.send(
@@ -815,6 +1406,11 @@ bool connectWifi() {
 
   if (WiFi.status() == WL_CONNECTED) {
 
+    // Comes back by itself after a Wi-Fi drop; the
+    // buffer keeps the readings meanwhile
+    WiFi.setAutoReconnect(true);
+
+
     Serial.println();
 
     Serial.println(
@@ -892,6 +1488,20 @@ void startAppbonsaiServer() {
   );
 
 
+  server.on(
+    "/settings",
+    HTTP_GET,
+    handleSettingsPage
+  );
+
+
+  server.on(
+    "/settings",
+    HTTP_POST,
+    handleSaveSettings
+  );
+
+
   server.begin();
 
 
@@ -936,6 +1546,23 @@ void setup() {
 
   Serial.println(
     "🌳 Appbonsai starting..."
+  );
+
+
+  // Identity: the chip's id, and a new boot id each start
+  // (with seq, it lets the server drop retried readings)
+
+  deviceId = makeDeviceId();
+
+  bootId = String(esp_random(), HEX);
+
+
+  Serial.print(
+    "Device id: "
+  );
+
+  Serial.println(
+    deviceId
   );
 
 
@@ -999,15 +1626,31 @@ void setup() {
   }
 
 
+  // PUSH
+
+  loadPushSettings();
+
+
   // WIFI
 
-  bool connected =
+  online =
     connectWifi();
 
 
-  if (connected) {
+  if (online) {
 
     startAppbonsaiServer();
+
+
+    Serial.print(
+      "Push: "
+    );
+
+    Serial.println(
+      pushUrl.length() > 0 && pushToken.length() > 0
+        ? pushUrl
+        : "off (set it at /settings)"
+    );
 
   } else {
 
@@ -1023,6 +1666,27 @@ void setup() {
 void loop() {
 
   server.handleClient();
+
+
+  // Push mode: measure every interval and send. Without
+  // Wi-Fi the reading waits in the buffer.
+
+  if (
+    pushEnabled() &&
+    (lastReadingAt < 0 || nowMs() - lastReadingAt >= (int64_t)intervalMs)
+  ) {
+
+    lastReadingAt = nowMs();
+
+    bufferAdd(takeReading());
+
+
+    if (WiFi.status() == WL_CONNECTED) {
+
+      pushBuffer();
+    }
+  }
+
 
   delay(2);
 }
