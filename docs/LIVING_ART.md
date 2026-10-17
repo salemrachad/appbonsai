@@ -402,8 +402,9 @@ read it.
   the calendar."), again when the forecast moves its pick ("The forecast changed: the hike moves to
   Thursday."), answers a choice ("Wednesday it is!"), and greets the day itself.
   Only calm and by day; a stressed tree talks about itself.
-- **Art:** on hike day two pairs of hiking boots stand on the ground by the stand, one each side, each with
-  a water bottle at its heels (`avatar/HikingBoots.tsx`). Home shows the plan under the Outside panel with the week at a glance.
+- **Art:** on hike day two pairs of hiking boots and their two water bottles stand together on the ground
+  right of the stand (`avatar/HikingBoots.tsx`). Home shows the plan as the tree's own choice: "I picked
+  your hike day", a line in its voice, and its two days as chips (a 🌱 on its pick), not a forecast table, under the Outside panel.
 - **Tested:** `npm run test:scenarios` HK1–HK10.
 - **Open:** preferring weekends, and remembering hikes that happened in the diary.
 
