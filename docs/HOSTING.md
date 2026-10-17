@@ -21,7 +21,7 @@ For now: one prototype, one account, one tree. The design must still allow for m
 
 1. **Push protocol**: the server side (`POST /api/ingest`, the `devices` table, `npm run device`, Settings → "The
    ESP32 sends its readings", scenarios PU1–PU10) and firmware 1.1.0 (device id, push settings at `/settings`, a
-   6 h RAM buffer). Left: flash it and run it against the laptop for a few days.
+   6 h RAM buffer). Firmware 1.2.0 can be updated over Wi-Fi (below). Running against the laptop since 2026-10-17.
 2. **Database interface + `tree_id`**: the collector talks to an interface, not to `node:sqlite` directly, and every
    table gets a `tree_id` (a tree is not a device: a replaced sensor keeps the tree's history). The golden master
    must stay identical.
@@ -68,6 +68,18 @@ Content-Type: application/json
 
 On the server, a push older than 1.5 intervals counts as a failed poll, exactly like a failed read in pull mode
 (the reading goes stale, the state is held, then uncertain).
+
+**Wireless firmware updates** (firmware 1.2.0): the device takes a new firmware on its own web server, protected
+by the same device token, so it can stay mounted at the pot:
+
+```sh
+arduino-cli compile --fqbn esp32:esp32:esp32 --output-dir <dir> firmware/appbonsai_esp32
+curl -H "Authorization: Bearer <device token>" -F firmware=@<dir>/appbonsai_esp32.ino.bin http://<device ip>/update
+```
+
+`200` → it restarts into the new firmware (unsent readings in RAM are lost); `401` wrong or no token; `400` no file
+or a bad image (the old firmware keeps running). This works on the device's own network only; updates from the
+cloud (a `commands` entry in the push reply) come with the product.
 
 **Devices:** `npm run device -- add <device id> [label]` prints the token once (only its SHA-256 is stored);
 `token <id>` replaces it, `list`, `remove <id>`; `--local-dev` for the dev database.

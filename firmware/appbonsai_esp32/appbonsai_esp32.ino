@@ -4,6 +4,7 @@
 #include <ESPmDNS.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <Update.h>
 
 #include <Wire.h>
 #include <Adafruit_HTS221.h>
@@ -33,9 +34,15 @@
 //         set up at http://<device>/settings with the
 //         server address and the device token
 //         (npm run device -- add <device id>).
+//
+// Wireless update: POST the compiled .bin to /update
+// with the device token (docs/HOSTING.md):
+//   curl -H "Authorization: Bearer <token>"
+//        -F firmware=@appbonsai_esp32.ino.bin
+//        http://<device>/update
 // ======================================================
 
-const char* FIRMWARE_VERSION = "1.1.0";
+const char* FIRMWARE_VERSION = "1.2.0";
 
 
 // ----------------------
@@ -928,6 +935,11 @@ void handleRoot() {
 
   html += deviceId;
 
+  html +=
+    pushToken.length() > 0
+      ? " · wireless update on"
+      : " · wireless update off (no token)";
+
   html += "</p>";
 
 
@@ -1095,6 +1107,144 @@ void handleSaveSettings() {
   server.sendHeader("Location", "/settings");
 
   server.send(303, "text/plain", "");
+}
+
+
+// ======================================================
+// WIRELESS UPDATE (POST /update)
+// ======================================================
+
+// The password is the device token: whoever may feed
+// this tree's data may also update its firmware. No
+// token saved = no wireless updates.
+
+bool updateAllowed = false;
+bool updateReceived = false;
+String updateError = "";
+
+
+bool tokenMatches(String authorization) {
+
+  if (pushToken.length() == 0) {
+    return false;
+  }
+
+  String expected = "Bearer " + pushToken;
+
+  if (authorization.length() != expected.length()) {
+    return false;
+  }
+
+  // Compare every character, so the time taken
+  // doesn't tell how much of the token was right
+  uint8_t diff = 0;
+
+  for (unsigned int i = 0; i < expected.length(); i++) {
+    diff |= authorization[i] ^ expected[i];
+  }
+
+  return diff == 0;
+}
+
+
+// Called for each piece of the uploaded file
+void handleUpdateUpload() {
+
+  HTTPUpload& upload = server.upload();
+
+
+  if (upload.status == UPLOAD_FILE_START) {
+
+    updateReceived = true;
+    updateError = "";
+
+    updateAllowed =
+      tokenMatches(server.header("Authorization"));
+
+    if (!updateAllowed) {
+      return;
+    }
+
+
+    Serial.print("Wireless update: ");
+    Serial.println(upload.filename);
+
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+      updateError = Update.errorString();
+    }
+
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+
+    if (!updateAllowed || updateError.length() > 0) {
+      return;
+    }
+
+    if (
+      Update.write(upload.buf, upload.currentSize) !=
+      upload.currentSize
+    ) {
+      updateError = Update.errorString();
+      Update.abort();
+    }
+
+  } else if (upload.status == UPLOAD_FILE_END) {
+
+    if (!updateAllowed || updateError.length() > 0) {
+      return;
+    }
+
+    // true: the size is whatever arrived
+    if (!Update.end(true)) {
+      updateError = Update.errorString();
+    }
+
+  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+
+    if (updateAllowed) {
+      Update.abort();
+    }
+
+    updateError = "upload aborted";
+  }
+}
+
+
+// Called once the whole request has arrived
+void handleUpdateDone() {
+
+  bool allowed = updateAllowed;
+  bool received = updateReceived;
+  String error = updateError;
+
+  updateAllowed = false;
+  updateReceived = false;
+  updateError = "";
+
+
+  if (!tokenMatches(server.header("Authorization"))) {
+    server.send(401, "text/plain", "wrong token or no token saved\n");
+    return;
+  }
+
+  if (!received || !allowed) {
+    server.send(400, "text/plain", "no firmware file (field: firmware)\n");
+    return;
+  }
+
+  if (error.length() > 0) {
+    Serial.println("Wireless update failed: " + error);
+    server.send(400, "text/plain", "update failed: " + error + "\n");
+    return;
+  }
+
+
+  Serial.println("Wireless update done, restarting...");
+
+  server.send(200, "text/plain", "OK, restarting with the new firmware\n");
+
+  delay(500);
+
+  ESP.restart();
 }
 
 
@@ -1500,6 +1650,20 @@ void startAppbonsaiServer() {
     HTTP_POST,
     handleSaveSettings
   );
+
+
+  server.on(
+    "/update",
+    HTTP_POST,
+    handleUpdateDone,
+    handleUpdateUpload
+  );
+
+
+  // The update checks the token in this header
+  const char* headerKeys[] = { "Authorization" };
+
+  server.collectHeaders(headerKeys, 1);
 
 
   server.begin();
