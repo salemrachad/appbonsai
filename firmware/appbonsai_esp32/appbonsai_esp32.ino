@@ -42,7 +42,7 @@
 //        http://<device>/update
 // ======================================================
 
-const char* FIRMWARE_VERSION = "1.2.0";
+const char* FIRMWARE_VERSION = "1.2.1";
 
 
 // ----------------------
@@ -954,7 +954,7 @@ void handleRoot() {
 
   server.send(
     200,
-    "text/html",
+    "text/html; charset=utf-8",
     html
   );
 }
@@ -1085,7 +1085,7 @@ void handleSettingsPage() {
 
   server.send(
     200,
-    "text/html",
+    "text/html; charset=utf-8",
     html
   );
 }
@@ -1351,7 +1351,7 @@ void handleSetupPage() {
 
   server.send(
     200,
-    "text/html",
+    "text/html; charset=utf-8",
     html
   );
 }
@@ -1400,7 +1400,7 @@ void handleSaveWifi() {
 
   server.send(
     200,
-    "text/html",
+    "text/html; charset=utf-8",
     "<html><body>"
     "<h2>Saved!</h2>"
     "<p>ESP32 restarting...</p>"
