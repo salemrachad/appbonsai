@@ -264,6 +264,16 @@ export class AppDatabase {
     this.sql.close();
   }
 
+  // All or nothing; on a failure (rolled back) `undo` forgets what memory believed was written
+  private transaction(fn: () => void, undo: () => void) {
+    try {
+      this.sql.transaction(fn);
+    } catch (err) {
+      undo();
+      throw err;
+    }
+  }
+
   // ---- moving a tree between servers ----
   dump(after?: BackupCursor): DatabaseDump {
     return dumpDatabase(this.sql, after);
@@ -275,7 +285,7 @@ export class AppDatabase {
     if (dump.schemaVersion !== SCHEMA_VERSION) throw new Error(`The dump is schema v${dump.schemaVersion}, this server v${SCHEMA_VERSION}`);
     const treeId = this.tree().id;
     const counts: Record<string, number> = {};
-    this.sql.transaction(() => {
+    this.transaction(() => {
       for (const table of DUMP_TABLES) {
         this.all(`DELETE FROM ${table}`);
         const rows = dump.tables[table] ?? [];
@@ -285,9 +295,10 @@ export class AppDatabase {
       // backup_state goes too: the data changed under the backup series, so the next backup starts a new series
       // with a complete one (server/backup.ts)
       this.all("DELETE FROM meta WHERE key <> 'schema_version'");
+      this.metaSeen.clear();
       for (const [key, value] of Object.entries(dump.meta)) if (key !== 'schema_version' && key !== 'backup_state') this.setMeta(key, value);
       counts.meta = Object.keys(dump.meta).length;
-    });
+    }, () => this.metaSeen.clear());
     this.counts.clear();
     this.windows.clear();
     this.episodeWindow = null;
@@ -330,10 +341,17 @@ export class AppDatabase {
   // ---- meta ----
   getMeta<T>(key: string): T | null {
     const r = this.get('SELECT value FROM meta WHERE key = ?', key);
+    if (r) this.metaSeen.set(key, r.value);
     return r ? json<T | null>(r.value, null) : null;
   }
+  // A value the same as the stored one isn't written again (the collector saves several keys every minute, and
+  // some rarely change; a Durable Object bills rows written)
+  private metaSeen = new Map<string, string>();
   setMeta(key: string, value: unknown) {
-    this.all('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
+    const text = JSON.stringify(value);
+    if (this.metaSeen.get(key) === text) return;
+    this.all('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, text);
+    this.metaSeen.set(key, text);
   }
 
   // ---- telemetry ----
