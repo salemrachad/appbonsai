@@ -24,6 +24,7 @@ import { telemetryManager } from '../../src/telemetry/telemetryManager';
 import type { HourlyTelemetryPoint, LiveReading, PlantTelemetry, TelemetryFetchResult, TelemetrySource, TimelineEvent } from '../../src/telemetry/types';
 import type { AppDatabase } from '../database';
 import { trackEpisode } from '../episodes';
+import { recentWeather } from '../rowCache';
 import { logCareEvent } from './careEvents';
 import { recordInteraction } from './interactions';
 import { MetaStore, type SavedRuntime } from './metaStore';
@@ -293,7 +294,7 @@ export class LivingCollector {
       const t = fromRecord(r, this.calibration, false);
       return t ? [toSample(t, ACTIVE_SPECIES, loc)] : [];
     });
-    const { memory } = slothLife(samples, this.db.outsideWeatherSince(from - 6 * HOUR), this.db.episodesSince(from), ACTIVE_SPECIES, cadenceMs, today, days);
+    const { memory } = slothLife(samples, recentWeather(this.db, from - 6 * HOUR), this.db.episodesSince(from), ACTIVE_SPECIES, cadenceMs, today, days);
     this.slothCache = { key, memory };
     return memory;
   }
@@ -405,7 +406,7 @@ export class LivingCollector {
   private perceiveAt(now: number, events: PlantEvent[], deviceError: string | null = null, outside: OutsideObservation | null = null, context?: PerceiveContext): PerceptionState {
     setTreeTimeZone(this.settings.timezone); // every evaluation on the tree's clock (several benches may share a process)
     const since = dayStartOf(now) - HOUR;
-    const skies = context ? context.skies.filter((o) => o.at >= since) : this.db.outsideWeatherSince(since);
+    const skies = context ? context.skies.filter((o) => o.at >= since) : recentWeather(this.db, since); // today's observations, from memory after the first read
     return perceive({
       outside,
       soilBreaks: context?.soilBreaks ?? this.soilBreaks(),

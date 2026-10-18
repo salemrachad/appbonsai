@@ -187,12 +187,34 @@ export class AppDatabase {
   dataVersion = 0;
   private telemetryCache: { count: number; oldest: number | null } | null = null;
   private forgetCounts(sql: string) {
+    const w = sql.match(/^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|UPDATE|DELETE\s+FROM)\s+(\w+)/i);
+    if (w) this.windows.delete(w[1]); // a cached window of this table is stale (see windowOf)
     const m = /^\s*(INSERT|DELETE)\b/i.test(sql) ? sql.match(/\b(?:INTO|FROM)\s+(\w+)/i) : null;
     if (!m) return;
     this.counts.delete(m[1]);
     if (m[1] === 'telemetry' && !this.countingTelemetry) this.telemetryCache = null;
   }
   private countingTelemetry = false;
+
+  // Recent rows of tables that change rarely (care events, petting sessions), read every poll and with every
+  // state snapshot (the stream asks every 15 s): kept as one window per table, read again after any write to it.
+  // Same rows, same order as the query each time (the window is that query's result, filtered).
+  private windows = new Map<string, { start: number; rows: Row[] }>();
+  private windowOf(table: string, since: number, query: string): Row[] {
+    let w = this.windows.get(table);
+    if (!w || since < w.start) this.windows.set(table, (w = { start: since, rows: this.sql.all(query, since) }));
+    return w.rows;
+  }
+
+  // The episodes of the last weeks, read every poll and with every snapshot: kept in memory and changed in step
+  // with each write below (the open episode is touched every minute), so they are read from the table once.
+  // A write to an episode outside the window drops it (read again next time). Always the query's rows and order.
+  private episodeWindow: { start: number; rows: BehaviourEpisode[] } | null = null;
+  private patchEpisode(id: number, change: (e: BehaviourEpisode) => void) {
+    const e = this.episodeWindow?.rows.find((x) => x.id === id);
+    if (e) change(e);
+    else this.episodeWindow = null;
+  }
   private countOf(table: string): number {
     let n = this.counts.get(table);
     if (n === undefined) this.counts.set(table, (n = Number(this.sql.all(`SELECT COUNT(*) AS n FROM ${table}`)[0].n)));
@@ -267,6 +289,8 @@ export class AppDatabase {
       counts.meta = Object.keys(dump.meta).length;
     });
     this.counts.clear();
+    this.windows.clear();
+    this.episodeWindow = null;
     this.telemetryCache = null;
     this.dataVersion++;
     return counts;
@@ -406,7 +430,8 @@ export class AppDatabase {
     return this.all('DELETE FROM plant_events WHERE id = ? RETURNING id', id).length > 0;
   }
   eventsSince(since: number, limit = 1000): PlantEvent[] {
-    return this.all('SELECT * FROM plant_events WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?', since, limit).map(toEvent);
+    const rows = this.windowOf('plant_events', since, 'SELECT * FROM plant_events WHERE timestamp >= ? ORDER BY timestamp DESC');
+    return rows.filter((r) => r.timestamp >= since).slice(0, limit).map(toEvent);
   }
   eventCount(): number {
     return this.countOf('plant_events');
@@ -440,9 +465,7 @@ export class AppDatabase {
     return { interaction: toInteraction(r), merged: false };
   }
   interactionsSince(since: number, kind?: InteractionKind): Interaction[] {
-    const rows = kind
-      ? this.all('SELECT * FROM interactions WHERE kind = ? AND ended_at >= ? ORDER BY started_at DESC', kind, since)
-      : this.all('SELECT * FROM interactions WHERE ended_at >= ? ORDER BY started_at DESC', since);
+    const rows = this.windowOf('interactions', since, 'SELECT * FROM interactions WHERE ended_at >= ? ORDER BY started_at DESC').filter((r) => r.ended_at >= since && (!kind || r.kind === kind));
     return rows.map(toInteraction);
   }
   interactionCount(): number {
@@ -525,6 +548,7 @@ export class AppDatabase {
       'INSERT INTO behaviour_episodes (started_at, ended_at, last_seen_at, condition, modifiers_json, peak_severity, engine_version) VALUES (?, NULL, ?, ?, ?, ?, ?) RETURNING *',
       e.startedAt, e.startedAt, e.condition, JSON.stringify(e.modifiers), e.peakSeverity, e.engineVersion
     )!;
+    this.episodeWindow?.rows.push(toEpisode(r));
     return toEpisode(r);
   }
   touchEpisode(id: number, lastSeenAt: number, modifiers: HealthCondition[], peakSeverity: Severity, addUnobservedMs = 0) {
@@ -532,12 +556,22 @@ export class AppDatabase {
       'UPDATE behaviour_episodes SET last_seen_at = ?, modifiers_json = ?, peak_severity = ?, unobserved_ms = unobserved_ms + ? WHERE id = ?',
       lastSeenAt, JSON.stringify(modifiers), peakSeverity, Math.round(addUnobservedMs), id
     );
+    this.patchEpisode(id, (e) => {
+      e.lastSeenAt = lastSeenAt;
+      e.modifiers = json(JSON.stringify(modifiers), []);
+      e.peakSeverity = peakSeverity;
+      e.unobservedMs += Math.round(addUnobservedMs);
+    });
   }
   deleteEpisode(id: number) {
     this.all('DELETE FROM behaviour_episodes WHERE id = ?', id);
+    if (this.episodeWindow) this.episodeWindow.rows = this.episodeWindow.rows.filter((e) => e.id !== id);
   }
   reopenEpisode(id: number) {
     this.all('UPDATE behaviour_episodes SET ended_at = NULL WHERE id = ?', id);
+    this.patchEpisode(id, (e) => {
+      e.endedAt = null;
+    });
   }
   lastClosedEpisode(): BehaviourEpisode | null {
     const r = this.get('SELECT * FROM behaviour_episodes WHERE ended_at IS NOT NULL ORDER BY ended_at DESC LIMIT 1');
@@ -545,11 +579,22 @@ export class AppDatabase {
   }
   closeEpisode(id: number, endedAt: number) {
     this.all('UPDATE behaviour_episodes SET ended_at = ?, last_seen_at = MAX(last_seen_at, ?) WHERE id = ?', endedAt, endedAt, id);
+    this.patchEpisode(id, (e) => {
+      e.endedAt = endedAt;
+      e.lastSeenAt = Math.max(e.lastSeenAt, endedAt);
+    });
   }
   episodesSince(since: number): BehaviourEpisode[] {
-    // last_seen_at >= since is implied (closing sets last_seen_at = MAX(last_seen_at, ended_at), and the open one's
-    // only moves forward), so it adds no row and lets the index answer instead of reading the whole table
-    return this.all('SELECT * FROM behaviour_episodes INDEXED BY idx_episodes_last_seen WHERE last_seen_at >= ? AND COALESCE(ended_at, last_seen_at) >= ? ORDER BY started_at DESC', since, since).map(toEpisode);
+    if (!this.episodeWindow || since < this.episodeWindow.start) {
+      // last_seen_at >= since is implied (closing sets last_seen_at = MAX(last_seen_at, ended_at), and the open
+      // one's only moves forward), so it adds no row and lets the index answer instead of the whole table
+      const rows = this.sql.all('SELECT * FROM behaviour_episodes INDEXED BY idx_episodes_last_seen WHERE last_seen_at >= ? AND COALESCE(ended_at, last_seen_at) >= ? ORDER BY started_at DESC', since, since);
+      this.episodeWindow = { start: since, rows: rows.map(toEpisode) };
+    }
+    return this.episodeWindow.rows
+      .filter((e) => (e.endedAt ?? e.lastSeenAt) >= since)
+      .sort((a, b) => b.startedAt - a.startedAt || b.id - a.id)
+      .map((e) => ({ ...e, modifiers: [...e.modifiers] })); // copies: callers can't change the window
   }
   episodeCount(): number {
     return this.countOf('behaviour_episodes');
