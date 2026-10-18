@@ -36,6 +36,8 @@ export function apiApp(
   api.use('/devices', deviceRoutes(db));
   const restore = opts.restore;
   if (restore) {
+    // The whole tree as one dump: npm run cf:backup (a copy to keep outside Cloudflare)
+    api.get('/admin/dump', (_req, res) => res.json(db.dump()));
     // {dump}: replace this tree's data (refused once it has sensor readings of its own: only a top-up then).
     // {dump, topUp: true}: add the dump's readings this tree doesn't have yet.
     api.post('/admin/restore', async (req, res) => {

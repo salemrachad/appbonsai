@@ -20,5 +20,7 @@
   },
   // One SQLite-backed Durable Object class (the free plan only has these)
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TreeObject"] }],
+  // Nightly backups of the tree (server/backup.ts): KV, free without a card (1 GB, 1,000 writes a day)
+  "kv_namespaces": [{ "binding": "BACKUPS", "id": "c6e6e94df7a14f97a9f2d8df796e0bce" }],
   "observability": { "enabled": true }
 }

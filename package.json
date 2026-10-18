@@ -17,6 +17,7 @@
     "cf:deploy": "vite build && wrangler deploy",
     "cf:types": "wrangler types worker/worker-configuration.d.ts",
     "cf:migrate": "tsx scripts/cloudMigrate.ts",
+    "cf:backup": "tsx scripts/cloudBackup.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit && tsc --noEmit -p worker",

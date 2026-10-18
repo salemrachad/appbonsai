@@ -88,6 +88,42 @@ notifications, a capacitive soil probe (the FC-28 corrodes), more species.
   - after a restart (the object unloaded) the state is back without a new evaluation;
   - the alarm notices a missing push on its own (90 s).
 
+## Backups
+
+Decided 2026-10-18. Two layers, because the likeliest loss is our own bug or a wrong deploy, and the
+rarest but worst is losing the Cloudflare account (the Pi's history was lost for want of any copy).
+
+1. **Nightly, automatic, in KV** (`server/backup.ts`, the object's alarm, about 05:00 in Beirut / 02:00 UTC; the
+   first one two minutes after a deploy).
+   - A series starts with a complete backup. Each next one holds the rows of `telemetry` and `outside_weather`
+     added since the previous one (by id, so readings stored late from the device's buffer are still caught),
+     plus the small tables and the memories whole. That's one gzip JSON value per night, under
+     `backup/<tree id>/<series>/<seq>`.
+   - A restore starts a new series (`backup_state` is never in a dump and is cleared by a restore).
+   - Sizes: the first one is about 43 KB; a night is about 10 KB plus the day's readings.
+   - KV is free without a card (1 GB, 1,000 writes a day), enough for one tree for decades. With many trees (the
+     product) it moves to R2 on the paid plan: only `TreeObject.backup()` and the two routes touch KV.
+   - A failed backup is retried an hour later.
+2. **Monthly, by hand, outside Cloudflare:** `npm run cf:backup` saves the whole tree to
+   `backups/appbonsai-<date>.json.gz` (gitignored), to keep in Google Drive.
+
+**Commands and routes** (all behind the password):
+
+| Command | What it does |
+|---|---|
+| `npm run cf:backup` | `GET /api/admin/dump`: the whole tree, saved to a file |
+| `npm run cf:backup -- --nightly` | Rebuilds the tree from the latest series (`assemble()` refuses a gap) and compares it with the live tree: the proof that the nightly backups bring it back |
+| `npm run cf:backup -- --now` | `POST /api/admin/backup-now`: a nightly backup now, e.g. before a risky change |
+| `npm run cf:migrate -- migrate --file backups/<file>` | Restores a backup into an empty tree |
+
+The routes `GET /api/admin/backups` and `/api/admin/backups/<key>` list the nightly backups and download one.
+
+**Tested:**
+- Scenarios BK1–BK3: three nights with buffered readings arriving late are rebuilt into a dump identical to the
+  database, a missing night is refused, and a tree restored from them resumes as the same tree.
+- On wrangler dev: migrate, two backups, the rebuild equal to the live tree, a full copy, then the tree wiped
+  and restored from the file, identical in every table and memory.
+
 ## Push protocol v1
 
 The device sends its readings to `POST /api/ingest` every interval (60 s by default):

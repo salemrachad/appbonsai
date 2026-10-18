@@ -2,6 +2,7 @@ import { handleAsNodeRequest } from 'cloudflare:node';
 import { DurableObject } from 'cloudflare:workers';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { apiApp } from '../server/app';
+import { backupKey, backupSaved, lastBackupAt, nextBackup } from '../server/backup';
 import { LivingCollector } from '../server/collector';
 import { openDurableDatabase } from '../server/durableSqlite';
 import type { AppDatabase } from '../server/database';
@@ -12,16 +13,32 @@ import type { AppDatabase } from '../server/database';
 //                      The hashed /assets/* files skip it (wrangler.jsonc: run_worker_first).
 //   TreeObject         one per tree: its own SQLite, the collector (the living loop) and the same Express
 //                      routes as the laptop server, run on a node:http server inside the object. Its alarm
-//                      is the collector's timer (overdue pushes, outside weather, the hike forecast).
+//                      is the collector's timer (overdue pushes, outside weather, the hike forecast) and the
+//                      nightly backup's (server/backup.ts → KV, about 05:00 in Beirut).
 
 interface Env {
   TREE: DurableObjectNamespace<TreeObject>;
   ASSETS: Fetcher; // the built app (dist/)
   APP_PASSWORD?: string; // wrangler secret put APP_PASSWORD
+  BACKUPS?: KVNamespace; // nightly backups
 }
 
 const PORT = 8787; // a routing key inside the object's isolate, not a network port
 const TREE_NAME = 'ficus'; // one tree for now; later the tree a signed-in account claimed
+const BACKUP_HOUR_UTC = 2; // 05:00 in Beirut: a quiet hour
+const HOUR_MS = 60 * 60 * 1000;
+
+// The next backup after the last one: the next BACKUP_HOUR_UTC. Never backed up: in two minutes.
+function backupDueAfter(last: number | null, now: number): number {
+  if (last === null) return now + 2 * 60 * 1000;
+  const d = new Date(last);
+  const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), BACKUP_HOUR_UTC);
+  return next > last ? next : next + 24 * HOUR_MS;
+}
+
+async function gzip(text: string): Promise<ArrayBuffer> {
+  return new Response(new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+}
 
 // The node:http server belongs to the isolate, which can outlive an object instance (a new instance in the
 // same isolate would find the port taken): created once, it always calls the current instance's routes.
@@ -37,6 +54,7 @@ export class TreeObject extends DurableObject<Env> {
   private db: AppDatabase;
   private collector: LivingCollector;
   private ready: Promise<void>;
+  private backupRetryAt = 0; // after a failed backup: not again before this
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -80,6 +98,12 @@ export class TreeObject extends DurableObject<Env> {
 
   async fetch(request: Request): Promise<Response> {
     await this.ready;
+    // A backup now (to check it works, or before a risky change). The rest goes to the Express routes.
+    if (request.method === 'POST' && new URL(request.url).pathname === '/api/admin/backup-now') {
+      const stored = await this.backup();
+      await this.arm();
+      return Response.json(stored ?? { error: 'No backup made (no BACKUPS binding, or it failed: see the logs)' }, { status: stored ? 200 : 500 });
+    }
     const response = await handleAsNodeRequest(PORT, request);
     await this.collector.settled(); // a poll or a forecast started by the request
     await this.arm();
@@ -90,12 +114,37 @@ export class TreeObject extends DurableObject<Env> {
     await this.ready;
     this.collector.wake();
     await this.collector.settled();
+    if (Date.now() >= this.backupDueAt()) await this.backup();
     await this.arm();
   }
 
-  // The alarm at the collector's next due job (set only when it moves: each set is a storage write)
+  private backupDueAt(): number {
+    if (!this.env.BACKUPS) return Infinity;
+    return Math.max(backupDueAfter(lastBackupAt(this.db), Date.now()), this.backupRetryAt);
+  }
+
+  // The rows added since the last backup, the rest whole, compressed into one KV value per night
+  private async backup(): Promise<{ key: string; seq: number; readings: number; bytes: number } | null> {
+    if (!this.env.BACKUPS) return null;
+    try {
+      const b = nextBackup(this.db, Date.now());
+      const body = await gzip(JSON.stringify(b));
+      const key = backupKey(b);
+      await this.env.BACKUPS.put(key, body, { metadata: { seq: b.seq, series: b.series, createdAt: b.createdAt, readings: b.tables.telemetry.length } });
+      backupSaved(this.db, b);
+      console.log(`[tree] backup ${key}: ${b.tables.telemetry.length} new readings, ${body.byteLength} bytes`);
+      return { key, seq: b.seq, readings: b.tables.telemetry.length, bytes: body.byteLength };
+    } catch (err) {
+      this.backupRetryAt = Date.now() + HOUR_MS;
+      console.error(`[tree] backup failed, again in an hour: ${err}`);
+      return null;
+    }
+  }
+
+  // The alarm at the next due job, the collector's or the backup's (set only when it moves: each set is a
+  // storage write)
   private async arm() {
-    const at = this.collector.nextWakeAt();
+    const at = Math.min(this.collector.nextWakeAt(), this.backupDueAt());
     if (!Number.isFinite(at)) return void (await this.ctx.storage.deleteAlarm());
     const current = await this.ctx.storage.getAlarm();
     if (current !== at) await this.ctx.storage.setAlarm(Math.max(at, Date.now() + 1000));
@@ -127,7 +176,27 @@ export default {
       if (!authorized(request, env.APP_PASSWORD))
         return new Response('Appbonsai: sign in', { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="Appbonsai", charset="UTF-8"' } });
     }
+    // The nightly backups: GET /api/admin/backups lists them, GET /api/admin/backups/<key> is one (gzip JSON)
+    if (url.pathname === '/api/admin/backups' || url.pathname.startsWith('/api/admin/backups/')) return backups(url, env);
     if (url.pathname.startsWith('/api/')) return env.TREE.get(env.TREE.idFromName(TREE_NAME)).fetch(request);
     return env.ASSETS.fetch(request);
   },
 };
+
+async function backups(url: URL, env: Env): Promise<Response> {
+  if (!env.BACKUPS) return Response.json({ error: 'No BACKUPS binding' }, { status: 404 });
+  const key = decodeURIComponent(url.pathname.slice('/api/admin/backups/'.length));
+  if (url.pathname !== '/api/admin/backups') {
+    if (!key.startsWith('backup/')) return Response.json({ error: 'Not a backup' }, { status: 404 });
+    const body = await env.BACKUPS.get(key, 'arrayBuffer');
+    return body ? new Response(body, { headers: { 'Content-Type': 'application/gzip' } }) : Response.json({ error: 'No such backup' }, { status: 404 });
+  }
+  const keys: { name: string; metadata: unknown }[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.BACKUPS.list({ prefix: 'backup/', cursor });
+    keys.push(...page.keys.map((k) => ({ name: k.name, metadata: k.metadata ?? null })));
+    cursor = 'cursor' in page ? page.cursor : undefined; // only on an incomplete page
+  } while (cursor);
+  return Response.json(keys);
+}

@@ -6,7 +6,8 @@ import { MIGRATIONS, SCHEMA_SQL, SCHEMA_VERSION } from './schema';
 // Thin data-access layer: plain SQLite SQL, no ORM, over a driver. On the laptop the driver is node:sqlite
 // (nodeSqlite.ts); in a Cloudflare Durable Object it will be the object's own SQLite (ctx.storage.sql), which
 // is also synchronous. So nothing here may import a Node module, and the SQL sticks to what both run:
-// RETURNING instead of the driver's changes / lastInsertRowid, no transactions, no PRAGMA except table_info.
+// RETURNING instead of the driver's changes / lastInsertRowid, transactions only through the driver (no BEGIN),
+// no PRAGMA except table_info.
 
 export type Row = Record<string, any>;
 export type SqlValue = null | number | bigint | string;
@@ -28,9 +29,18 @@ export interface DatabaseDump {
   meta: Record<string, unknown>; // every key but schema_version, values as stored (parsed JSON)
 }
 
-export function dumpDatabase(sql: SqlDriver): DatabaseDump {
-  const tables = Object.fromEntries(DUMP_TABLES.map((t) => [t, sql.all(`SELECT * FROM ${t} ORDER BY rowid`)])) as DatabaseDump['tables'];
-  const meta = Object.fromEntries(sql.all("SELECT key, value FROM meta WHERE key <> 'schema_version'").map((r) => [r.key, json(r.value, null)]));
+// The tables that grow all the time. A nightly backup (server/backup.ts) takes only their rows added since the
+// last one (by id, so a reading stored late, e.g. from the device's buffer, is still caught), the rest whole.
+export const GROWING_TABLES = ['telemetry', 'outside_weather'] as const;
+export type BackupCursor = Record<(typeof GROWING_TABLES)[number], number>; // the highest id already backed up
+
+// after: only the growing tables' rows with a higher id (a nightly backup); without it, everything
+export function dumpDatabase(sql: SqlDriver, after?: BackupCursor): DatabaseDump {
+  const rows = (t: (typeof DUMP_TABLES)[number]) =>
+    after && t in after ? sql.all(`SELECT * FROM ${t} WHERE id > ? ORDER BY id`, after[t as keyof BackupCursor]) : sql.all(`SELECT * FROM ${t} ORDER BY rowid`);
+  const tables = Object.fromEntries(DUMP_TABLES.map((t) => [t, rows(t)])) as DatabaseDump['tables'];
+  // Not the schema version (the target has its own) nor where this server's backups stand (server/backup.ts)
+  const meta = Object.fromEntries(sql.all("SELECT key, value FROM meta WHERE key NOT IN ('schema_version', 'backup_state')").map((r) => [r.key, json(r.value, null)]));
   const version = sql.all("SELECT value FROM meta WHERE key = 'schema_version'")[0];
   return { schemaVersion: version ? Number(json(version.value, 0)) : 0, tables, meta };
 }
@@ -180,8 +190,8 @@ export class AppDatabase {
   }
 
   // ---- moving a tree between servers ----
-  dump(): DatabaseDump {
-    return dumpDatabase(this.sql);
+  dump(after?: BackupCursor): DatabaseDump {
+    return dumpDatabase(this.sql, after);
   }
 
   // Replace everything with a dump (all or nothing). Rows keep their ids (the saved runtime and state refer to
@@ -197,8 +207,10 @@ export class AppDatabase {
         for (const row of rows) this.insertRow(table, table === 'devices' ? { ...row, tree_id: treeId } : row, 'INSERT');
         counts[table] = rows.length;
       }
+      // backup_state goes too: the data changed under the backup series, so the next backup starts a new series
+      // with a complete one (server/backup.ts)
       this.all("DELETE FROM meta WHERE key <> 'schema_version'");
-      for (const [key, value] of Object.entries(dump.meta)) if (key !== 'schema_version') this.setMeta(key, value);
+      for (const [key, value] of Object.entries(dump.meta)) if (key !== 'schema_version' && key !== 'backup_state') this.setMeta(key, value);
       counts.meta = Object.keys(dump.meta).length;
     });
     return counts;

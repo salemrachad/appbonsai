@@ -481,6 +481,49 @@ async function main() {
     check('MV4 a dump from another schema version is refused, nothing changed', refused && cloud.db.telemetryStats().count === laptop.db.telemetryStats().count);
   }
 
+  console.log('\n— Nightly backups —');
+  {
+    const { nextBackup, backupSaved, assemble, backupKey } = await import('../server/backup');
+    const b = new Bench();
+    b.weather = { code: 3 };
+    b.usePush();
+    await b.boot();
+    const night = () => {
+      const backup = JSON.parse(JSON.stringify(nextBackup(b.db, b.clock))); // as stored and read back
+      backupSaved(b.db, backup);
+      return backup;
+    };
+    const backups = [];
+    b.pushRun(120, (i) => ({ soil: 50 - i * 0.1 }));
+    await b.collector.pollWeather();
+    backups.push(night());
+    b.pushRun(30, () => ({ soil: 40 }), { offline: true }); // Wi-Fi down: kept on the device
+    backups.push(night()); // nothing new in the growing tables
+    b.push({ soil: 40 }); // the buffer arrives after that night: readings from before it
+    b.pushRun(60, () => ({ soil: 39 }));
+    b.collector.logEvent('watering', 'evening drink', b.clock);
+    await b.collector.pollWeather();
+    backups.push(night());
+    const full = JSON.stringify(b.db.dump());
+    const rebuilt = JSON.stringify(assemble(backups));
+    check('BK1 three nights rebuilt into one dump: the same as the database, late buffered readings included', rebuilt === full, `${b.db.telemetryStats().count} readings, nights with ${backups.map((x) => x.tables.telemetry.length).join(' / ')} new`);
+    check('BK1b the first is complete, the others only add (night 3: the 30 buffered during the outage + 61 after)', backups[0].after === null && backups[1].tables.telemetry.length === 0 && backups[2].tables.telemetry.length === 91);
+    let gap = '';
+    try {
+      assemble([backups[0], backups[2]]);
+    } catch (err: any) {
+      gap = err.message;
+    }
+    check('BK2 a missing night is refused, not silently skipped', /missing/.test(gap), gap);
+    const restored = new Bench();
+    restored.db.restore(assemble(backups));
+    restored.clock = b.clock;
+    await restored.boot();
+    const same = (x: Bench) => JSON.stringify({ ...x.collector.snapshot(), events: x.db.eventsSince(0), episodes: x.episodes() }, (k, v) => (k === 'updatedAt' ? undefined : v));
+    check('BK3 a tree restored from the backups resumes as the same tree', same(restored) === same(b));
+    check('BK3b and starts a new backup series with a complete backup', nextBackup(restored.db, restored.clock).after === null && backupKey(backups[2]).endsWith('/000003'));
+  }
+
   console.log('\n— Restarts between steps (a Durable Object waking up) —');
   {
     // The same pushes to a collector that never stops and to one restarted before every push. On Cloudflare a

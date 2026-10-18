@@ -19,3 +19,6 @@ coverage/
 # Cloudflare: wrangler state and local secrets (npm run cf:dev reads APP_PASSWORD from .dev.vars)
 /.wrangler/
 .dev.vars*
+
+# Copies of the tree from npm run cf:backup (keep them outside Cloudflare, e.g. Google Drive)
+/backups/
