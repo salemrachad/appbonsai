@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../../api/client';
 import { weekdayName, withHikeDefaults, type HikeDayScore, type HikePlan } from '../../behaviour/hike';
@@ -9,6 +9,7 @@ import { hhmm, MIN } from '../../lib/time';
 import { WEATHER_ICON } from './WeatherChip';
 
 const OPEN_KEY = 'appbonsai_tree_diary_open_v1'; // per-viewer convenience: the diary folded or not
+const SHOWN = 5; // diary lines visible at once on Home (newest first); the rest by scrolling
 const REFRESH_MS = 5 * MIN; // besides reloadKey (something new was said or happened)
 
 const readOpen = () => {
@@ -21,9 +22,9 @@ const readOpen = () => {
 
 // The tree's diary as quiet chat bubbles over the left of the scene: the week's hike as the tree picked it
 // (pinned on top, in the open sky above the crown) and ALL of today's diary (/api/history/diary: the same list
-// as History) in a narrow column below it, left of the crown, oldest first, scrolling and kept at its newest
-// line. Folds away to a small label. reloadKey: changes when the tree says something new or an episode or
-// care event changes, so the column follows the tree at once.
+// as History) in a narrow column below it, left of the crown: newest first, the column as tall as its first
+// SHOWN lines, the rest by scrolling. Folds away to a small label. reloadKey: changes when the tree says
+// something new or an episode or care event changes, so the column follows the tree at once.
 export const TreeDiary: React.FC<{ hike: HikePlan | null; hikePreview?: boolean; onChooseHike?: (day: string) => void; reloadKey?: string; onOpenDiary?: () => void }> = ({
   hike,
   hikePreview = false,
@@ -42,7 +43,7 @@ export const TreeDiary: React.FC<{ hike: HikePlan | null; hikePreview?: boolean;
         .diary(1)
         .then((d) => {
           const today = dayStartOf(Date.now());
-          if (alive) setItems([...d].filter((i) => i.at >= today).sort((a, b) => a.at - b.at));
+          if (alive) setItems([...d].filter((i) => i.at >= today).sort((a, b) => b.at - a.at));
         })
         .catch(() => {});
     load();
@@ -53,10 +54,16 @@ export const TreeDiary: React.FC<{ hike: HikePlan | null; hikePreview?: boolean;
     };
   }, [reloadKey]);
 
-  // Keep the column at its newest line
-  useEffect(() => {
+  // The column shows the newest SHOWN lines (bubbles differ in height: measured), the rest by scrolling; a new
+  // line brings it back to the top
+  const [height, setHeight] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
     const el = column.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const last = el.children[Math.min(SHOWN, el.children.length) - 1] as HTMLElement | undefined;
+    // The column is position: relative, so a bubble's offsetTop is measured from the column's own top
+    setHeight(el.children.length > SHOWN && last ? last.offsetTop + last.offsetHeight : undefined);
+    el.scrollTop = 0;
   }, [items, open]);
 
   const toggle = () => {
@@ -88,7 +95,7 @@ export const TreeDiary: React.FC<{ hike: HikePlan | null; hikePreview?: boolean;
       {open && (
         <>
           {hike && <HikeBubble plan={hike} preview={hikePreview} onChoose={onChooseHike} />}
-          <div ref={column} className="max-w-[9.5rem] max-h-[min(24rem,48vh)] overflow-y-auto overscroll-contain pr-1 flex flex-col items-start gap-1">
+          <div ref={column} style={{ maxHeight: height }} className="relative max-w-[9.5rem] overflow-y-auto overscroll-contain pr-1 flex flex-col items-start gap-1">
             {items.map((item) => (
               <Bubble key={`${item.at}-${item.kind}-${item.title}`} at={item.at} title={item.detail} kind={item.kind}>
                 {item.kind === 'said' ? `“${item.title}”` : item.kind === 'moment' && item.detail ? `${item.title} · ${item.detail}` : item.title}
