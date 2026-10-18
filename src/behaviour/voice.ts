@@ -4,7 +4,7 @@ import type { SpeciesProfile } from '../species';
 import type { CanopyState, HabitatState, Musing, MusingId, PlantBehaviourState, RelationshipContext, VoiceState } from './behaviourTypes';
 import { ENCOUNTER_PAIRS } from './encounters';
 import { stableVariant } from './speech';
-import { DAY, HOUR } from '../lib/time';
+import { DAY, dayKey, HOUR, hourOf } from '../lib/time';
 
 // The tree's voice for the day: how many thoughts it has to share, and which ones are true right now.
 //
@@ -72,7 +72,7 @@ export function evaluateVoice({ health, perception: p, species, intent, timeOfDa
 
   // ---- Light & the day ----
   const light = p.light;
-  if (light.peak !== null && (timeOfDay === 'day' || timeOfDay === 'evening') && new Date(now).getHours() >= 13 && light.peak >= species.light.usefulMinPercent) {
+  if (light.peak !== null && (timeOfDay === 'day' || timeOfDay === 'evening') && hourOf(now) >= 13 && light.peak >= species.light.usefulMinPercent) {
     if (r.lightPercent === null || r.lightPercent < light.peak * 0.8) add('brightest_hour', { peak: r0(light.peak) }, 2);
   }
   if (light.usefulShare !== null && light.observedDaylightMin >= 180 && light.usefulShare >= species.light.usefulShareTarget * 100) {
@@ -136,8 +136,7 @@ export function evaluateVoice({ health, perception: p, species, intent, timeOfDa
   void relationship;
 
   // Today's order: weight first, then a stable per-day shuffle so different days lead with different topics
-  const d = new Date(now);
-  const day = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+  const day = dayKey(now);
   out.sort((a, b) => b.weight - a.weight || stableVariant(`${day}:${a.id}`, 997) - stableVariant(`${day}:${b.id}`, 997));
   return { budget, gapMs, musings: out, why: `${budget} thoughts today (vitality ${health.vitality}, ${season.growth} season); ${out.length} true right now` };
 }

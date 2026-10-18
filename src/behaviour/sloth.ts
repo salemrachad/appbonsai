@@ -6,7 +6,7 @@ import type { OutsideObservation } from '../telemetry/outsideWeather';
 import type { SlothBranch, SlothGrip, SlothMemory, SlothState } from './behaviourTypes';
 import { stableVariant } from './speech';
 import { AirDay, airDays, AirInput, AirWandererSpec, baseGate, evaluateAir, replayAir } from './wanderer';
-import { DAY } from '../lib/time';
+import { DAY, dayKey, startOfDay } from '../lib/time';
 
 // The sloth: the third wanderer, an air wanderer like the dragonfly (see wanderer.ts) with its own
 // character. It loves warm, humid, still air (a greenhouse is perfect): warmth and humidity inside, no
@@ -56,7 +56,7 @@ export const NO_SLOTH_MEMORY: SlothMemory = { loyalty: 0, homeBranch: null, days
 // moves loyalty `riseRate` of the way to 1; every day decays it (`fallDays`), so days without it fade it.
 export function slothMemory(days: Pick<AirDay<SlothBranch>, 'day' | 'minutes' | 'spots'>[], at: number): SlothMemory {
   const l = L();
-  const today = new Date(at).setHours(0, 0, 0, 0);
+  const today = startOfDay(at);
   let loyalty = 0;
   let last: number | null = null;
   let count = 0;
@@ -112,8 +112,7 @@ export function evaluateSloth(input: AirInput & { insideTemp: number | null; mem
   // Night: once settled it doesn't come and go, it sleeps the night through on one branch
   const night = !input.isDay || input.condition === 'sleeping' || input.modifiers.includes('sleeping');
   if (night && a.active && !SLOTH.gate(input.condition, input.modifiers, input.isDay)) {
-    const evening = new Date(input.now - 12 * 3600 * 1000);
-    const key = `${evening.getFullYear()}-${evening.getMonth() + 1}-${evening.getDate()}`;
+    const key = dayKey(input.now - 12 * 3600 * 1000); // the evening's day
     // A loyal sloth sleeps on its home branch
     const branch = memory.homeBranch && memory.loyalty >= L().homeNightFrom ? memory.homeBranch : BRANCHES[stableVariant(`sloth:night:${key}`, BRANCHES.length)];
     a.visit = { id: `sloth:night:${key}`, startedAt: input.now, endsAt: input.now + 3600 * 1000, spot: branch, style: 'sleeping' };

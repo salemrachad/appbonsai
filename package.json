@@ -22,9 +22,10 @@
     "lint": "tsc --noEmit && tsc --noEmit -p worker",
     "test:scenarios": "tsx scripts/scenarios.ts",
     "test:collector": "tsx scripts/collectorScenarios.ts",
-    "test": "npm run -s test:scenarios && npm run -s test:collector && npm run -s test:behaviour && npm run -s test:golden",
+    "test": "npm run -s test:scenarios && npm run -s test:collector && npm run -s test:behaviour && npm run -s test:golden && npm run -s test:golden:utc",
     "test:behaviour": "tsx scripts/behaviourScenarios.ts",
     "test:golden": "tsx scripts/golden.ts",
+    "test:golden:utc": "tsx scripts/golden.ts --machine-tz UTC",
     "check": "npm run -s lint && npm test"
   },
   "dependencies": {

@@ -15,13 +15,10 @@ import { ACTIVE_SPECIES } from '../../src/species';
 import type { DailySummary, DiaryItem } from '../../src/history/historyTypes';
 import type { LivingCollector } from '../collector';
 import type { AppDatabase } from '../database';
-import { DAY, HOUR } from '../../src/lib/time';
+import { DAY, HOUR, addDays, dateKey, setTreeTimeZone, startOfDay, weekdayShort } from '../../src/lib/time';
 
 
-const localDate = (t: number) => {
-  const d = new Date(t);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const localDate = dateKey; // the tree's date (its timezone), not the server's
 const clampNum = (v: unknown, lo: number, hi: number, dflt: number) => Math.min(hi, Math.max(lo, Number(v) || dflt));
 
 
@@ -33,6 +30,7 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const since = now - days * DAY;
   const source = () => (collector.getSettings().settings.dataSource === 'weather_estimate' ? 'weather_estimate' : 'esp32_sensor');
   const { settings } = collector.getSettings();
+  setTreeTimeZone(settings.timezone);
   const location = { latitude: settings.latitude ?? null, longitude: settings.longitude ?? null };
   // The squirrel's story, derived from the same episodes the habitat replays (nothing stored)
   const windows: { squirrel: Window[]; dragonfly: Window[]; sloth: Window[] } = { squirrel: [], dragonfly: [], sloth: [] };
@@ -53,7 +51,7 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const slothSamples = slothFrom < since ? [...toSamples(db.telemetrySince(source(), slothFrom - 6 * HOUR, since - 6 * HOUR - 1)), ...samples] : samples;
   const sloths = slothDiary(slothSamples, db.outsideWeatherSince(slothFrom - 6 * HOUR), db.episodesSince(slothFrom), ACTIVE_SPECIES, cadenceMs, now, days, windows.sloth);
   // Lucy's days: her plan on the household clock, and the storms she kept close through (stored weather)
-  const lucy = lucyDiary(outside, now, days, settings.timezone || undefined);
+  const lucy = lucyDiary(outside, now, days);
   // Who shared the tree: where those visits overlapped
   const encounters = encounterDiary(windows, since, now);
   // What the tree said, the moments of each day and the finished days in short. The first day is read from
@@ -82,20 +80,16 @@ export function historyRoutes(db: AppDatabase, collector: LivingCollector): Rout
   r.get('/daily', (req, res) => {
     const days = clampNum(req.query.days, 1, 90, 7);
     const now = Date.now();
-    const start = new Date(now);
-    start.setHours(0, 0, 0, 0);
-    start.setDate(start.getDate() - (days - 1));
-    const buckets = db.hourlyBuckets(source(), start.getTime());
-    const episodes = db.episodesSince(start.getTime());
-    const events = db.eventsSince(start.getTime());
+    const start = addDays(startOfDay(now), -(days - 1));
+    const buckets = db.hourlyBuckets(source(), start);
+    const episodes = db.episodesSince(start);
+    const events = db.eventsSince(start);
 
     const out: DailySummary[] = [];
     for (let i = 0; i < days; i++) {
-      const dayStart = new Date(start);
-      dayStart.setDate(start.getDate() + i);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setDate(dayStart.getDate() + 1);
-      const date = localDate(dayStart.getTime());
+      const dayStart = addDays(start, i);
+      const dayEnd = addDays(dayStart, 1);
+      const date = localDate(dayStart);
       const b = buckets.filter((x) => localDate(x.hourStart) === date);
       const n = b.reduce((a, x) => a + x.samples, 0);
       const wavg = (pick: (x: (typeof b)[number]) => number | null) => {
@@ -106,14 +100,14 @@ export function historyRoutes(db: AppDatabase, collector: LivingCollector): Rout
       const stressMs = episodes
         .filter((e) => STRESS_CONDITIONS.includes(e.condition))
         .reduce((a, e) => {
-          const s = Math.max(e.startedAt, dayStart.getTime());
-          const en = Math.min(e.endedAt ?? e.lastSeenAt, dayEnd.getTime());
+          const s = Math.max(e.startedAt, dayStart);
+          const en = Math.min(e.endedAt ?? e.lastSeenAt, dayEnd);
           return a + Math.max(0, en - s);
         }, 0);
       const mins = b.flatMap((x) => (x.minSoil !== null ? [x.minSoil] : []));
       out.push({
         date,
-        dayLabel: dayStart.toLocaleDateString([], { weekday: 'short' }),
+        dayLabel: weekdayShort(dayStart),
         samples: n,
         avgSoil: wavg((x) => x.avgSoil),
         minSoil: mins.length ? Math.min(...mins) : null,

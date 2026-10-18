@@ -13,7 +13,7 @@ import type { DayForecast } from '../src/telemetry/hikeForecast';
 
 export const MIN = 60 * 1000;
 export const HOUR = 60 * MIN;
-export const START = new Date(2026, 5, 15, 9, 0).getTime(); // a June morning in Feytroun
+export const START = Date.UTC(2026, 5, 15, 6, 0); // a June morning in Feytroun: 09:00 in Beirut (UTC+3), whatever the machine's clock
 
 let fails = 0;
 export const check = (name: string, ok: boolean, info = '') => {

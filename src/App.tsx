@@ -19,7 +19,7 @@ import { BackendBadge } from './components/developer/BackendBadge';
 import { SensorDiagnostics } from './components/sensors/SensorDiagnostics';
 import { Toast, ToastMessage } from './components/Toast';
 import { Home } from './pages/Home';
-import { hhmm } from './lib/time';
+import { hhmm, hhmmss, setTreeTimeZone } from './lib/time';
 
 type Panel = 'history' | 'settings' | 'developer' | null;
 
@@ -38,6 +38,7 @@ export default function App() {
   // UI copy of the settings (localStorage); the local server keeps the collector's copy in SQLite.
   // Plant settings belong to the local server; the browser only shows them (defaults until loaded)
   const [settings, setSettings] = useState<TreeSettings>(DEFAULT_SETTINGS);
+  setTreeTimeZone(settings.timezone); // times and days on the tree's clock (a no-op when unchanged)
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
@@ -244,7 +245,7 @@ export default function App() {
           <div className="sans text-xs text-[var(--ink)]/60 flex items-center gap-2 mr-2" title={collector?.lastError ?? undefined}>
             <span className={`w-2 h-2 rounded-full ${statusDot}`} />
             <span className="font-medium">{statusLabel}</span>
-            {!devPresetId && reading && !sensorDown && !isEstimate && <span className="text-[var(--ink)]/40 tabular-nums">· {reading.updatedAt}</span>}
+            {!devPresetId && reading && !sensorDown && !isEstimate && <span className="text-[var(--ink)]/40 tabular-nums">· {hhmmss(reading.timestamp)}</span>}
           </div>
           <button onClick={refreshNow} className={iconButton} title="Read the sensor now">
             <RefreshCw className={`w-4 h-4 ${isManualRefresh ? 'animate-spin' : ''}`} />

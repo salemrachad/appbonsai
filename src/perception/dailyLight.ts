@@ -2,7 +2,7 @@ import type { SpeciesProfile } from '../species';
 import type { OutsideObservation, OutsideSky } from '../telemetry/outsideWeather';
 import type { PerceptionSample } from './perceptionTypes';
 import { sunState } from './sun';
-import { MIN } from '../lib/time';
+import { dateKey, MIN, startOfDay } from '../lib/time';
 
 // "How much useful light did the tree get today?" from the relative LDR % (never lux), accumulated
 // over the local calendar day. Only observed time counts: hours without data are reported as missing,
@@ -30,15 +30,7 @@ export interface DailyLight {
   reasoning: string[];
 }
 
-const localDate = (t: number) => {
-  const d = new Date(t);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-const startOfDay = (t: number) => {
-  const d = new Date(t);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
+const localDate = dateKey; // the tree's date and day (its timezone)
 const h1 = (min: number) => Math.round((min / 60) * 10) / 10;
 
 // Which 5-minute slots of a day have the sun high enough for light to matter (cached per day/place).

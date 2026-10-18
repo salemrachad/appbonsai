@@ -3,7 +3,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import type { SpeciesProfile } from '../species';
 import type { HealthCondition } from '../health/healthTypes';
 import type { RelationshipContext } from './behaviourTypes';
-import { DAY, HOUR } from '../lib/time';
+import { DAY, HOUR, startOfDay } from '../lib/time';
 
 const THIRST: HealthCondition[] = ['thirsty', 'very_dry', 'hot_and_dry'];
 
@@ -13,11 +13,7 @@ const median = (xs: number[]) => {
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
-const startOfToday = (now: number) => {
-  const d = new Date(now);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-};
+const startOfToday = startOfDay; // the tree's day
 
 export interface RelationshipInput {
   episodes: BehaviourEpisode[]; // any order

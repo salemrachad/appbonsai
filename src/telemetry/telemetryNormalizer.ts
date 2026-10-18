@@ -2,7 +2,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import { TreeSettings } from '../settings/settings';
 import { lightPercentFromRaw, soilPercentFromRaw } from './calibration';
 import { PlantTelemetry } from './types';
-import { hhmmss } from '../lib/time';
+import { hhmmss, hourOf } from '../lib/time';
 
 const toNumber = (v: any): number | null =>
   v !== undefined && v !== null && v !== '' && !isNaN(Number(v)) ? Number(v) : null;
@@ -10,7 +10,7 @@ const toNumber = (v: any): number | null =>
 const clampPct = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 export function isDaytimeByClock(date = new Date()): boolean {
-  const h = date.getHours();
+  const h = hourOf(date.getTime());
   return h >= APP_CONFIG.daylight.startHour && h < APP_CONFIG.daylight.endHour;
 }
 

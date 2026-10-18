@@ -11,7 +11,7 @@ import { computeDailyLight } from './dailyLight';
 import { dryingCoupling, soilDryDown, temperatureExposure } from './environment';
 import { seasonState } from './season';
 import { sunState, sunTimes, type SunState } from './sun';
-import { HOUR } from '../lib/time';
+import { addDays, HOUR, startOfDay } from '../lib/time';
 
 const EMPTY_READINGS: PerceivedReadings = {
   soilMoisture: null,
@@ -60,8 +60,9 @@ function compareAir(r: PerceivedReadings, source: string | null, o: { temperatur
 // Today's sunrise and sunset: Open-Meteo's published times when the latest observation carries today's,
 // else our own calculation from the location.
 function withSunTimes(sun: SunState, o: OutsideObservation | null, location: PerceptionInput['location'], now: number): SunState {
-  const dayStart = new Date(now).setHours(0, 0, 0, 0);
-  const sameDay = (t: number | null | undefined) => t != null && t >= dayStart && t < dayStart + 24 * 3600 * 1000;
+  const dayStart = startOfDay(now);
+  const dayEnd = addDays(dayStart, 1);
+  const sameDay = (t: number | null | undefined) => t != null && t >= dayStart && t < dayEnd;
   if (o && sameDay(o.sunrise) && sameDay(o.sunset)) return { ...sun, sunrise: o.sunrise!, sunset: o.sunset!, timesFrom: 'open-meteo' };
   if (location.latitude == null || location.longitude == null) return sun;
   const t = sunTimes(now, location.latitude, location.longitude);

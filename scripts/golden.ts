@@ -10,6 +10,7 @@ import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import express from 'express';
 import { Bench, MIN, type Reading } from './bench';
+import { hourFraction } from '../src/lib/time';
 import { eventRoutes } from '../server/routes/events';
 import { historyRoutes } from '../server/routes/history';
 import { interactionRoutes } from '../server/routes/interactions';
@@ -43,8 +44,7 @@ const DAYS = 3;
 let soil = 62;
 const reading = (i: number): Reading | null => {
   if (i >= 780 && i < 805) return null;
-  const d = new Date(b.clock);
-  const h = d.getHours() + d.getMinutes() / 60;
+  const h = hourFraction(b.clock); // the tree's hour (Beirut), whatever the machine's clock
   const sun = h >= 6 && h <= 19 ? Math.sin((Math.PI * (h - 6)) / 13) : 0;
   const heat = i >= 3120 && i < 3270;
   return {

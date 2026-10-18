@@ -1,5 +1,6 @@
 import { APP_CONFIG } from '../config/appConfig';
 import type { DayForecast, HikeForecast, HourForecast } from '../telemetry/hikeForecast';
+import { dateKey as treeDateKey } from '../lib/time';
 
 // The weekly hike: once a week the tree picks the day with the best forecast for its people's hike.
 // About the people, never the tree: health and the habitat never read it; the tree announces the pick
@@ -71,10 +72,8 @@ export interface HikeMemory {
 export const INITIAL_HIKE_MEMORY: HikeMemory = { version: 1, forecast: null, weeks: {} };
 
 const pad = (n: number) => String(n).padStart(2, '0');
-export const dateKey = (t: number) => {
-  const d = new Date(t);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
+export const dateKey = (t: number) => treeDateKey(t); // the tree's date (its timezone): which day is today
+const noonKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; // calendar arithmetic on a key's own noon
 const fromKey = (k: string) => {
   const [y, m, d] = k.split('-').map(Number);
   return new Date(y, m - 1, d, 12);
@@ -82,7 +81,7 @@ const fromKey = (k: string) => {
 export const addDays = (k: string, n: number) => {
   const d = fromKey(k);
   d.setDate(d.getDate() + n);
-  return dateKey(d.getTime());
+  return noonKey(d);
 };
 export const weekOf = (k: string) => addDays(k, -((fromKey(k).getDay() + 6) % 7)); // its Monday
 

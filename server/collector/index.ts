@@ -30,7 +30,7 @@ import { MetaStore, type SavedRuntime } from './metaStore';
 import { fromRecord, stamp, toLive } from './records';
 import { SettingsStore } from './settings';
 import { WateringDetection } from './watering';
-import { DAY, HOUR } from '../../src/lib/time';
+import { DAY, HOUR, setTreeTimeZone, startOfDay } from '../../src/lib/time';
 
 // The collector, one job per file:
 //   index.ts        the living loop (below): poll → store → perception → health → episodes → behaviour → expression,
@@ -59,7 +59,7 @@ interface PerceiveContext {
   soilBreaks: number[];
 }
 
-const dayStartOf = (t: number) => new Date(t).setHours(0, 0, 0, 0);
+const dayStartOf = startOfDay; // the tree's day (its timezone), not the server's
 const finiteOrNull = (n: number) => (Number.isFinite(n) ? n : null);
 
 // The living loop: ESP32 → SQLite → perception → health → episodes → behaviour → expression.
@@ -113,6 +113,7 @@ export class LivingCollector {
     this.log = opts.log ?? ((m) => console.log(m));
     this.meta = new MetaStore(db);
     this.store = new SettingsStore(db, this.meta, this.now, this.log);
+    setTreeTimeZone(this.store.settings.timezone); // days, hours and written times are the tree's, not the server's
     this.watering = new WateringDetection(db, this.meta, this.log, (at) => this.store.watered(at));
     const speech = this.meta.get('message_memory');
     if (speech?.version === INITIAL_MESSAGE_MEMORY.version) this.messageMemory = { ...INITIAL_MESSAGE_MEMORY, ...speech };
@@ -282,7 +283,7 @@ export class LivingCollector {
   // in memory for the day (a new day, source, location or calibration derives it again); never stored.
   private slothCache: { key: string; memory: SlothMemory } | null = null;
   private slothMemory(now: number, cadenceMs: number): SlothMemory {
-    const today = new Date(now).setHours(0, 0, 0, 0);
+    const today = startOfDay(now);
     const loc = this.location();
     const key = JSON.stringify([today, this.source(), loc, this.calibration]);
     if (this.slothCache?.key === key) return this.slothCache.memory;
@@ -402,6 +403,7 @@ export class LivingCollector {
   }
 
   private perceiveAt(now: number, events: PlantEvent[], deviceError: string | null = null, outside: OutsideObservation | null = null, context?: PerceiveContext): PerceptionState {
+    setTreeTimeZone(this.settings.timezone); // every evaluation on the tree's clock (several benches may share a process)
     const since = dayStartOf(now) - HOUR;
     const skies = context ? context.skies.filter((o) => o.at >= since) : this.db.outsideWeatherSince(since);
     return perceive({
@@ -642,7 +644,6 @@ export class LivingCollector {
       wanderers: { sloth: this.slothMemory(now, perception.history.cadenceMs) },
       moodMemory: this.meta.get('mood_memory'),
       hike: hike.plan,
-      timezone: this.settings.timezone || undefined, // Lucy keeps the household's clock
     });
     this.meta.set('mood_memory', behaviour.moodState.memory);
     // When to speak or stay quiet; persisted so refreshes and restarts don't replay lines
@@ -682,6 +683,7 @@ export class LivingCollector {
 
   updateSettings(next: Partial<TreeSettings>) {
     const changed = this.store.update(next);
+    setTreeTimeZone(this.settings.timezone);
     if (changed('dataSource') || changed('latitude') || changed('longitude')) {
       this.replay(this.now());
     }

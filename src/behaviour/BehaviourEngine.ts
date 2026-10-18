@@ -32,7 +32,7 @@ import { evaluateVoice } from './voice';
 import { evaluateHabitat, seasonEnergyAt } from './habitat';
 import { computeRelationship } from './relationship';
 import type { HikePlan } from './hike';
-import { HOUR, MIN } from '../lib/time';
+import { clockAt, HOUR, hourOf, MIN } from '../lib/time';
 
 const THIRST: HealthCondition[] = ['thirsty', 'very_dry', 'hot_and_dry'];
 const CALM: HealthCondition[] = ['comfortable', 'thriving', 'recovering', 'very_bright'];
@@ -52,7 +52,6 @@ export interface BehaviourInput {
   // sloth's loyalty from the last days of readings (the collector derives it; perception has only 24 h)
   location?: { latitude: number | null; longitude: number | null };
   wanderers?: { sloth?: SlothMemory };
-  timezone?: string; // the household clock (the tree's settings): Lucy's day; none = the runtime's
   moodMemory?: MoodMemory | null; // where the mood was (persisted by the collector): it drifts from there
   hike?: HikePlan | null; // the week's hike pick (the collector plans it from the forecast): a day line, the boots
 }
@@ -257,7 +256,7 @@ function timeOfDay(p: PerceptionState, now: number): TimeOfDay {
   if (!p.sun.isDay) return 'night';
   const { sunrise, sunset } = p.sun;
   if (sunrise != null && sunset != null) return now < sunrise + MORNING_AFTER_SUNRISE_MS ? 'morning' : now >= sunset - EVENING_BEFORE_SUNSET_MS ? 'evening' : 'day';
-  const h = new Date(now).getHours();
+  const h = hourOf(now);
   return h < 11 ? 'morning' : h >= 17 ? 'evening' : 'day';
 }
 
@@ -279,7 +278,7 @@ const isStressEpisode = (e: BehaviourEpisode) => seriousStress(e.condition) || e
 
 // "Given what is happening, what happened recently, and how the human has cared for the tree,
 // how should the companion behave?" Deterministic: history, duration, context, relationship.
-export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, timezone, moodMemory = null, hike = null }: BehaviourInput): PlantBehaviourState {
+export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, moodMemory = null, hike = null }: BehaviourInput): PlantBehaviourState {
   const reasons: string[] = [];
   const condition = health.condition;
 
@@ -417,7 +416,6 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     condition,
     modifiers: health.modifiers,
     hike: hike ? { today: hike.today, detail: hike.detail ?? null } : null,
-    timezone,
     now,
   });
   if (habitat.lucy.presence !== 'none') reasons.push(`Lucy: ${habitat.lucy.why}`);
@@ -484,9 +482,8 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     const dewy = prevEpisode.modifiers.includes('high_humidity');
     dayLine = serious || (prevEpisode.modifiers.includes('recovering') && !dewy) ? 'morning_after_stress' : dewy ? 'morning_dewy' : 'morning_calm';
   } else if (condition === 'sleeping' && minutes < 60) {
-    const dayStart = new Date(now);
-    dayStart.setHours(5, 0, 0, 0);
-    const today = sorted.filter((e) => e !== open && (e.endedAt ?? now) > dayStart.getTime());
+    const dayStart = clockAt(now, 5);
+    const today = sorted.filter((e) => e !== open && (e.endedAt ?? now) > dayStart);
     if (today.some((e) => e.condition === 'hot' || e.condition === 'hot_and_dry' || e.modifiers.includes('hot'))) dayLine = 'evening_after_heat';
     else if (today.some(isStressEpisode)) dayLine = 'evening_after_stress';
   }

@@ -8,6 +8,7 @@ import { HourlyTelemetryPoint, PlantTelemetry, TimelineEvent } from '../telemetr
 import { METRIC_TONE_CLASS } from './sensors/SensorCard';
 import { TodayTimeline } from './TodayTimeline';
 import { GuideBody } from './sensors/SensorGuide';
+import { hhmmss } from '../lib/time';
 
 interface DetailViewProps {
   health: PlantHealthState;
@@ -215,7 +216,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, te
             </div>
             <div className="flex items-center gap-1.5 sans text-xs text-[#2D332A]/55 mt-0.5">
               <Radio className="w-3 h-3 text-[#4A6741]" />
-              <span>{!telemetry ? 'No reading yet' : isSensor ? `ESP32 sensors via the Appbonsai server · ${telemetry.updatedAt}` : `Weather estimate · Open-Meteo (${locationName})`}</span>
+              <span>{!telemetry ? 'No reading yet' : isSensor ? `ESP32 sensors via the Appbonsai server · ${hhmmss(telemetry.timestamp)}` : `Weather estimate · Open-Meteo (${locationName})`}</span>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-neutral-200/50 text-[#2D332A]/70 cursor-pointer">
@@ -279,7 +280,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, te
                     <span>Soil: {telemetry.soilMoisture}%</span>
                     <span>Raw soil ADC: {telemetry.soilRaw ?? '–'}</span>
                     <span>Wi-Fi: {telemetry.wifiRssi != null ? `${telemetry.wifiRssi} dBm` : '–'}</span>
-                    <span>Updated: {telemetry.updatedAt}</span>
+                    <span>Updated: {hhmmss(telemetry.timestamp)}</span>
                   </div>
                 </div>
               )}

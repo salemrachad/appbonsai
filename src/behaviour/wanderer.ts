@@ -6,7 +6,7 @@ import type { SpeciesProfile } from '../species';
 import type { OutsideObservation } from '../telemetry/outsideWeather';
 import { driftToward, schmitt, slotWindow } from './habitat';
 import { stableVariant } from './speech';
-import { DAY, HOUR, MIN } from '../lib/time';
+import { addDays, DAY, HOUR, MIN, startOfDay } from '../lib/time';
 
 // "Air wanderers": habitat visitors driven by the AIR of the last hours (the dragonfly, the sloth), as
 // opposed to the squirrel, which reads the tree's history over days. One mechanism for all of them, built
@@ -141,7 +141,7 @@ export interface AirInput {
 export function evaluateAir<S extends string, T extends string>(spec: AirWandererSpec<S, T>, input: AirInput, notYet: string): AirState<S, T> {
   const { samples, outsideToday, species, cadenceMs, condition, modifiers, isDay, now } = input;
   const r = replayAir(spec, samples, outsideToday, species, cadenceMs, now, true);
-  const { windows: _w, spots: _s, ...visitsToday } = airVisitsBetween(spec, r.points, new Date(now).setHours(0, 0, 0, 0), now);
+  const { windows: _w, spots: _s, ...visitsToday } = airVisitsBetween(spec, r.points, startOfDay(now), now);
   const blocked = spec.gate(condition, modifiers, isDay);
   let why: string;
   let visit: AirVisit<S, T> | null = null;
@@ -171,8 +171,8 @@ export function airDays<S extends string, T extends string>(
 ) {
   const since = now - days * DAY;
   const out: AirDay<S>[] = [];
-  for (let day = new Date(since).setHours(0, 0, 0, 0); day < now; day = new Date(day + 36 * HOUR).setHours(0, 0, 0, 0)) {
-    const end = Math.min(new Date(day + 36 * HOUR).setHours(0, 0, 0, 0), now);
+  for (let day = startOfDay(since); day < now; day = addDays(day, 1)) {
+    const end = Math.min(addDays(day, 1), now);
     const spec = specAt ? specAt(day, out) : spec0;
     // The latch is replayed per day from the readings of that day and the evening before
     const daySamples = samples.filter((s) => s.t >= day - 6 * HOUR && s.t < end);

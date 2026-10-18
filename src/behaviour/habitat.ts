@@ -9,7 +9,7 @@ import { sunState } from '../perception/sun';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 import type { DreyState, HabitatState, HabitatVisit, ReactionKind, SquirrelMemory, SquirrelStage, SquirrelTraces, VisitSpot } from './behaviourTypes';
 import { stableVariant } from './speech';
-import { DAY, HOUR, MIN, hhmm } from '../lib/time';
+import { dayKey, DAY, HOUR, hourFraction, hourOf as hourOfDay, MIN, hhmm, startOfDay } from '../lib/time';
 
 // Habitat: how welcoming the tree has been as a place to be, and whether a visitor (the squirrel) is
 // here right now. Evidence class "art": wild animals don't read soil probes, but they do behave like
@@ -93,10 +93,7 @@ export type HabitatChange = { at: number; kind: 'welcoming' | 'left' | 'drey_sta
 export const driftToward = (value: number, toward: 0 | 1, dtHours: number, tauHours: number) => toward + (value - toward) * Math.exp(-dtHours / tauHours);
 // Schmitt trigger: switches on above `enter`, off below `exit`, holds in between.
 export const schmitt = (active: boolean, value: number, enter: number, exit: number) => (!active && value >= enter ? true : active && value < exit ? false : active);
-export const dayKeyOf = (t: number) => {
-  const d = new Date(t);
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-};
+export const dayKeyOf = dayKey; // the tree's day (its timezone)
 // The deterministic visit window of the slot covering `now` (null: no visit in this slot, or not right now).
 // `prefix` keeps each species' slots independent; the same day + slot always rolls the same.
 export function slotWindow(prefix: string, now: number, slotMinutes: number, chance: number, visitMinutes: { min: number; max: number }) {
@@ -106,14 +103,13 @@ export function slotWindow(prefix: string, now: number, slotMinutes: number, cha
 // The visit planned for the slot covering `t`, wherever `t` falls in it (null: this slot holds none)
 export function slotPlan(prefix: string, t: number, slotMinutes: number, chance: number, visitMinutes: { min: number; max: number }) {
   const slotMs = slotMinutes * MIN;
-  const d = new Date(t);
+  const dayStart = startOfDay(t); // the tree's day
   const dayKey = dayKeyOf(t);
-  d.setHours(0, 0, 0, 0);
-  const slot = Math.floor((t - d.getTime()) / slotMs);
+  const slot = Math.floor((t - dayStart) / slotMs);
   const roll = (salt: string, n = 1000) => stableVariant(`${prefix}:${dayKey}:${slot}:${salt}`, n) / n;
   if (roll('visit') >= chance) return null;
   const minutes = visitMinutes.min + Math.round(roll('len') * (visitMinutes.max - visitMinutes.min));
-  const slotStart = d.getTime() + slot * slotMs;
+  const slotStart = dayStart + slot * slotMs;
   const startedAt = slotStart + Math.round(roll('offset') * Math.max(0, slotMs - minutes * MIN));
   return { id: `${dayKey}:${slot}`, dayKey, slot, slotStart, startedAt, endsAt: startedAt + minutes * MIN, roll };
 }
@@ -234,11 +230,7 @@ export interface SquirrelHabits {
   count: number; // past visits remembered
 }
 const NO_HABITS: SquirrelHabits = { usualHour: null, favouriteSpot: null, count: 0 };
-const hourOf = (t: number) => {
-  const d = new Date(t);
-  return d.getHours() + d.getMinutes() / 60;
-};
-const startOfDay = (t: number) => new Date(t).setHours(0, 0, 0, 0);
+const hourOf = hourFraction;
 
 // Habits as of `at`, from the habit-free visits before it (oldest first). Its usual hour is the band its
 // visits fell in most: an individual quirk of its history, not a rule.
@@ -264,7 +256,7 @@ export function habitsFrom(visits: { startedAt: number; spot: VisitSpot }[], at:
 
 // Busiest in the morning and late afternoon, quieter at midday; fewer visits at winter rest
 const chanceScaleAt = (now: number, seasonEnergy: number) => {
-  const h = new Date(now).getHours();
+  const h = hourOfDay(now);
   return (h < 10 || h >= 16 ? 1.25 : 0.75) * Math.min(1, seasonEnergy);
 };
 

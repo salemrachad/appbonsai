@@ -2,7 +2,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import type { DragonflyPerch, HabitatEncounter, HabitatState, SlothBranch, VisitSpot } from './behaviourTypes';
 import { dragonflyRoute, livelinessOf } from './dragonfly';
 import { stableVariant } from './speech';
-import { hhmm } from '../lib/time';
+import { dayKey, hhmm } from '../lib/time';
 
 // Encounters: two visitors in the tree at the same time (evidence class "art"). Nothing new is decided
 // about WHETHER anyone visits: each visitor's own engine did that. This only arranges who sits where when
@@ -119,8 +119,7 @@ export function encounterDiary(windows: { squirrel: Window[]; dragonfly: Window[
       for (const y of b) {
         const from = Math.max(x.from, y.from);
         if (Math.min(x.to, y.to, now) - from < 60 * 1000 || from < since) continue; // at least a minute together
-        const d = new Date(from);
-        const key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+        const key = dayKey(from);
         const e = byDay.get(key);
         if (e) {
           e.count++;

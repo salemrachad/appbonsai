@@ -1,4 +1,5 @@
 import { APP_CONFIG } from '../config/appConfig';
+import { hourOf, startOfDay } from '../lib/time';
 
 const RAD = Math.PI / 180;
 
@@ -24,9 +25,7 @@ export type DayPhase = 'night' | 'dawn' | 'low_sun' | 'day' | 'dusk';
 // it matches published times to about a minute. null where the sun doesn't rise or set that day.
 const HORIZON_DEG = -0.833;
 export function sunTimes(when: number, latitude: number, longitude: number): { sunrise: number | null; sunset: number | null } {
-  const day = new Date(when);
-  day.setHours(0, 0, 0, 0);
-  const start = day.getTime();
+  const start = startOfDay(when); // the tree's day
   // Local solar noon from the longitude, then search each half of the day
   let noon = start + 12 * 3600 * 1000;
   let best = -90;
@@ -67,7 +66,7 @@ export interface SunState {
 // Where the sun is for the tree. Uses the tree's location when known, else the fixed clock window.
 export function sunState(when: number, latitude: number | null, longitude: number | null, lightExpectedAboveDeg: number): SunState {
   if (latitude == null || longitude == null || !isFinite(latitude) || !isFinite(longitude)) {
-    const h = new Date(when).getHours();
+    const h = hourOf(when);
     const { startHour, endHour } = APP_CONFIG.daylight;
     const isDay = h >= startHour && h < endHour;
     const lightExpected = h >= startHour + 2 && h < endHour - 2;

@@ -1,6 +1,6 @@
 import type { PerceptionSample } from '../perception/perceptionTypes';
 import type { SpeciesProfile } from '../species';
-import { DAY, HOUR, MIN, hhmm } from '../lib/time';
+import { clockAt, DAY, HOUR, MIN, hhmm, startOfDay } from '../lib/time';
 import type { DiaryItem, MomentKind } from './historyTypes';
 
 // Moments of the day for the diary: facts found in the stored readings, at most one of each kind per local
@@ -12,8 +12,8 @@ const SAID_AS: Partial<Record<MomentKind, string>> = { brightest: 'brightest_hou
 const QUICK = { tempC: 4, humidity: 15, windowMs: HOUR, slackMs: 10 * MIN };
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
-export const dayStartOf = (t: number) => new Date(t).setHours(0, 0, 0, 0);
-const atHour = (day: number, h: number) => new Date(day).setHours(h, 0, 0, 0);
+export const dayStartOf = startOfDay; // the tree's day (its timezone)
+const atHour = clockAt;
 
 // samples: oldest first. said: what the tree said (utterances: their time and key). from: the first day to
 // describe (an earlier, partly loaded day would give wrong moments).

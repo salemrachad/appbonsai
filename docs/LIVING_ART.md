@@ -646,8 +646,7 @@ earn trust: she lives here.
   ignores them; watching over a struggling tree or in a storm she only glances.
 - Health, vitality, energy, speech priorities and the other visitors' engines never read her. Tested: LU1–LU13.
 - **Open:** the diary doesn't know past hike days (it counts the plan); her anchor hours could be learned from the
-  household instead of set; the rest of the app still uses the server's local clock (UTC on Cloudflare) for day
-  keys, morning lines and the visitors' slots.
+  household instead of set.
 
 ## 7. Known gaps
 

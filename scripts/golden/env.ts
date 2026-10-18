@@ -1,7 +1,10 @@
 // Makes a golden run give byte-identical results on any machine: the tree's timezone, one fixed locale,
 // and a Date that follows the simulated clock. Import this FIRST (before the bench), so START and every
 // `new Date()` / `Date.now()` in the engines and routes already see it.
-process.env.TZ = 'Asia/Beirut';
+// `--machine-tz UTC` runs the same three days on a UTC machine (as on Cloudflare): the tree keeps Beirut time
+// (its settings), so the result must be identical (npm run test:golden:utc).
+const machineTz = process.argv.includes('--machine-tz') ? process.argv[process.argv.indexOf('--machine-tz') + 1] : null;
+process.env.TZ = machineTz || 'Asia/Beirut';
 
 const RealDate = Date;
 let source: () => number = () => RealDate.now();

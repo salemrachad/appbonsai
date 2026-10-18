@@ -1,4 +1,4 @@
-import { DAY } from '../lib/time';
+import { civil, clockOn, DAY } from '../lib/time';
 const RAD = Math.PI / 180;
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
@@ -33,11 +33,14 @@ const START_MONTH: Record<Season, number> = { spring: 2, summer: 5, autumn: 8, w
 export const BLEND_DAYS = 14;
 const FLIP: Record<Season, Season> = { spring: 'autumn', summer: 'winter', autumn: 'spring', winter: 'summer' };
 
-const dayOfYear = (d: Date) => Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(), 0, 0)) / DAY);
+const dayOfYear = (t: number) => {
+  const c = civil(t); // the tree's calendar
+  return Math.floor((Date.UTC(c.y, c.m - 1, c.d) - Date.UTC(c.y, 0, 0)) / DAY);
+};
 
 // Hours of daylight (sun's centre above the horizon) on that day at that latitude.
 export function daylightHours(when: number, latitude: number): number {
-  const n = dayOfYear(new Date(when));
+  const n = dayOfYear(when);
   const decl = -23.44 * Math.cos(((2 * Math.PI) / 365) * (n + 10)) * RAD;
   const x = -Math.tan(latitude * RAD) * Math.tan(decl);
   if (x <= -1) return 24; // polar day
@@ -55,22 +58,23 @@ export function midSeasonState(id: Season, latitude: number | null, year = new D
 export function seasonState(when: number, latitude: number | null): SeasonState {
   const known = latitude != null && isFinite(latitude);
   const south = known && latitude! < 0;
-  const d = new Date(when);
-  const northSeason = NORTH_BY_MONTH[d.getMonth()];
+  const c = civil(when); // the tree's calendar
+  const month = c.m - 1;
+  const northSeason = NORTH_BY_MONTH[month];
   const id = south ? FLIP[northSeason] : northSeason;
 
   // Bounds of the current (northern-calendar) three-month block
   const startMonth = START_MONTH[northSeason];
-  const startYear = northSeason === 'winter' && d.getMonth() < 2 ? d.getFullYear() - 1 : d.getFullYear();
-  const start = new Date(startYear, startMonth, 1).getTime();
-  const end = new Date(startYear, startMonth + 3, 1).getTime();
+  const startYear = northSeason === 'winter' && month < 2 ? c.y - 1 : c.y;
+  const start = clockOn(startYear, startMonth + 1, 1);
+  const end = clockOn(startYear, startMonth + 4, 1);
   const progress = Math.min(1, Math.max(0, (when - start) / (end - start)));
 
   const hours = known ? daylightHours(when, latitude!) : null;
   const inWeek = known ? daylightHours(when + 7 * DAY, latitude!) : null;
   const change = hours !== null && inWeek !== null ? Math.round((inWeek - hours) * 60) : null;
   // Without a location, the northern calendar still tells the direction
-  const lengthening = change !== null ? change >= 0 : d.getMonth() < 5 || (d.getMonth() === 11 && d.getDate() > 21);
+  const lengthening = change !== null ? change >= 0 : month < 5 || (month === 11 && c.d > 21);
 
   const order: Season[] = ['spring', 'summer', 'autumn', 'winter'];
   const next = order[(order.indexOf(id) + 1) % 4];
@@ -83,7 +87,7 @@ export function seasonState(when: number, latitude: number | null): SeasonState 
       : daysIn < BLEND_DAYS
       ? { with: previous, amount: Math.round(0.5 * (1 - daysIn / BLEND_DAYS) * 100) / 100 }
       : null;
-  const doy = dayOfYear(d);
+  const doy = dayOfYear(when);
   return {
     id,
     key: `${startYear}-${id}`,

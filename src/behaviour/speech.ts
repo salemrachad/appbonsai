@@ -2,7 +2,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import type { Severity } from '../health/healthTypes';
 import type { CareLine, DayLine, IntensityTier, Musing, ObservationId, PlantBehaviourState } from './behaviourTypes';
 import { messageKey, variantCount } from './messages';
-import { MIN } from '../lib/time';
+import { dayKey, MIN } from '../lib/time';
 
 // When the tree speaks, and when it stays quiet.
 //
@@ -103,10 +103,7 @@ const lineStamp = (b: PlantBehaviourState, now: number) =>
     ? `${b.hike.week}:${b.hike.chosen ? 'chosen:' : ''}${b.hike.day}`
     : localDate(now);
 
-const localDate = (t: number) => {
-  const d = new Date(t);
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-};
+const localDate = dayKey; // the tree's day (its timezone): once-a-day lines
 
 export function decideSpeech({
   behaviour: b,

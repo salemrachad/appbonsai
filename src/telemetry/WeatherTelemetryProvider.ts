@@ -2,7 +2,7 @@ import { TreeSettings } from '../settings/settings';
 import { calculateVPD } from './telemetryNormalizer';
 import { calculateEstimatedPotMoisture } from './weatherMoistureModel';
 import { HourlyTelemetryPoint, ITelemetryProvider, PlantTelemetry, TelemetryFetchResult, TimelineEvent } from './types';
-import { hhmm } from '../lib/time';
+import { hhmm, hourOf } from '../lib/time';
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -78,7 +78,7 @@ export class WeatherTelemetryProvider implements ITelemetryProvider {
       const hVpd = at('vapour_pressure_deficit', i) ?? calculateVPD(hTemp, hHum);
       hourly.push({
         time: hhmm(d),
-        hour: d.getHours(),
+        hour: hourOf(d.getTime()),
         timestamp: d.getTime(),
         temperature: round1(hTemp),
         humidity: Math.round(hHum),

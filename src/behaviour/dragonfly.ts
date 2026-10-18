@@ -6,7 +6,7 @@ import type { OutsideObservation, OutsideSky } from '../telemetry/outsideWeather
 import type { DragonflyPerch, DragonflyState, DragonflyStop } from './behaviourTypes';
 import { stableVariant } from './speech';
 import { airDiary, AirInput, AirWandererSpec, baseGate, evaluateAir, replayAir } from './wanderer';
-import { hhmm } from '../lib/time';
+import { hhmm, hourOf } from '../lib/time';
 
 // The dragonfly: an air wanderer (see wanderer.ts). Where the squirrel reads the tree's HISTORY over days,
 // the dragonfly reads the AIR over the last hours: warm inside, daylight with useful light, and calm, dry
@@ -43,7 +43,7 @@ export const DRAGONFLY: AirWandererSpec<DragonflyPerch, 'perched' | 'hovering'> 
       visitMinutes: c.visitMinutes,
       // Busiest around midday, when the air is warmest
       scale: (t: number) => {
-        const h = new Date(t).getHours();
+        const h = hourOf(t);
         return h >= c.midday.from && h < c.midday.to ? c.midday.scale : c.midday.otherScale;
       },
     };
