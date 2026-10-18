@@ -32,6 +32,16 @@ export function lastBackupAt(db: AppDatabase): number | null {
   return db.getMeta<BackupState>(BACKUP_STATE_KEY)?.at ?? null;
 }
 
+// When the next backup is due: the first hourUtc after the last one. Never backed up: firstAt, a fixed moment
+// (e.g. shortly after the object loaded). It must not be computed from "now": with a push every minute, a
+// "two minutes from now" moves on with every request and never comes.
+export function backupDueAt(last: number | null, firstAt: number, hourUtc: number): number {
+  if (last === null) return firstAt;
+  const d = new Date(last);
+  const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hourUtc);
+  return next > last ? next : next + 24 * 60 * 60 * 1000;
+}
+
 // Where a backup is kept: one series per folder, in order
 export const backupKey = (b: Pick<NightlyBackup, 'treeId' | 'series' | 'seq'>) => `backup/${b.treeId}/${b.series}/${String(b.seq).padStart(6, '0')}`;
 

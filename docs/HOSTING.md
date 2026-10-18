@@ -127,7 +127,8 @@ Decided 2026-10-18. Two layers, because the likeliest loss is our own bug or a w
 rarest but worst is losing the Cloudflare account (the Pi's history was lost for want of any copy).
 
 1. **Nightly, automatic, in KV** (`server/backup.ts`, the object's alarm, about 05:00 in Beirut / 02:00 UTC; the
-   first one two minutes after a deploy).
+   first one two minutes after the object loads, a fixed moment: `backupDueAt()`. A "two minutes from now"
+   recomputed on each request never came, because a push arrives every minute. Scenario BK4).
    - A series starts with a complete backup. Each next one holds the rows of `telemetry` and `outside_weather`
      added since the previous one (by id, so readings stored late from the device's buffer are still caught),
      plus the small tables and the memories whole. That's one gzip JSON value per night, under

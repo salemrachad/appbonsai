@@ -522,6 +522,19 @@ async function main() {
     const same = (x: Bench) => JSON.stringify({ ...x.collector.snapshot(), events: x.db.eventsSince(0), episodes: x.episodes() }, (k, v) => (k === 'updatedAt' ? undefined : v));
     check('BK3 a tree restored from the backups resumes as the same tree', same(restored) === same(b));
     check('BK3b and starts a new backup series with a complete backup', nextBackup(restored.db, restored.clock).after === null && backupKey(backups[2]).endsWith('/000003'));
+
+    // When backups are due. The first one at a fixed moment: asked every minute (a push), it must still come.
+    const { backupDueAt } = await import('../server/backup');
+    const loaded = Date.UTC(2026, 9, 18, 9, 30);
+    let firstAt = 0;
+    for (let now = loaded; now < loaded + 10 * MIN && !firstAt; now += MIN) if (now >= backupDueAt(null, loaded + 2 * MIN, 2)) firstAt = now;
+    check('BK4 the first backup comes while pushes arrive every minute', firstAt === loaded + 2 * MIN, firstAt ? new Date(firstAt).toISOString() : 'never');
+    const after = (iso: string) => new Date(backupDueAt(Date.parse(iso), 0, 2)).toISOString();
+    check(
+      'BK4b then nightly at 02:00 UTC (05:00 in Beirut), the first 02:00 after the last',
+      after('2026-10-18T09:32:00Z') === '2026-10-19T02:00:00.000Z' && after('2026-10-19T01:59:00Z') === '2026-10-19T02:00:00.000Z' && after('2026-10-19T02:00:05Z') === '2026-10-20T02:00:00.000Z',
+      after('2026-10-18T09:32:00Z')
+    );
   }
 
   console.log('\n— Restarts between steps (a Durable Object waking up) —');

@@ -2,7 +2,7 @@ import { handleAsNodeRequest } from 'cloudflare:node';
 import { DurableObject } from 'cloudflare:workers';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { apiApp } from '../server/app';
-import { backupKey, backupSaved, lastBackupAt, nextBackup } from '../server/backup';
+import { backupDueAt, backupKey, backupSaved, lastBackupAt, nextBackup } from '../server/backup';
 import { LivingCollector } from '../server/collector';
 import { openDurableDatabase } from '../server/durableSqlite';
 import type { AppDatabase } from '../server/database';
@@ -28,14 +28,6 @@ const TREE_NAME = 'ficus'; // one tree for now; later the tree a signed-in accou
 const BACKUP_HOUR_UTC = 2; // 05:00 in Beirut: a quiet hour
 const HOUR_MS = 60 * 60 * 1000;
 
-// The next backup after the last one: the next BACKUP_HOUR_UTC. Never backed up: in two minutes.
-function backupDueAfter(last: number | null, now: number): number {
-  if (last === null) return now + 2 * 60 * 1000;
-  const d = new Date(last);
-  const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), BACKUP_HOUR_UTC);
-  return next > last ? next : next + 24 * HOUR_MS;
-}
-
 async function gzip(text: string): Promise<ArrayBuffer> {
   return new Response(new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
 }
@@ -55,6 +47,7 @@ export class TreeObject extends DurableObject<Env> {
   private collector: LivingCollector;
   private ready: Promise<void>;
   private backupRetryAt = 0; // after a failed backup: not again before this
+  private readonly firstBackupAt = Date.now() + 2 * 60 * 1000; // never backed up: two minutes after loading
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -120,7 +113,7 @@ export class TreeObject extends DurableObject<Env> {
 
   private backupDueAt(): number {
     if (!this.env.BACKUPS) return Infinity;
-    return Math.max(backupDueAfter(lastBackupAt(this.db), Date.now()), this.backupRetryAt);
+    return Math.max(backupDueAt(lastBackupAt(this.db), this.firstBackupAt, BACKUP_HOUR_UTC), this.backupRetryAt);
   }
 
   // The rows added since the last backup, the rest whole, compressed into one KV value per night
