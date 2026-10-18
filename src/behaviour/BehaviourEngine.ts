@@ -26,6 +26,7 @@ import { evaluateMood } from './mood';
 import { evaluateCanopy } from './canopy';
 import { evaluateDragonfly } from './dragonfly';
 import { evaluateSloth } from './sloth';
+import { evaluateLucy } from './lucy';
 import { applyEncounters } from './encounters';
 import { evaluateVoice } from './voice';
 import { evaluateHabitat, seasonEnergyAt } from './habitat';
@@ -51,6 +52,7 @@ export interface BehaviourInput {
   // sloth's loyalty from the last days of readings (the collector derives it; perception has only 24 h)
   location?: { latitude: number | null; longitude: number | null };
   wanderers?: { sloth?: SlothMemory };
+  timezone?: string; // the household clock (the tree's settings): Lucy's day; none = the runtime's
   moodMemory?: MoodMemory | null; // where the mood was (persisted by the collector): it drifts from there
   hike?: HikePlan | null; // the week's hike pick (the collector plans it from the forecast): a day line, the boots
 }
@@ -277,7 +279,7 @@ const isStressEpisode = (e: BehaviourEpisode) => seriousStress(e.condition) || e
 
 // "Given what is happening, what happened recently, and how the human has cared for the tree,
 // how should the companion behave?" Deterministic: history, duration, context, relationship.
-export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, moodMemory = null, hike = null }: BehaviourInput): PlantBehaviourState {
+export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, timezone, moodMemory = null, hike = null }: BehaviourInput): PlantBehaviourState {
   const reasons: string[] = [];
   const condition = health.condition;
 
@@ -408,6 +410,17 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     memory: wanderers?.sloth,
   });
   if (habitat.sloth.active) reasons.push(`Sloth ${habitat.sloth.value}: ${habitat.sloth.why}`);
+  // ---- Lucy: the household dog by the pot (her own day, the outside weather; she stays close in stress) ----
+  habitat.lucy = evaluateLucy({
+    outsideToday: perception.outsideToday ?? [],
+    rainEndedAt: perception.outside?.rainEndedAt ?? null,
+    condition,
+    modifiers: health.modifiers,
+    hike: hike ? { today: hike.today, detail: hike.detail ?? null } : null,
+    timezone,
+    now,
+  });
+  if (habitat.lucy.presence !== 'none') reasons.push(`Lucy: ${habitat.lucy.why}`);
   // ---- Encounters: visitors in the tree together arrange themselves (art; nothing above reads it) ----
   const met = applyEncounters(habitat);
   if (met.length) reasons.push(`Encounters: ${met.map((e) => e.replace('_', ' + ')).join(', ')}`);

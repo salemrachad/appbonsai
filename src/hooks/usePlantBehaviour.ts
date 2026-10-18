@@ -3,8 +3,8 @@ import type { LivingSnapshot } from '../api/types';
 import { evaluateBehaviour } from '../behaviour/BehaviourEngine';
 import type { PlantBehaviourState } from '../behaviour/behaviourTypes';
 import { expressBehaviour } from '../expression/ExpressionEngine';
-import { encounterCues, visitorPlay, weatherLook } from '../expression/ExpressionEngine';
-import type { DreyLook, ExpressionState, SlothPresentation, VisitorPresentation } from '../expression/expressionTypes';
+import { encounterCues, lucyPresentation, visitorPlay, weatherLook } from '../expression/ExpressionEngine';
+import type { DreyLook, ExpressionState, LucyPresentation, SlothPresentation, VisitorPresentation } from '../expression/expressionTypes';
 import { meet } from '../behaviour/encounters';
 import { dragonflyRoute } from '../behaviour/dragonfly';
 import { APP_CONFIG } from '../config/appConfig';
@@ -33,6 +33,8 @@ export type TwilightPreview = { event: 'sunrise' | 'sunset'; minutes: number };
 // A dragonfly preview puts it on a leaf tip or hovering (real visits need warm, bright, calm air).
 // A sloth preview hangs it on a branch (real visits need warm, humid, still air).
 export type SlothPreview = { pose: 'hanging' | 'climbing' | 'sleeping'; branch: 'left_branch' | 'right_branch'; grip?: SlothPresentation['grip'] };
+// A Lucy preview puts her on the floor in a pose (her real day follows the household clock and the weather).
+export type LucyPreview = { pose: LucyPresentation['pose']; spot: LucyPresentation['spot']; cue?: NonNullable<LucyPresentation['cue']> };
 // Visitors previewed together (or with live ones) meet, arranged by the same encounter rules as the server.
 export type DragonflyPreview = { presence: 'hovering' | 'perched'; perch: 'left_tip' | 'right_tip' | 'crown_tip' | 'left_top' };
 // A weather preview swaps only the outside weather layer (a sky, or 'windy' for a clear windy day).
@@ -42,7 +44,7 @@ export type WeatherPreview = OutsideSky | 'windy';
 export type HikePreview = 'announced' | 'moved' | 'today';
 
 export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previews: DevPreviews, latitude: number | null = null) {
-  const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth, hike: previewHike, hikeChoice: previewHikeChoice } = previews;
+  const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth, lucy: previewLucy, hike: previewHike, hikeChoice: previewHikeChoice } = previews;
   return useMemo<{ behaviour: PlantBehaviourState | null; expression: ExpressionState | null }>(() => {
     let r = evaluate(snapshot, display, previewSeason, latitude, previewTwilight, previewHike, previewHikeChoice);
     if (previewVisitor?.mode === 'traces' && r.expression) {
@@ -67,6 +69,12 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
     if (previewSloth && r.expression) {
       const grip = previewSloth.pose === 'hanging' ? previewSloth.grip ?? 'arms' : 'four';
       r = { behaviour: r.behaviour, expression: { ...r.expression, sloth: { id: `preview:${previewSloth.pose}:${previewSloth.branch}:${grip}`, ...previewSloth, grip, tempo: 0.55 } } };
+    }
+    if (previewLucy && r.expression) {
+      // Settled for a while (walking: she walks in now)
+      const startedAt = previewLucy.pose === 'walking' ? Date.now() : Date.now() - 10 * 60 * 1000;
+      const lucy = lucyPresentation({ id: `preview:lucy:${previewLucy.pose}:${previewLucy.spot}:${previewLucy.cue ?? ''}`, kind: 'day', pose: previewLucy.pose, spot: previewLucy.spot, cue: previewLucy.cue ?? null, startedAt, endsAt: startedAt + 2 * 3600 * 1000 });
+      r = { behaviour: r.behaviour, expression: { ...r.expression, lucy } };
     }
     if (previewDragonfly && r.expression) {
       // A preview visit runs through the current hour (and the next), on its own route
@@ -122,7 +130,7 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
       r = { behaviour: r.behaviour, expression: { ...r.expression, atmosphere: { ...r.expression.atmosphere, weather, twilight } } };
     }
     return r;
-  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy, previewTwilight, previewDragonfly, previewSloth, previewHike, previewHikeChoice]);
+  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy, previewTwilight, previewDragonfly, previewSloth, previewLucy, previewHike, previewHikeChoice]);
 }
 
 function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previewSeason: Season | null, latitude: number | null, previewTwilight: TwilightPreview | null = null, previewHike: HikePreview | null = null, previewHikeChoice: string | null = null) {

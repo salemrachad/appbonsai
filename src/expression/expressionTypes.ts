@@ -240,6 +240,23 @@ export interface SlothPresentation {
   rider?: boolean; // encounter: a dragonfly rests on it (slow blinks)
 }
 
+// Lucy (from behaviour.habitat.lucy): the household dog on the floor by the pot. The avatar walks her in at
+// `startedAt` and out at `endsAt` on its own clock, and breathes her at `breathMs` per breath: ~10 s (six a
+// minute) when she is down or asleep, a calm pace to breathe along with. A stroke gets a tilt, a wag or (asleep)
+// an ear twitch. Her pillow is always there.
+export interface LucyPresentation {
+  id: string;
+  pose: 'walking' | 'sitting' | 'down' | 'sleeping';
+  spot: 'floor_left' | 'pillow' | 'by_pot';
+  cue: 'shake_off' | 'panting' | 'concern' | 'tired' | 'storm' | null;
+  breathMs: number;
+  startedAt: number;
+  endsAt: number;
+  walkInMs: number; // the arrival phase (walking in, sniffing around)
+  walkOutMs: number;
+  lookAt?: 'squirrel' | 'dragonfly' | null; // encounter: she looks up at a visitor in the tree
+}
+
 // The drey (nest) in the crown: weeks of a welcoming tree made visible. Drawn even when nobody is home.
 export type DreyLook = 'none' | 'started' | 'built';
 
@@ -271,6 +288,7 @@ export interface ExpressionState {
   squirrelTraces: 'nibbled_leaf' | 'tail_at_pot' | null; // signs of a squirrel that isn't here yet (its first days)
   dragonfly: DragonflyPresentation | null;
   sloth: SlothPresentation | null;
+  lucy?: LucyPresentation | null; // optional: a page left open across a deploy may read an older server
   encounters: ('squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth')[]; // visitors meeting right now (art)
   drey: DreyLook;
   // The week's hike (from behaviour.hike): the plan Home announces, and on the day two pairs of hiking

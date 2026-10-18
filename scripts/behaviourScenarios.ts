@@ -385,8 +385,8 @@ async function main() {
     const dry = await make(null);
     const storm = await make(95, -3);
     // (the light guide may explain a grey sky in words: that's the point, not a change to the tree)
-    const strip = (s: typeof dry) => JSON.stringify({ health: { ...s.health, metrics: s.health.metrics.map(({ guide, ...m }) => m) }, mood: s.behaviour.mood, energy: s.behaviour.energy, intent: s.behaviour.messageIntent, habitat: { ...s.behaviour.habitat, dragonfly: undefined, sloth: undefined }, avatar: s.expression.avatar, droop: s.expression.leafDroop, scene: s.expression.atmosphere.scene });
-    check('O1 outside weather never changes the tree beyond explaining light (health, mood, look, scene, the squirrel; the air wanderers read it by design)', strip(dry) === strip(storm), `${dry.health.condition} vs ${storm.health.condition}`);
+    const strip = (s: typeof dry) => JSON.stringify({ health: { ...s.health, metrics: s.health.metrics.map(({ guide, ...m }) => m) }, mood: s.behaviour.mood, energy: s.behaviour.energy, intent: s.behaviour.messageIntent, habitat: { ...s.behaviour.habitat, dragonfly: undefined, sloth: undefined, lucy: undefined }, avatar: s.expression.avatar, droop: s.expression.leafDroop, scene: s.expression.atmosphere.scene });
+    check('O1 outside weather never changes the tree beyond explaining light (health, mood, look, scene, the squirrel; the air wanderers and Lucy read it by design)', strip(dry) === strip(storm), `${dry.health.condition} vs ${storm.health.condition}`);
     check('O2 the weather layer carries it instead', dry.expression.atmosphere.weather === null && storm.expression.atmosphere.weather?.sky === 'thunderstorm' && storm.expression.atmosphere.weather.windy);
     const looks = OUTSIDE_SKIES.map((sky) => weatherLook({ at: 0, ageMs: 0, sky, code: 0, temperature: 10, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true, windy: false, rainEndedAt: null }));
     check('O3 every sky has a look and a label', looks.every((l) => l && l.label.length > 0 && l.intensity >= 0 && l.intensity <= 1), looks.map((l) => l?.label).join(' | '));
@@ -493,7 +493,7 @@ async function main() {
     const sunnyB = evalWith([]);
     const rainyB = evalWith(rainy);
     // (the sloth reads the air too, by design: left out like the dragonfly itself)
-    const strip = (x: typeof sunnyB) => JSON.stringify({ energy: x.energy, intent: x.messageIntent, squirrel: { ...x.habitat, dragonfly: undefined, sloth: undefined } });
+    const strip = (x: typeof sunnyB) => JSON.stringify({ energy: x.energy, intent: x.messageIntent, squirrel: { ...x.habitat, dragonfly: undefined, sloth: undefined, lucy: undefined } });
     const lift = sunnyB.moodState.valence - rainyB.moodState.valence;
     check('DF5 the dragonfly changes nothing else (energy, words, the squirrel); its company lifts the mood only a little', strip(sunnyB) === strip(rainyB) && sunnyB.habitat.dragonfly!.active && !rainyB.habitat.dragonfly!.active && lift >= 0 && lift <= 0.1 + 1e-9, `sunny ${sunnyB.habitat.dragonfly!.value} / rainy ${rainyB.habitat.dragonfly!.value} · mood +${lift.toFixed(2)}`);
 
@@ -557,7 +557,7 @@ async function main() {
     const evalWith = (outsideToday: any[]) => evaluateBehaviour({ health: st.health, perception: { ...st.perception, outsideToday }, episodes: bb.db.episodesSince(0), events: [], species: ACTIVE_SPECIES, now: bb.clock });
     const c = evalWith(calm);
     const w = evalWith(breezy);
-    const strip = (x: typeof c) => JSON.stringify({ energy: x.energy, intent: x.messageIntent, others: { ...x.habitat, sloth: undefined } });
+    const strip = (x: typeof c) => JSON.stringify({ energy: x.energy, intent: x.messageIntent, others: { ...x.habitat, sloth: undefined, lucy: undefined } });
     const slothLift = c.moodState.valence - w.moodState.valence;
     check('SL5 the sloth changes nothing else (energy, words, the squirrel, the dragonfly); its company lifts the mood only a little', strip(c) === strip(w) && c.habitat.sloth!.active && !w.habitat.sloth!.active && Math.abs(slothLift) <= 0.15, `calm ${c.habitat.sloth!.value} / breezy ${w.habitat.sloth!.value} · mood ${slothLift >= 0 ? '+' : ''}${slothLift.toFixed(2)}`);
 

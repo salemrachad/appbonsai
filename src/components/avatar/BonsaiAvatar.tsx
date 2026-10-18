@@ -7,6 +7,7 @@ import { PetSession, usePetting } from './usePetting';
 import { Dragonfly, dragonflyAt, useDragonflyFlight } from './Dragonfly';
 import { Sloth, slothAt, slothRiderAt } from './Sloth';
 import { HikingBoots } from './HikingBoots';
+import { Lucy, LucyPillow } from './Lucy';
 import { Drey, SquirrelTraces, useVisitorPlay, Visitor, visitorAt } from './Visitor';
 
 interface BonsaiAvatarProps {
@@ -368,6 +369,8 @@ const BonsaiAvatarView: React.FC<BonsaiAvatarProps> = ({ expression, onClick, on
         </g>
         {/* Hike day: two pairs of hiking boots on the ground by the stand */}
         <HikingBoots show={!!expression?.hike?.boots} />
+        {/* Lucy's pillow: always there, on the floor left of the stand */}
+        <LucyPillow />
 
         {/* A squirrel's tail now and then over the back of the pot (its traces, before it visits) */}
         <SquirrelTraces traces={expression?.squirrelTraces ?? null} layer="behind_pot" />
@@ -386,6 +389,8 @@ const BonsaiAvatarView: React.FC<BonsaiAvatarProps> = ({ expression, onClick, on
           <rect x="213" y="394" width="14" height="14" rx="2" fill="#7A3922" opacity="0.6" />
           <path d="M 217,398 L 223,398 M 220,398 L 220,404 M 217,404 L 223,404" stroke="#C86D4B" strokeWidth="1.2" strokeLinecap="round" opacity="0.7" />
         </g>
+        {/* Lucy, the household dog: on the floor in front of the stand and the pot, never in the tree */}
+        <Lucy lucy={expression?.lucy ?? null} />
 
         {/* The living tree: gestures move it from the base of the trunk; filters tint it whole */}
         <g className={gestureClass} style={pivot}>

@@ -1,4 +1,4 @@
-import type { Mood, PlantBehaviourState, ReactionKind } from '../behaviour/behaviourTypes';
+import type { LucyVisit, Mood, PlantBehaviourState, ReactionKind } from '../behaviour/behaviourTypes';
 import { renderMessage } from '../behaviour/messages';
 import { decideSpeech, INITIAL_MESSAGE_MEMORY, SpeechDecision } from '../behaviour/speech';
 import type { HealthCondition, HealthModifier, PlantHealthState, QualitativeState } from '../health/healthTypes';
@@ -8,7 +8,7 @@ import { spotByPerch } from '../behaviour/encounters';
 import { GRIP_WORDS } from '../behaviour/sloth';
 import { weekdayName } from '../behaviour/hike';
 import type { HabitatEncounter } from '../behaviour/behaviourTypes';
-import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gaze, Gesture, SceneId, TouchKind, TouchResponse, DragonflyPresentation, DreyLook, SlothPresentation, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
+import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gaze, Gesture, SceneId, TouchKind, TouchResponse, DragonflyPresentation, DreyLook, LucyPresentation, SlothPresentation, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
 import { APP_CONFIG } from '../config/appConfig';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 
@@ -546,6 +546,9 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     sl?.visit && sl.presence !== 'none'
       ? { id: sl.visit.id, pose: sl.visit.pose, branch: sl.visit.branch, grip: sl.visit.grip ?? 'arms', tempo: r2(clamp(0.4 + ((sl.insideTemp ?? 24) - 22) / 13 * 0.3, 0.4, 0.7)) }
       : null;
+  // Lucy: what behaviour decided; her breath is the calming part (six a minute down or asleep, slower at night)
+  const lu = h?.lucy?.visit ?? null;
+  const lucy: LucyPresentation | null = lu ? lucyPresentation(lu) : null;
   // Encounters (arranged by behaviour): who looks at whom, where the squirrel's play never hops
   const met = encounterCues({ visitor, dragonfly, sloth }, h?.encounters ?? []);
   return {
@@ -558,6 +561,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     squirrelTraces: h?.traces ?? null,
     dragonfly: met.dragonfly,
     sloth: met.sloth,
+    lucy,
     encounters: h?.encounters ?? [],
     drey,
     ...(b.hike ? { hike: { boots: b.hike.today, plan: b.hike } } : {}),
@@ -627,6 +631,9 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
     const thin = a.canopy.fullness < 0.75 ? 'canopy thin' : 'canopy a little thin';
     out.push(`${thin} after a hard stretch${a.canopy.refilling > 0.05 ? ', refilling with fresh tips' : ''} (${Math.round(a.canopy.fullness * 100)}%)`);
   }
+  const lu = b.habitat.lucy?.visit;
+  if (lu) out.push(`Lucy ${{ walking: 'walking about', sitting: 'sitting', down: 'lying down', sleeping: 'asleep' }[lu.pose]} ${{ floor_left: 'on the floor', pillow: 'on her pillow', by_pot: 'by the pot' }[lu.spot]}${lu.cue ? ` (${lu.cue.replace('_', ' ')})` : ''}`);
+  else if (b.habitat.lucy?.presence === 'away_hiking') out.push('her pillow empty: Lucy is out on the hike');
   if (sl) out.push(sl.pose === 'sleeping' ? 'a sloth asleep on a branch, curled up' : sl.pose === 'climbing' ? 'a sloth inching along a branch' : `a sloth ${GRIP_WORDS[sl.grip ?? 'arms']}`);
   if (df) {
     const tips = new Set((df.route ?? []).map((x) => x.perch)).size;
@@ -651,4 +658,11 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
     );
   }
   return out;
+}
+
+// Lucy as the avatar draws her: the pose and spot behaviour decided, and her breathing tempo
+export function lucyPresentation(v: Pick<LucyVisit, 'id' | 'kind' | 'pose' | 'spot' | 'cue' | 'startedAt' | 'endsAt'>): LucyPresentation {
+  const c = APP_CONFIG.habitat.lucy;
+  const breathMs = v.cue === 'panting' ? c.breathMs.panting : v.pose === 'sleeping' && v.kind === 'night' ? c.breathMs.night : c.breathMs[v.pose];
+  return { id: v.id, pose: v.pose, spot: v.spot, cue: v.cue, breathMs, startedAt: v.startedAt, endsAt: v.endsAt, walkInMs: c.walkInMin * 60_000, walkOutMs: c.walkOutMin * 60_000 };
 }

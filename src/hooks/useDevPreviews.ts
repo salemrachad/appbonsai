@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { DEV_PRESETS } from '../health/developerOverrides';
 import { SEASONS, type Season } from '../perception/season';
 import { OUTSIDE_SKIES } from '../telemetry/outsideWeather';
-import type { CanopyPreview, DragonflyPreview, DreyPreview, HikePreview, SlothPreview, TwilightPreview, VisitorPreview, WeatherPreview } from './usePlantBehaviour';
+import type { CanopyPreview, DragonflyPreview, DreyPreview, HikePreview, LucyPreview, SlothPreview, TwilightPreview, VisitorPreview, WeatherPreview } from './usePlantBehaviour';
 
 // Every developer preview in one place: what is previewed, how the URL hash starts one, the toast when one
 // changes and the line Home shows while previewing. Previews only change what is shown; nothing is written.
@@ -11,6 +11,7 @@ export interface DevPreviews {
   season: Season | null;
   visitor: VisitorPreview | null;
   sloth: SlothPreview | null;
+  lucy: LucyPreview | null;
   dragonfly: DragonflyPreview | null;
   twilight: TwilightPreview | null;
   canopy: CanopyPreview | null;
@@ -21,7 +22,7 @@ export interface DevPreviews {
 }
 export type SetPreview = <K extends keyof DevPreviews>(key: K, value: DevPreviews[K]) => void;
 
-export const NO_PREVIEWS: DevPreviews = { preset: null, season: null, visitor: null, sloth: null, dragonfly: null, twilight: null, canopy: null, drey: null, weather: null, hike: null, hikeChoice: null };
+export const NO_PREVIEWS: DevPreviews = { preset: null, season: null, visitor: null, sloth: null, lucy: null, dragonfly: null, twilight: null, canopy: null, drey: null, weather: null, hike: null, hikeChoice: null };
 
 // The URL hash can start any combination, e.g. #preview=very_dry&season=winter&visitor=hiding:crown (handy for screenshots)
 export function previewsFromHash(hash: string): DevPreviews {
@@ -55,6 +56,11 @@ export function previewsFromHash(hash: string): DevPreviews {
     sloth: (() => {
       const r = m(/sloth=(hanging|climbing|sleeping)(?::(left_branch|right_branch))?(?::(four|arms|legs|one_arm|two_legs_one_arm))?/);
       return r ? { pose: r[1] as SlothPreview['pose'], branch: (r[2] ?? 'left_branch') as SlothPreview['branch'], grip: r[3] as SlothPreview['grip'] } : null;
+    })(),
+    // #lucy=sitting, #lucy=down:by_pot:concern, #lucy=sleeping:pillow or #lucy=walking:floor_left:shake_off
+    lucy: (() => {
+      const r = m(/lucy=(walking|sitting|down|sleeping)(?::(pillow|floor_left|by_pot))?(?::(shake_off|panting|concern|tired|storm))?/);
+      return r ? { pose: r[1] as LucyPreview['pose'], spot: (r[2] ?? (r[1] === 'sleeping' ? 'pillow' : 'floor_left')) as LucyPreview['spot'], cue: r[3] as LucyPreview['cue'] } : null;
     })(),
     // #dragonfly=perched or #dragonfly=hovering:crown_tip
     dragonfly: (() => {
@@ -106,6 +112,8 @@ const toastFor = <K extends keyof DevPreviews>(key: K, v: DevPreviews[K]): strin
     }
     case 'sloth':
       return v ? `Sloth ${(v as SlothPreview).pose}` : 'Back to real sloths';
+    case 'lucy':
+      return v ? `Lucy ${(v as LucyPreview).pose}` : 'Back to the real Lucy';
     case 'dragonfly':
       return v ? `Dragonfly ${(v as DragonflyPreview).presence}` : 'Back to real dragonflies';
     case 'canopy': {
@@ -136,6 +144,7 @@ function labelOf(p: DevPreviews): string | null {
       p.drey && `Drey ${p.drey}`,
       p.dragonfly && `Dragonfly ${p.dragonfly.presence}`,
       p.sloth && `Sloth ${p.sloth.pose}`,
+      p.lucy && `Lucy ${p.lucy.pose}`,
       p.canopy && `Canopy ${Math.round(p.canopy.fullness * 100)}%${p.canopy.refilling ? ' refilling' : ''}`,
       p.twilight && `${p.twilight.event === 'sunrise' ? 'Sunrise' : 'Sunset'} ${p.twilight.minutes >= 0 ? '+' : ''}${p.twilight.minutes} min`,
       p.weather && `Outside: ${p.weather.replace('_', ' ')}`,

@@ -383,6 +383,33 @@
 .tree-diary-in { animation: tree-diary-in 0.5s ease-out both; }
 .hike-boots-in { animation: hike-boots-in 0.9s cubic-bezier(.3,.7,.4,1) both; }
 
+/* Lucy: the household dog by the pot. Her breath is slow on purpose (animation-duration set per pose:
+   ~10 s, six breaths a minute, when down or asleep), a pace to breathe along with. */
+@keyframes lucy-breathe { 0%, 100% { transform: scale(1, 1); } 45% { transform: scale(1.012, 1.045); } }
+.lucy-breathe { animation: lucy-breathe 3.2s ease-in-out infinite; }
+@keyframes lucy-breathe-down { 0%, 100% { transform: scale(1, 1); } 45% { transform: scale(1.02, 1.07); } }
+.lucy-breathe-down { animation: lucy-breathe-down 10s ease-in-out infinite; }
+@keyframes lucy-tilt { 0%, 100% { transform: rotate(0deg); } 25%, 70% { transform: rotate(-14deg); } }
+.lucy-tilt { animation: lucy-tilt 2.4s ease-in-out 1 both; }
+@keyframes lucy-wag { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-16deg); } 75% { transform: rotate(12deg); } }
+.lucy-wag { animation: lucy-wag 0.45s ease-in-out infinite; }
+@keyframes lucy-ear-twitch { 0%, 100% { transform: rotate(0deg); } 20% { transform: rotate(-10deg); } 40% { transform: rotate(4deg); } 55% { transform: rotate(0deg); } }
+.lucy-ear-twitch { animation: lucy-ear-twitch 0.9s ease-in-out 1 both; }
+@keyframes lucy-pant { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.25); } }
+.lucy-pant { animation: lucy-pant 0.35s ease-in-out infinite; }
+@keyframes lucy-leg { 0%, 100% { transform: rotate(-16deg); } 50% { transform: rotate(16deg); } }
+.lucy-leg-a { animation: lucy-leg 0.5s ease-in-out infinite; }
+.lucy-leg-b { animation: lucy-leg 0.5s ease-in-out infinite reverse; }
+/* After the rain she comes in with a good shake, now and then while she walks about */
+@keyframes lucy-shake {
+  0%, 70%, 100% { transform: rotate(0deg); }
+  73% { transform: rotate(-7deg); } 76% { transform: rotate(7deg); } 79% { transform: rotate(-6deg); }
+  82% { transform: rotate(5deg); } 85% { transform: rotate(-3deg); } 88% { transform: rotate(0deg); }
+}
+.lucy-shake { animation: lucy-shake 4s ease-in-out infinite; }
+@keyframes lucy-in { from { opacity: 0; } to { opacity: 1; } }
+.lucy-in { animation: lucy-in 0.8s ease-out 1 both; }
+
 @media (prefers-reduced-motion: reduce) {
   [class*="animate-tree-"], .trunk-breathe, .leaf-quiver, .leaf-fresh, [class*="gesture-"],
   .animate-leaf-fall, .animate-drip, .animate-drip-fast, .animate-ripple, .animate-breath, .animate-firefly,
@@ -392,7 +419,8 @@
   .dew-glint, .dew-fall, .night-mist-1, .night-mist-2, .mist-drift-1, .mist-drift-2,
   .visitor-ripple, .visitor-shaking, .visitor-flick, .traces-tail, .drey-tail, .drey-twitch, .drey-zzz,
   .df-wings-fly, .df-perch, .df-hover, .df-hover-here, .df-fly, .df-dart,
-  .sloth-hang, .sloth-climb, .sloth-sleep, .sloth-look, .sloth-blink, .sloth-regrip, .sloth-slowblink, .hike-boots-in, .tree-diary-in {
+  .sloth-hang, .sloth-climb, .sloth-sleep, .sloth-look, .sloth-blink, .sloth-regrip, .sloth-slowblink, .hike-boots-in, .tree-diary-in,
+  .lucy-breathe, .lucy-breathe-down, .lucy-tilt, .lucy-wag, .lucy-ear-twitch, .lucy-pant, .lucy-leg-a, .lucy-leg-b, .lucy-shake, .lucy-in {
     animation: none !important;
   }
   .dew-fall { opacity: 0; } /* a still frame shows no drop in mid-air */

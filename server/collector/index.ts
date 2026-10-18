@@ -642,6 +642,7 @@ export class LivingCollector {
       wanderers: { sloth: this.slothMemory(now, perception.history.cadenceMs) },
       moodMemory: this.meta.get('mood_memory'),
       hike: hike.plan,
+      timezone: this.settings.timezone || undefined, // Lucy keeps the household's clock
     });
     this.meta.set('mood_memory', behaviour.moodState.memory);
     // When to speak or stay quiet; persisted so refreshes and restarts don't replay lines

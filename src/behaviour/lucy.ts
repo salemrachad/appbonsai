@@ -5,7 +5,7 @@ import type { DiaryItem } from '../history/historyTypes';
 import type { OutsideObservation, OutsideSky } from '../telemetry/outsideWeather';
 import type { LucyCue, LucyPose, LucySpot, LucyState, LucyVisit, LucyVisitKind, LucyWeather } from './behaviourTypes';
 import type { HikeDetail } from './hike';
-import { dayKeyOf, slotPlan } from './habitat';
+import { slotPlan } from './habitat';
 import { stableVariant } from './speech';
 import { DAY, HOUR, MIN } from '../lib/time';
 
@@ -35,22 +35,62 @@ const roll = (key: string) => stableVariant(key, 997) / 997;
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-const startOfDay = (t: number) => new Date(t).setHours(0, 0, 0, 0);
-const nextDay = (day: number) => {
-  const d = new Date(day);
-  d.setDate(d.getDate() + 1);
-  return d.setHours(0, 0, 0, 0);
+// ---- The household clock: local time in the tree's timezone (settings), not the server's ----
+// On Cloudflare the server runs in UTC; her bedtime is the household's. No timezone: the runtime's own.
+
+const formatters = new Map<string, Intl.DateTimeFormat>();
+function formatter(tz?: string): Intl.DateTimeFormat {
+  const key = tz ?? '';
+  let f = formatters.get(key);
+  if (!f) {
+    const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' };
+    try {
+      f = new Intl.DateTimeFormat('en-US', { ...opts, timeZone: tz || undefined });
+    } catch {
+      f = new Intl.DateTimeFormat('en-US', opts); // an unknown timezone: the runtime's
+    }
+    formatters.set(key, f);
+  }
+  return f;
+}
+interface Civil {
+  y: number;
+  m: number; // 1-12
+  d: number;
+  h: number;
+  min: number;
+}
+function civil(t: number, tz?: string): Civil {
+  const p: Record<string, number> = {};
+  for (const x of formatter(tz).formatToParts(t)) if (x.type !== 'literal') p[x.type] = Number(x.value);
+  return { y: p.year, m: p.month, d: p.day, h: p.hour % 24, min: p.minute };
+}
+// How far the zone's wall clock is ahead of UTC at t
+const offsetAt = (t: number, tz?: string) => {
+  const c = civil(t, tz);
+  return Date.UTC(c.y, c.m - 1, c.d, c.h, c.min) - Math.floor(t / MIN) * MIN;
 };
-const prevDay = (day: number) => {
-  const d = new Date(day);
-  d.setDate(d.getDate() - 1);
-  return d.setHours(0, 0, 0, 0);
+// The instant of a wall-clock time (hours, fractional; past 24 runs into the next day), DST-safe
+function clockOn(y: number, m: number, d: number, hour: number, tz?: string): number {
+  const naive = Date.UTC(y, m - 1, d, 0, Math.round(hour * 60));
+  const first = naive - offsetAt(naive, tz);
+  return naive - offsetAt(first, tz);
+}
+const startOfDay = (t: number, tz?: string) => {
+  const c = civil(t, tz);
+  return clockOn(c.y, c.m, c.d, 0, tz);
 };
-// A local clock time on a day (hours, fractional), DST-safe
-const clockAt = (day: number, hour: number) => {
-  const d = new Date(day);
-  d.setHours(0, Math.round(hour * 60), 0, 0);
-  return d.getTime();
+const shiftDay = (day: number, by: number, tz?: string) => {
+  const c = civil(day + 12 * HOUR, tz); // midday: clear of any DST edge
+  return clockOn(c.y, c.m, c.d + by, 0, tz);
+};
+const clockAt = (day: number, hour: number, tz?: string) => {
+  const c = civil(day + 12 * HOUR, tz);
+  return clockOn(c.y, c.m, c.d, hour, tz);
+};
+const keyOf = (day: number, tz?: string) => {
+  const c = civil(day + 12 * HOUR, tz);
+  return `${c.y}-${c.m}-${c.d}`;
 };
 
 // ---- Weather latches (outside, context) ----
@@ -107,9 +147,10 @@ export function lucyWeather(obs: OutsideObservation[], t: number): LucyWeatherSt
 
 // How ready to settle she is when she arrives (0 restless … 1 sleepy): after lunch and in the evening she
 // settles sooner; rain, cold, heat and a storm bring her down sooner; a fine day keeps her up and about
-export function lucySettle(t: number, w: LucyWeather): number {
+export function lucySettle(t: number, w: LucyWeather, tz?: string): number {
   const s = C().settle;
-  const h = new Date(t).getHours() + new Date(t).getMinutes() / 60;
+  const now = civil(t, tz);
+  const h = now.h + now.min / 60;
   let v = s.base;
   if (h >= 13 && h < 16.5) v += s.afterLunch;
   if (h >= 19 || h < 5) v += s.evening;
@@ -138,10 +179,10 @@ export interface LucyDay {
 
 // The plan of the day containing `t`. A hike (its best hours, local) takes her away around them, drops the
 // visits that would fall in that time and adds a long tired nap after.
-export function lucyDay(t: number, hike?: Pick<HikeDetail, 'from' | 'to'> | null): LucyDay {
+export function lucyDay(t: number, hike?: Pick<HikeDetail, 'from' | 'to'> | null, tz?: string): LucyDay {
   const c = C();
-  const day = startOfDay(t);
-  const key = dayKeyOf(day);
+  const day = startOfDay(t, tz);
+  const key = keyOf(day, tz);
   const n = c.visitsPerDay.min + stableVariant(`lucy:${key}:count`, c.visitsPerDay.max - c.visitsPerDay.min + 1);
   const anchors = c.anchors
     .map((h, i) => ({ h, i, r: roll(`lucy:${key}:pick:${i}`) }))
@@ -149,22 +190,22 @@ export function lucyDay(t: number, hike?: Pick<HikeDetail, 'from' | 'to'> | null
     .slice(0, n)
     .sort((a, b) => a.h - b.h);
   let visits: LucyPlannedVisit[] = anchors.map(({ h, i }) => {
-    const startedAt = clockAt(day, h + ((roll(`lucy:${key}:jitter:${i}`) * 2 - 1) * c.jitterMin) / 60);
+    const startedAt = clockAt(day, h + ((roll(`lucy:${key}:jitter:${i}`) * 2 - 1) * c.jitterMin) / 60, tz);
     const minutes = c.visitMinutes.min + Math.round(roll(`lucy:${key}:len:${i}`) * (c.visitMinutes.max - c.visitMinutes.min));
     return { id: `lucy:${key}:${i}`, kind: 'day', startedAt, endsAt: startedAt + minutes * MIN };
   });
   let away: LucyDay['away'] = null;
   if (hike) {
-    const from = clockAt(day, hike.from) - c.hike.marginMin * MIN;
-    const to = clockAt(day, hike.to) + c.hike.marginMin * MIN;
+    const from = clockAt(day, hike.from, tz) - c.hike.marginMin * MIN;
+    const to = clockAt(day, hike.to, tz) + c.hike.marginMin * MIN;
     const nap = { id: `lucy:${key}:hike_nap`, kind: 'after_hike' as const, startedAt: to, endsAt: to + c.hike.napMinutes * MIN };
     visits = visits.filter((v) => v.endsAt <= from || v.startedAt >= nap.endsAt);
     visits.push(nap);
     away = { from, to };
   }
   if (roll(`lucy:night:${key}`) < c.nightChance) {
-    const startedAt = clockAt(day, c.bedtime.hour + ((roll(`lucy:night:${key}:bed`) * 2 - 1) * c.bedtime.jitterMin) / 60);
-    const endsAt = clockAt(nextDay(day), c.wake.hour + ((roll(`lucy:night:${key}:wake`) * 2 - 1) * c.wake.jitterMin) / 60);
+    const startedAt = clockAt(day, c.bedtime.hour + ((roll(`lucy:night:${key}:bed`) * 2 - 1) * c.bedtime.jitterMin) / 60, tz);
+    const endsAt = clockAt(shiftDay(day, 1, tz), c.wake.hour + ((roll(`lucy:night:${key}:wake`) * 2 - 1) * c.wake.jitterMin) / 60, tz);
     visits = visits.filter((v) => v.endsAt <= startedAt);
     visits.push({ id: `lucy:night:${key}`, kind: 'night', startedAt, endsAt });
   }
@@ -180,6 +221,7 @@ export interface LucyInput {
   condition: HealthCondition;
   modifiers: HealthModifier[];
   hike?: { today: boolean; detail?: HikeDetail | null } | null;
+  timezone?: string; // the household clock (the tree's settings); none: the runtime's
   now: number;
 }
 
@@ -243,8 +285,9 @@ export function evaluateLucy(input: LucyInput): LucyState {
   const weather: LucyWeather = { heat: w.heat, cold: w.cold, storm: w.storm, rain: w.rain, fineDay: w.fineDay };
   const close = staysClose(input.condition, input.modifiers);
   const hike = input.hike?.today && input.hike.detail ? input.hike.detail : null;
-  const today = lucyDay(now, hike);
-  const lastNight = lucyDay(prevDay(startOfDay(now))).visits.filter((v) => v.kind === 'night');
+  const tz = input.timezone;
+  const today = lucyDay(now, hike, tz);
+  const lastNight = lucyDay(shiftDay(startOfDay(now, tz), -1, tz), null, tz).visits.filter((v) => v.kind === 'night');
   const planned = [...lastNight, ...today.visits];
 
   // Staying close: a trusted stress makes her day visits longer
@@ -279,7 +322,7 @@ export function evaluateLucy(input: LucyInput): LucyState {
   }
   // How she spends it comes from the weather when she came (stable through the visit)
   const arrival = found.kind === 'storm' ? w : lucyWeather(input.outsideToday, found.startedAt);
-  const settle = lucySettle(found.startedAt, arrival);
+  const settle = lucySettle(found.startedAt, arrival, tz);
   // Close to a struggling tree, or through a storm, she stays awake and watches over it
   const awake = close || found.kind === 'storm' || found.kind === 'check';
   const { pose, phaseEndsAt } = lucyPhase(found.kind, found.startedAt, found.endsAt, settle, now, awake);
@@ -300,11 +343,11 @@ const span = (min: number) => (min >= 90 ? `about ${Math.round((min / 60) * 10) 
 
 // Her days, replayed from the plan (hikes aren't remembered here, so a hike day counts its plan) and the
 // stored outside weather (a storm she kept close through).
-export function lucyDiary(obs: OutsideObservation[], now: number, days: number): DiaryItem[] {
+export function lucyDiary(obs: OutsideObservation[], now: number, days: number, tz?: string): DiaryItem[] {
   const items: DiaryItem[] = [];
   const since = now - days * DAY;
-  for (let day = startOfDay(since); day <= now; day = nextDay(day)) {
-    const plan = lucyDay(day);
+  for (let day = startOfDay(since, tz); day <= now; day = shiftDay(day, 1, tz)) {
+    const plan = lucyDay(day, null, tz);
     const visits = plan.visits.filter((v) => v.kind === 'day' && v.startedAt >= since && v.startedAt <= now);
     if (visits.length) {
       const minutes = visits.reduce((m, v) => m + (Math.min(now, v.endsAt) - v.startedAt) / MIN, 0);
@@ -313,7 +356,7 @@ export function lucyDiary(obs: OutsideObservation[], now: number, days: number):
     const night = plan.visits.find((v) => v.kind === 'night');
     if (night && night.startedAt >= since && night.startedAt <= now) items.push({ at: night.startedAt, kind: 'habitat', habitat: 'lucy', title: 'Lucy slept by the pot', detail: 'on her pillow, through the night' });
     // A storm she kept close through (the first time the latch came on that day)
-    const dayObs = obs.filter((o) => o.at >= day && o.at < nextDay(day) && o.at <= now);
+    const dayObs = obs.filter((o) => o.at >= day && o.at < shiftDay(day, 1, tz) && o.at <= now);
     let stormAt: number | null = null;
     for (const o of dayObs) {
       const s = lucyWeather(dayObs, o.at);
