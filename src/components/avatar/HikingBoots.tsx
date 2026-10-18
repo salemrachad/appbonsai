@@ -2,8 +2,8 @@ import React from 'react';
 
 // Hike day (expression.hike.boots): two pairs of hiking boots and their two water bottles, set down together
 // on the ground right of the stand, ready to go. Drawn only; the tree's state never depends on them. The
-// two pairs stand side by side, toes toward the tree, neither hiding the other; the bottles stand in front
-// between them.
+// two pairs stand side by side, toes toward the tree, neither hiding the other; each bottle stands just
+// behind its pair's toes, never covering a boot.
 
 interface BootColors {
   upper: string;
@@ -22,11 +22,11 @@ const PAIRS: { x: number; y: number; scale: number; shade: number; colors: BootC
   // Further out: slate and plum, teal laces (x ≈ 391–438)
   { x: 437, y: 447, scale: 0.88, shade: 1, colors: { upper: '#6D5A72', dark: '#3E3346', collar: '#B9A7BC', lace: '#3FA39A', bottle: '#D98A6C' }, label: 'the other pair' },
 ];
-// The two bottles stand in front (lower on the ground, drawn after the boots) between the pairs: x is a
-// bottle's right edge. They may cover a heel or a toe, never a whole boot.
+// Each bottle stands just behind its own pair's toes (drawn first, a little further back): the toes are the
+// boots' lowest part, so the bottle shows above them and never covers a boot. x is a bottle's right edge.
 const BOTTLES = [
-  { x: 398, y: 456, scale: 0.9, pair: 0 },
-  { x: 409, y: 456, scale: 0.9, pair: 1 },
+  { x: 352, y: 444, scale: 0.9, pair: 0 },
+  { x: 404, y: 444, scale: 0.88, pair: 1 },
 ];
 
 // One boot, side view: heel at x=0, toe at x≈40, standing on y=0
@@ -70,6 +70,14 @@ export const HikingBoots: React.FC<{ show: boolean }> = ({ show }) => {
     <g id="hiking-boots" pointerEvents="none">
       <title>Hike day: the boots and the water bottles are out</title>
       <ellipse cx="388" cy="450" rx="54" ry="6" fill="#000" opacity="0.1" />
+      {BOTTLES.map((b, i) => (
+        // Bottle drawn between x=-16 and -4: shift it so x is its right edge
+        <g key={i} transform={`translate(${b.x + 4 * b.scale} ${b.y}) scale(${b.scale})`}>
+          <g className="hike-boots-in" style={{ animationDelay: `${360 + i * 140}ms` }}>
+            <Bottle color={PAIRS[b.pair].colors.bottle} />
+          </g>
+        </g>
+      ))}
       {PAIRS.map((p, i) => (
         <g key={p.label} transform={`translate(${p.x} ${p.y}) scale(${-p.scale} ${p.scale})`}>
           <g className="hike-boots-in" style={{ animationDelay: `${i * 180}ms`, filter: p.shade < 1 ? `brightness(${p.shade})` : undefined }}>
@@ -78,14 +86,6 @@ export const HikingBoots: React.FC<{ show: boolean }> = ({ show }) => {
               <Boot c={p.colors} />
             </g>
             <Boot c={p.colors} />
-          </g>
-        </g>
-      ))}
-      {BOTTLES.map((b, i) => (
-        // Bottle drawn between x=-16 and -4: shift it so x is its right edge
-        <g key={i} transform={`translate(${b.x + 4 * b.scale} ${b.y}) scale(${b.scale})`}>
-          <g className="hike-boots-in" style={{ animationDelay: `${360 + i * 140}ms` }}>
-            <Bottle color={PAIRS[b.pair].colors.bottle} />
           </g>
         </g>
       ))}
