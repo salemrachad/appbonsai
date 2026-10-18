@@ -3,6 +3,7 @@ import { APP_CONFIG } from '../../src/config/appConfig';
 import { STRESS_CONDITIONS } from '../../src/health/statePriority';
 import { dragonflyDiary } from '../../src/behaviour/dragonfly';
 import { slothDiary } from '../../src/behaviour/sloth';
+import { lucyDiary } from '../../src/behaviour/lucy';
 import { encounterDiary, type Window } from '../../src/behaviour/encounters';
 import { habitatDiary, seasonEnergyAt } from '../../src/behaviour/habitat';
 import { toSample } from '../../src/perception/PerceptionEngine';
@@ -51,6 +52,8 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const slothFrom = now - Math.max(days, APP_CONFIG.habitat.sloth.loyalty.days) * DAY;
   const slothSamples = slothFrom < since ? [...toSamples(db.telemetrySince(source(), slothFrom - 6 * HOUR, since - 6 * HOUR - 1)), ...samples] : samples;
   const sloths = slothDiary(slothSamples, db.outsideWeatherSince(slothFrom - 6 * HOUR), db.episodesSince(slothFrom), ACTIVE_SPECIES, cadenceMs, now, days, windows.sloth);
+  // Lucy's days: her plan on the household clock, and the storms she kept close through (stored weather)
+  const lucy = lucyDiary(outside, now, days, settings.timezone || undefined);
   // Who shared the tree: where those visits overlapped
   const encounters = encounterDiary(windows, since, now);
   // What the tree said, the moments of each day and the finished days in short. The first day is read from
@@ -59,7 +62,7 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const from = dayStartOf(since);
   const daySamples = toSamples(db.telemetrySince(source(), from));
   const days_ = [...dayMoments(daySamples, ACTIVE_SPECIES, now, said, from), ...daySummaries(daySamples, db.episodesSince(from), db.eventsSince(from), ACTIVE_SPECIES, now, from)].filter((i) => i.at >= since);
-  return [...buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs, db.outsideWeatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...encounters].sort((a, b) => b.at - a.at);
+  return [...buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs, db.outsideWeatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...lucy, ...encounters].sort((a, b) => b.at - a.at);
 }
 
 export function historyRoutes(db: AppDatabase, collector: LivingCollector): Router {

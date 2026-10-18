@@ -1488,6 +1488,21 @@ async function main() {
     check('LU9c after the rain she comes in with a shake', shake.presence === 'walking' && shake.visit?.cue === 'shake_off', shake.why);
 
     const diary = lucyDiary(wx(at(21, 0), 4 * 24 * 2, 'clear', 20), at(22, 23, 59), 2);
+    // LU10: her company calms the mood a little; it changes nothing else (energy, words, the other visitors)
+    {
+      const visit = lucyDay(at(24, 12)).visits.find((v) => v.kind === 'day' && v.startedAt > at(24, 9))!;
+      const bb = new Bench();
+      bb.clock = visit.startedAt + 15 * MIN - 150 * MIN;
+      await bb.boot();
+      await bb.run(150, () => ({ soil: 60, light: 55, temp: 24, hum: 60 }));
+      const st = bb.state();
+      const { ACTIVE_SPECIES } = await import('../src/species');
+      const evalAt = (now: number) => evaluateBehaviour({ health: st.health, perception: st.perception, episodes: bb.db.episodesSince(0), events: [], species: ACTIVE_SPECIES, now });
+      const here = evalAt(bb.clock);
+      const lift = here.moodState.influences.find((x) => x.source === 'visitors');
+      check('LU10 her company calms the mood a little (warmer, stiller), never more than the visitors\' cap', !!here.habitat.lucy?.visit && !!lift && /Lucy/.test(lift.why) && lift.v > 0 && lift.v <= 0.1 && lift.a < 0, `${here.habitat.lucy?.why} · ${lift?.why} v ${lift?.v} a ${lift?.a}`);
+    }
+
     check('LU9d diary: her company per day and her nights by the pot', diary.filter((d) => d.title === 'Lucy kept me company').length === 2 && diary.every((d) => d.habitat === 'lucy'), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));
   }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Squirrel, Home, Sparkles, PawPrint, Users, MessageCircle, Sunrise, Droplets, Activity, CalendarCheck } from 'lucide-react';
+import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Squirrel, Home, Sparkles, PawPrint, Dog, Users, MessageCircle, Sunrise, Droplets, Activity, CalendarCheck } from 'lucide-react';
 import type { HealthCondition } from '../health/healthTypes';
 import type { DailySummary, DiaryItem, MomentKind, PlantEventType, WeatherSpellKind } from '../history/historyTypes';
 import { hhmm } from '../lib/time';
@@ -175,6 +175,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
                     ? { Icon: Sparkles, color: '#4E9FB8' }
                     : item.habitat === 'sloth' || item.habitat === 'sloth_home'
                     ? { Icon: PawPrint, color: '#8B7B66' }
+                    : item.habitat === 'lucy'
+                    ? { Icon: Dog, color: '#C9756D' }
                     : item.habitat === 'traces'
                     ? { Icon: PawPrint, color: '#A08A72' }
                     : item.habitat === 'encounter'

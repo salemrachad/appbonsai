@@ -310,6 +310,7 @@ export type MusingId =
   | 'squirrel_came' // count, firstAt
   | 'dragonfly_came' // count, firstAt
   | 'sloth_came' // count, minutes
+  | 'lucy_here' // count: Lucy lying by the pot right now (her visit of the day)
   | 'visitors_met' // pair (index in ENCOUNTER_PAIRS: 0 squirrel+sloth, 1 squirrel+dragonfly, 2 dragonfly+sloth)
   | 'new_tips' // fullness
   | 'drey_growing'

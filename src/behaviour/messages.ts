@@ -166,6 +166,7 @@ export const MUSING_LINES: Record<MusingId, Lines> = {
   warmer_than_outside: ['Much warmer in here than outside. 🏡', 'Sheltered and warm in here. 🏡', 'Cool out there, comfortable in here. 🏡'],
   squirrel_came: ['A squirrel came by today. 🐿️', 'I had a visitor today. 🐿️', 'The squirrel visited me today. 🐿️'],
   sloth_came: ['A sloth spent a slow while in my branches. 🦥', 'I had a very slow visitor today. 🦥', 'A sloth hung around for a while. 🦥'],
+  lucy_here: ['Lucy came to lie by my pot. Slow breaths, both of us. 🐾', 'Lucy is here, settled close. Everything feels calmer. 🐾', 'Lucy is resting beside me. Nothing to do but be here. 🐾'],
   dragonfly_came: ['A dragonfly hovered by today. ✨', 'I had a dragonfly on my leaves today. ✨', 'Warm, bright air: a dragonfly came. ✨'],
   visitors_met: ['The {pair} are sharing my branches. 🌿', 'Company in my branches: the {pair}. 🌿', 'The {pair}, both in my branches at once. 🌿'],
   new_tips: ['New leaf tips are coming in. 🌱', 'I am filling out again. 🌱', 'Fresh leaves, one by one. 🌱'],
@@ -189,6 +190,7 @@ export const MUSING_TIPS: Record<MusingId, (f: Record<string, number>) => string
   warmer_than_outside: (f) => `${f.inside}°C in here, ${f.outside}°C outside.`,
   squirrel_came: (f) => `${f.count} visit${f.count > 1 ? 's' : ''} today, the first around ${hhmm(f.firstAt)}. They come when the tree has been a good place to be.`,
   sloth_came: (f) => `${f.count} visit${f.count > 1 ? 's' : ''} today, about ${f.minutes >= 90 ? `${Math.round((f.minutes / 60) * 10) / 10} h` : `${f.minutes} min`} in all. Sloths like warm, humid, still air.`,
+  lucy_here: (f) => `Her visit ${f.count} today. Watch her breathe for a minute: about six slow breaths, in and out.`,
   dragonfly_came: (f) => `${f.count} dragonfly visit${f.count > 1 ? 's' : ''} today, the first around ${hhmm(f.firstAt)}. They come with warm, bright, calm air.`,
   visitors_met: (f) =>
     [

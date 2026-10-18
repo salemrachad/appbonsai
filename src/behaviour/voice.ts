@@ -125,6 +125,9 @@ export function evaluateVoice({ health, perception: p, species, intent, timeOfDa
   if (df && df.visitsToday.count > 0 && df.presence === 'none') add('dragonfly_came', { count: df.visitsToday.count, firstAt: df.visitsToday.firstAt ?? now }, 2);
   const sl = habitat.sloth;
   if (sl && sl.visitsToday.count > 0 && sl.presence === 'none') add('sloth_came', { count: sl.visitsToday.count, minutes: sl.visitsToday.minutes }, 2);
+  // Lucy lying by the pot, settled (not while she walks about or sits up): a quiet line, once a day
+  const lu = habitat.lucy;
+  if (lu?.visit && (lu.presence === 'down' || lu.presence === 'sleeping') && lu.visit.kind !== 'night') add('lucy_here', { count: Math.max(1, lu.visitsToday.count) }, 2);
   // Two visitors sharing the tree right now (rare: only while it happens, once a day)
   const met = habitat.encounters?.[0];
   if (met) add('visitors_met', { pair: ENCOUNTER_PAIRS.indexOf(met) }, 3);

@@ -137,6 +137,7 @@ function visitors(i: MoodInput): MoodInfluence | null {
   if (h.visit && (h.presence === 'visiting' || h.presence === 'peeking')) parts.push([...(V.squirrel as [number, number]), 'the squirrel is here']);
   if (h.dragonfly?.visit && h.dragonfly.presence !== 'none') parts.push([...(V.dragonfly as [number, number]), 'a dragonfly is here']);
   if (h.sloth?.visit && h.sloth.presence !== 'none') parts.push([...(V.sloth as [number, number]), 'the sloth is here']);
+  if (h.lucy?.visit) parts.push([...(V.lucy as [number, number]), 'Lucy is here']);
   return capped('visitors', parts, { v: V.cap, a: V.cap });
 }
 
