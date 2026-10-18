@@ -25,10 +25,17 @@ export function nodeSqliteDriver(dbPath: string, opts: { readOnly?: boolean } = 
     return st;
   };
 
+  // node:sqlite can't say how many rows a statement read: count the rows it returned (an estimate)
+  let rowsRead = 0;
   return {
     path: file,
     exec: (sql) => db.exec(sql),
-    all: (sql: string, ...params: SqlValue[]) => prepare(sql).all(...params) as Row[],
+    all: (sql: string, ...params: SqlValue[]) => {
+      const rows = prepare(sql).all(...params) as Row[];
+      rowsRead += rows.length;
+      return rows;
+    },
+    rowsRead: () => rowsRead,
     transaction: (fn) => {
       db.exec('BEGIN');
       try {

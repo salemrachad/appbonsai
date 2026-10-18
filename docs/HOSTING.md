@@ -88,6 +88,16 @@ notifications, a capacitive soil probe (the FC-28 corrodes), more species.
   - after a restart (the object unloaded) the state is back without a new evaluation;
   - the alarm notices a missing push on its own (90 s).
 
+### Read quota (free tier)
+
+A Durable Object's SQLite bills **rows read**: 5 M a day on the free plan. Past it, every query throws
+("Exceeded allowed rows read in Durable Objects free tier", Cloudflare error 1101) until 00:00 UTC, and the
+site shows "Server offline"; the ESP32 keeps up to 360 readings (6 h) to send once it answers again. This
+happened on 2026-10-18: the status check counted every telemetry row every 15 s per open page, and the diary
+re-read two weeks of readings every few minutes. Both are cached now (`AppDatabase` counts, `server/rowCache.ts`);
+`GET /api/status` → `rowsRead.today` shows the day's reads, and `npx wrangler tail` shows the exception if it
+happens again. Workers Paid ($5/month) includes 25 billion rows read a month.
+
 ## Deploying (Workers Builds)
 
 Decided 2026-10-18: GitHub → Cloudflare Workers Builds. A push to `main` builds, tests and deploys the existing

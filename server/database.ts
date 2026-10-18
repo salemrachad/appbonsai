@@ -18,6 +18,9 @@ export interface SqlDriver {
   all(sql: string, ...params: SqlValue[]): Row[]; // one statement; writes return their RETURNING rows
   transaction<T>(fn: () => T): T; // all or nothing (a restore)
   close(): void;
+  // Rows read so far by this driver, as the storage counts them (a Durable Object bills rows read; node:sqlite
+  // can't tell, so it counts the rows returned). Absent: unknown.
+  rowsRead?(): number;
 }
 
 // A whole tree's data, to move it to another server (scripts/cloudMigrate.ts → POST /api/admin/restore).
@@ -168,10 +171,51 @@ export class AppDatabase {
   }
 
   private all(sql: string, ...params: SqlValue[]): Row[] {
-    return this.sql.all(sql, ...params);
+    const rows = this.sql.all(sql, ...params);
+    this.forgetCounts(sql);
+    return rows;
   }
   private get(sql: string, ...params: SqlValue[]): Row | undefined {
-    return this.sql.all(sql, ...params)[0];
+    return this.all(sql, ...params)[0];
+  }
+
+  // Counts for the status page, kept in memory: a COUNT(*) reads every row of its table, and the status is asked
+  // every few seconds (a Durable Object's SQLite bills each row read). A row inserted or deleted drops the
+  // count, so it is read again once, exactly. Telemetry's count follows each new reading instead (one a minute).
+  private counts = new Map<string, number>();
+  // Bumped when a restore or a top-up rewrites history: caches of past rows start over
+  dataVersion = 0;
+  private telemetryCache: { count: number; oldest: number | null } | null = null;
+  private forgetCounts(sql: string) {
+    const m = /^\s*(INSERT|DELETE)\b/i.test(sql) ? sql.match(/\b(?:INTO|FROM)\s+(\w+)/i) : null;
+    if (!m) return;
+    this.counts.delete(m[1]);
+    if (m[1] === 'telemetry' && !this.countingTelemetry) this.telemetryCache = null;
+  }
+  private countingTelemetry = false;
+  private countOf(table: string): number {
+    let n = this.counts.get(table);
+    if (n === undefined) this.counts.set(table, (n = Number(this.sql.all(`SELECT COUNT(*) AS n FROM ${table}`)[0].n)));
+    return n;
+  }
+  // Rows read by the database so far (see SqlDriver.rowsRead), null when the driver can't tell
+  rowsRead(): number | null {
+    return this.sql.rowsRead ? this.sql.rowsRead() : null;
+  }
+  // Rows read since this database was opened, and since the UTC day began (a Durable Object's free tier allows
+  // 5 M a day). A warning in the log once a day past 3 M.
+  private readDay: { day: number; base: number; warned: boolean } | null = null;
+  readStats(now: number): { sinceStart: number; today: number } | null {
+    const total = this.rowsRead();
+    if (total === null) return null;
+    const day = Math.floor(now / 86_400_000);
+    if (!this.readDay || this.readDay.day !== day) this.readDay = { day, base: this.readDay ? total : 0, warned: false };
+    const today = total - this.readDay.base;
+    if (today > 3_000_000 && !this.readDay.warned) {
+      this.readDay.warned = true;
+      console.warn(`[database] ${today} rows read today (the Durable Objects free tier allows 5 M a day)`);
+    }
+    return { sinceStart: total, today };
   }
 
   // Bring an older database up to SCHEMA_VERSION. Each step is skipped if already applied.
@@ -222,6 +266,9 @@ export class AppDatabase {
       for (const [key, value] of Object.entries(dump.meta)) if (key !== 'schema_version' && key !== 'backup_state') this.setMeta(key, value);
       counts.meta = Object.keys(dump.meta).length;
     });
+    this.counts.clear();
+    this.telemetryCache = null;
+    this.dataVersion++;
     return counts;
   }
 
@@ -232,6 +279,8 @@ export class AppDatabase {
     this.sql.transaction(() => {
       for (const { id: _id, ...row } of rows) added += this.insertRow('telemetry', row, 'INSERT OR IGNORE');
     });
+    this.telemetryCache = null;
+    this.dataVersion++;
     return added;
   }
 
@@ -265,6 +314,7 @@ export class AppDatabase {
 
   // ---- telemetry ----
   insertTelemetry(t: Omit<TelemetryRecord, 'id'>, rawJson: unknown): number | null {
+    this.countingTelemetry = true; // the cached count follows the insert below
     const r = this.get(
         `INSERT OR IGNORE INTO telemetry
          (timestamp, source, device_id, soil_moisture, api_soil_moisture, soil_raw, temperature, humidity,
@@ -285,7 +335,15 @@ export class AppDatabase {
         t.dataQuality,
         rawJson === undefined ? null : JSON.stringify(rawJson)
       );
+    this.countingTelemetry = false;
+    if (r && this.telemetryCache) this.telemetryCache = { count: this.telemetryCache.count + 1, oldest: this.telemetryCache.oldest === null ? t.timestamp : Math.min(this.telemetryCache.oldest, t.timestamp) };
     return r ? Number(r.id) : null;
+  }
+
+  // Readings stored after row `afterId` (new ones, whatever their time: a device's buffered backfill too),
+  // oldest id first: lets a cache read only what it hasn't seen
+  telemetryAfterId(source: string, afterId: number): TelemetryRecord[] {
+    return this.all(`SELECT ${TELEMETRY_COLUMNS} FROM telemetry WHERE source = ? AND id > ? ORDER BY id`, source, afterId).map(toTelemetry);
   }
 
   telemetrySince(source: string | null, since: number, until = Number.MAX_SAFE_INTEGER): TelemetryRecord[] {
@@ -325,8 +383,11 @@ export class AppDatabase {
   }
 
   telemetryStats(): { count: number; oldest: number | null } {
-    const r = this.get('SELECT COUNT(*) AS n, MIN(timestamp) AS oldest FROM telemetry')!;
-    return { count: r.n, oldest: r.oldest };
+    if (!this.telemetryCache) {
+      const r = this.sql.all('SELECT COUNT(*) AS n, MIN(timestamp) AS oldest FROM telemetry')[0];
+      this.telemetryCache = { count: Number(r.n), oldest: r.oldest ?? null };
+    }
+    return this.telemetryCache;
   }
 
   // ---- plant events ----
@@ -348,7 +409,7 @@ export class AppDatabase {
     return this.all('SELECT * FROM plant_events WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?', since, limit).map(toEvent);
   }
   eventCount(): number {
-    return this.get('SELECT COUNT(*) AS n FROM plant_events')!.n;
+    return this.countOf('plant_events');
   }
 
   // ---- interactions (attention, not care) ----
@@ -385,7 +446,7 @@ export class AppDatabase {
     return rows.map(toInteraction);
   }
   interactionCount(): number {
-    return this.get('SELECT COUNT(*) AS n FROM interactions')!.n;
+    return this.countOf('interactions');
   }
 
   // ---- outside weather (context only) ----
@@ -401,6 +462,10 @@ export class AppDatabase {
   }
   outsideWeatherSince(since: number): OutsideObservation[] {
     return this.all(`SELECT ${OUTSIDE_COLUMNS} FROM outside_weather WHERE timestamp >= ? ORDER BY timestamp ASC`, since).map(toOutside);
+  }
+  // Observations stored after row `afterId` (see telemetryAfterId), with their ids
+  outsideWeatherAfterId(afterId: number, since = 0): { id: number; o: OutsideObservation }[] {
+    return this.all(`SELECT id, ${OUTSIDE_COLUMNS} FROM outside_weather WHERE id > ? AND timestamp >= ? ORDER BY id`, afterId, since).map((r) => ({ id: Number(r.id), o: toOutside(r) }));
   }
 
   // ---- calibration history ----
@@ -485,6 +550,6 @@ export class AppDatabase {
     return this.all('SELECT * FROM behaviour_episodes WHERE COALESCE(ended_at, last_seen_at) >= ? ORDER BY started_at DESC', since).map(toEpisode);
   }
   episodeCount(): number {
-    return this.get('SELECT COUNT(*) AS n FROM behaviour_episodes')!.n;
+    return this.countOf('behaviour_episodes');
   }
 }

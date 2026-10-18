@@ -4,6 +4,7 @@ import { STRESS_CONDITIONS } from '../../src/health/statePriority';
 import { dragonflyDiary } from '../../src/behaviour/dragonfly';
 import { slothDiary } from '../../src/behaviour/sloth';
 import { lucyDiary } from '../../src/behaviour/lucy';
+import { recentTelemetry, recentWeather } from '../rowCache';
 import { encounterDiary, type Window } from '../../src/behaviour/encounters';
 import { habitatDiary, seasonEnergyAt } from '../../src/behaviour/habitat';
 import { toSample } from '../../src/perception/PerceptionEngine';
@@ -32,9 +33,19 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const { settings } = collector.getSettings();
   setTreeTimeZone(settings.timezone);
   const location = { latitude: settings.latitude ?? null, longitude: settings.longitude ?? null };
+  // Rows are read once (episodes, events) or from the in-memory cache of recent readings and weather
+  // (rowCache.ts): the diary is opened often, and a Durable Object's SQLite bills every row read
+  const slothFrom = now - Math.max(days, APP_CONFIG.habitat.sloth.loyalty.days) * DAY;
+  const from = dayStartOf(since);
+  const allEpisodes = db.episodesSince(Math.min(now - APP_CONFIG.habitat.replayDays * DAY, slothFrom, from, since));
+  const episodesSince = (t: number) => allEpisodes.filter((e) => (e.endedAt ?? e.lastSeenAt) >= t);
+  const allEvents = db.eventsSince(Math.min(from, since));
+  const eventsSince = (t: number) => allEvents.filter((e) => e.timestamp >= t);
+  const telemetrySince = (a: number, b?: number) => recentTelemetry(db, source(), a, b);
+  const weatherSince = (t: number) => recentWeather(db, t);
   // The squirrel's story, derived from the same episodes the habitat replays (nothing stored)
   const windows: { squirrel: Window[]; dragonfly: Window[]; sloth: Window[] } = { squirrel: [], dragonfly: [], sloth: [] };
-  const visitors = habitatDiary({ episodes: db.episodesSince(now - APP_CONFIG.habitat.replayDays * DAY), now, days, location, seasonAt: seasonEnergyAt(location.latitude, ACTIVE_SPECIES), windowsOut: windows.squirrel });
+  const visitors = habitatDiary({ episodes: episodesSince(now - APP_CONFIG.habitat.replayDays * DAY), now, days, location, seasonAt: seasonEnergyAt(location.latitude, ACTIVE_SPECIES), windowsOut: windows.squirrel });
   // The dragonfly's days: the stored readings as samples, through the same replay as the live view
   const cal = collector.getCalibration();
   const toSamples = (rows: ReturnType<typeof db.telemetrySince>) =>
@@ -42,14 +53,13 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
       const t = fromRecord(row, cal, false);
       return t ? [toSample(t, ACTIVE_SPECIES, location)] : [];
     });
-  const samples = toSamples(db.telemetrySince(source(), since - 6 * HOUR));
+  const samples = toSamples(telemetrySince(since - 6 * HOUR));
   const cadenceMs = Math.max(APP_CONFIG.dataQuality.minStaleMs, collector.pollMs() * APP_CONFIG.dataQuality.staleAfterPolls);
-  const outside = db.outsideWeatherSince(since - 6 * HOUR);
-  const dragonflies = dragonflyDiary(samples, outside, db.episodesSince(since), ACTIVE_SPECIES, cadenceMs, now, days, windows.dragonfly);
+  const outside = weatherSince(since - 6 * HOUR);
+  const dragonflies = dragonflyDiary(samples, outside, episodesSince(since), ACTIVE_SPECIES, cadenceMs, now, days, windows.dragonfly);
   // The sloth remembers its last days (loyalty): its diary replays from that far back, like the live view
-  const slothFrom = now - Math.max(days, APP_CONFIG.habitat.sloth.loyalty.days) * DAY;
-  const slothSamples = slothFrom < since ? [...toSamples(db.telemetrySince(source(), slothFrom - 6 * HOUR, since - 6 * HOUR - 1)), ...samples] : samples;
-  const sloths = slothDiary(slothSamples, db.outsideWeatherSince(slothFrom - 6 * HOUR), db.episodesSince(slothFrom), ACTIVE_SPECIES, cadenceMs, now, days, windows.sloth);
+  const slothSamples = slothFrom < since ? [...toSamples(telemetrySince(slothFrom - 6 * HOUR, since - 6 * HOUR - 1)), ...samples] : samples;
+  const sloths = slothDiary(slothSamples, weatherSince(slothFrom - 6 * HOUR), episodesSince(slothFrom), ACTIVE_SPECIES, cadenceMs, now, days, windows.sloth);
   // Lucy's days: her plan on the household clock, and the storms she kept close through (stored weather)
   const lucy = lucyDiary(outside, now, days);
   // Who shared the tree: where those visits overlapped
@@ -57,10 +67,9 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   // What the tree said, the moments of each day and the finished days in short. The first day is read from
   // its midnight, so its moments and summary describe all of it (or it is left out: from)
   const said = db.utterancesSince(since);
-  const from = dayStartOf(since);
-  const daySamples = toSamples(db.telemetrySince(source(), from));
-  const days_ = [...dayMoments(daySamples, ACTIVE_SPECIES, now, said, from), ...daySummaries(daySamples, db.episodesSince(from), db.eventsSince(from), ACTIVE_SPECIES, now, from)].filter((i) => i.at >= since);
-  return [...buildDiary(db.episodesSince(since), db.eventsSince(since), APP_CONFIG.history.episodeGapMs, db.outsideWeatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...lucy, ...encounters].sort((a, b) => b.at - a.at);
+  const daySamples = toSamples(telemetrySince(from));
+  const days_ = [...dayMoments(daySamples, ACTIVE_SPECIES, now, said, from), ...daySummaries(daySamples, episodesSince(from), eventsSince(from), ACTIVE_SPECIES, now, from)].filter((i) => i.at >= since);
+  return [...buildDiary(episodesSince(since), eventsSince(since), APP_CONFIG.history.episodeGapMs, weatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...lucy, ...encounters].sort((a, b) => b.at - a.at);
 }
 
 export function historyRoutes(db: AppDatabase, collector: LivingCollector): Router {

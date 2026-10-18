@@ -65,6 +65,9 @@ export interface ServerStatus {
   collector: CollectorStatus;
   counts: { telemetry: number; events: number; episodes: number; interactions?: number };
   oldestTelemetryAt: number | null;
+  // GET /api/status only (never in /api/current: it changes with every request): rows the database has read since
+  // the server (or the Durable Object) started, and today (UTC, the day a Durable Object's free tier counts)
+  rowsRead?: { sinceStart: number; today: number } | null;
 }
 
 // Everything the companion screen needs, in one poll.

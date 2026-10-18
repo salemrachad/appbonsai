@@ -843,6 +843,81 @@ async function main() {
     check('OW5 a restart within the hour shows the stored weather (offline is fine)', restarted.state().perception.outside === null || restarted.state().perception.outside?.sky === 'heavy_rain');
   }
 
+  console.log('\n— Rows read (a Durable Object bills them: 5 M a day on the free tier) —');
+  {
+    // A day with the page open: a status check every 15 s (the stream), the diary every 5 min (Home), the tree
+    // polled every minute, over two weeks of stored readings. Every statement is counted at the driver.
+    const { nodeSqliteDriver } = await import('../server/nodeSqlite');
+    const { AppDatabase } = await import('../server/database');
+    const { serverStatus } = await import('../server/routes/status');
+    const { diaryFor } = await import('../server/routes/history');
+    const inner = nodeSqliteDriver(':memory:');
+    let counting = false;
+    let rows = 0;
+    let telemetryScans = 0;
+    const driver = {
+      ...inner,
+      all: (sql: string, ...params: any[]) => {
+        const out = inner.all(sql, ...params);
+        if (counting) {
+          rows += out.length;
+          if (/COUNT\(\*\)[\s\S]*FROM telemetry/i.test(sql)) telemetryScans++;
+        }
+        return out;
+      },
+    };
+    const db = new AppDatabase(driver);
+    const seed = (from: number, to: number) => {
+      for (let t = from; t < to; t += MIN)
+        db.insertTelemetry({ timestamp: t, source: 'esp32_sensor', deviceId: null, soilMoisture: 60, apiSoilMoisture: 60, soilRaw: 2000, temperature: 24, humidity: 60, lightPercent: 40, lightRaw: 2000, radiation: null, wifiRssi: -60, dataQuality: 'good' }, null);
+    };
+    seed(START - 14 * DAY, START - MIN);
+    const b = new Bench(db);
+    await b.boot();
+    const stored = db.telemetryStats().count;
+    counting = true;
+    const before = rows;
+    let statusRows = 0;
+    let diaryRows = 0;
+    for (let m = 0; m < 24 * 60; m++) {
+      await b.poll({ soil: 60, light: 40 });
+      for (let k = 0; k < 4; k++) {
+        const r0 = rows;
+        serverStatus(db, b.collector, START);
+        statusRows += rows - r0;
+      }
+      if (m % 5 === 0) {
+        const r0 = rows;
+        diaryFor(db, b.collector, 1, b.clock);
+        diaryRows += rows - r0;
+      }
+    }
+    const day = rows - before;
+    counting = false;
+    const statusCounted = db.telemetryStats().count;
+    check('RR1 a status check reads (almost) nothing: the telemetry count is kept, not recounted', telemetryScans <= 1 && statusRows / (24 * 60 * 4) < 2 && statusCounted === stored + 24 * 60, `${telemetryScans} telemetry scans, ${(statusRows / (24 * 60 * 4)).toFixed(2)} rows per check, count ${stored} → ${statusCounted}`);
+    check('RR2 the diary reads only what it hasn\'t seen (two weeks once, then the new rows)', diaryRows < 20 * 1440 + 288 * 300, `${diaryRows} rows over ${24 * 12} diary loads`);
+    check('RR3 a day with the page open stays far under the free tier (< 1 M rows)', day < 1_000_000, `${day} rows returned in the day`);
+  }
+
+  // The cached diary equals the diary read straight from the database (new rows, backfill, a restore)
+  {
+    const { diaryFor } = await import('../server/routes/history');
+    const b = new Bench();
+    await b.boot();
+    await b.run(6 * 60, (i) => ({ soil: 60 - i / 30, light: 40 }));
+    const d1 = JSON.stringify(diaryFor(b.db, b.collector, 1, b.clock));
+    await b.run(3 * 60, (i) => ({ soil: 50 - i / 30, light: 40 }));
+    const cached = JSON.stringify(diaryFor(b.db, b.collector, 1, b.clock));
+    // A fresh database with the same rows (dump → restore) reads everything from scratch
+    const fresh = new Bench();
+    fresh.clock = b.clock;
+    fresh.db.restore(b.db.dump());
+    await fresh.boot();
+    const direct = JSON.stringify(diaryFor(fresh.db, fresh.collector, 1, b.clock));
+    check('RR4 the cached diary is the same as one read fresh (after new readings, and across a restore)', cached === direct && cached !== d1, `${cached.length} chars`);
+  }
+
   finish();
 }
 
