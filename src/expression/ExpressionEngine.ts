@@ -561,7 +561,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     squirrelTraces: h?.traces ?? null,
     dragonfly: met.dragonfly,
     sloth: met.sloth,
-    lucy,
+    lucy: withLucyLook(lucy, met.visitor, met.dragonfly),
     encounters: h?.encounters ?? [],
     drey,
     ...(b.hike ? { hike: { boots: b.hike.today, plan: b.hike } } : {}),
@@ -658,6 +658,14 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
     );
   }
   return out;
+}
+
+// Lucy looks up at whoever is in the tree, awake and calm (her signature head tilt): the squirrel out on a
+// branch first, else a dragonfly. Art only; nothing reads it back.
+export function withLucyLook(lucy: LucyPresentation | null, v: VisitorPresentation | null, df: DragonflyPresentation | null): LucyPresentation | null {
+  if (!lucy || lucy.pose === 'sleeping' || lucy.cue === 'concern' || lucy.cue === 'storm') return lucy;
+  const lookAt = v && (v.mode === 'visiting' || v.mode === 'peek') ? 'squirrel' : df ? 'dragonfly' : null;
+  return lookAt ? { ...lucy, lookAt } : lucy;
 }
 
 // Lucy as the avatar draws her: the pose and spot behaviour decided, and her breathing tempo

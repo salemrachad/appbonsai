@@ -1503,6 +1503,16 @@ async function main() {
       check('LU10 her company calms the mood a little (warmer, stiller), never more than the visitors\' cap', !!here.habitat.lucy?.visit && !!lift && /Lucy/.test(lift.why) && lift.v > 0 && lift.v <= 0.1 && lift.a < 0, `${here.habitat.lucy?.why} · ${lift?.why} v ${lift?.v} a ${lift?.a}`);
     }
 
+    // LU11: she looks up at a visiting squirrel (else a dragonfly), never asleep or while watching over the tree
+    {
+      const { withLucyLook, lucyPresentation } = await import('../src/expression/ExpressionEngine');
+      const base = (pose: any, cue: any = null) => lucyPresentation({ id: 'l', kind: 'day', pose, spot: 'floor_left', cue, startedAt: 0, endsAt: 1 });
+      const sq: any = { kind: 'squirrel', id: 's', mode: 'visiting', spot: 'crown' };
+      const df: any = { id: 'd', presence: 'perched', perch: 'left_tip' };
+      const looks = [withLucyLook(base('sitting'), sq, df)?.lookAt, withLucyLook(base('down'), null, df)?.lookAt, withLucyLook(base('sleeping'), sq, df)?.lookAt, withLucyLook(base('down', 'concern'), sq, null)?.lookAt, withLucyLook(base('sitting'), { ...sq, mode: 'hiding' }, null)?.lookAt];
+      check('LU11 she looks up at the squirrel, else a dragonfly; never asleep, never while watching over the tree', JSON.stringify(looks) === JSON.stringify(['squirrel', 'dragonfly', undefined, undefined, undefined]), JSON.stringify(looks));
+    }
+
     check('LU9d diary: her company per day and her nights by the pot', diary.filter((d) => d.title === 'Lucy kept me company').length === 2 && diary.every((d) => d.habitat === 'lucy'), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));
   }
 

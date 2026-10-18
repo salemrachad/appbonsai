@@ -577,6 +577,54 @@ trust a place, quick to leave it.
 - **Open:** whether the thriving butterfly should join this system (arriving after a while, not on the latch
   minute), and other visitors (dawn birds; real ants once a pest observation can be logged).
 
+### Lucy, the household dog [Implemented, V1]
+
+Lucy is the owners' Coton de Tuléar. She is drawn by the tree because she really spends her days around it, and
+her job here is the same as at home: **to bring peace**. Evidence class *art + context*: the app has no sensor
+for her, so her presence is a portrait of her habits, not a measurement. Unlike the wild visitors she doesn't
+earn trust: she lives here.
+
+- **Her day follows the household clock, not the sun** (`behaviour/lucy.ts`, numbers in `APP_CONFIG.habitat.lucy`).
+  - 4–6 visits a day at anchor hours (≈ 07:45, 10:15, 13:00, 15:30, 17:45, 20:00, each ± 40 min), 15–45 min each.
+  - Most nights (≈ 85 %) she sleeps on her pillow by the pot, from about 22:45 to about 06:15.
+  - The plan is fixed per day (stable rolls on the date), so a refresh, a restart or the weather never moves a
+    visit. The clock is the tree's timezone from the settings, so it is right on a server running in UTC.
+- **The outside weather changes how she spends a visit, never when she comes.** Latches with enter/exit
+  thresholds and durations, replayed from the day's stored observations (a Schmitt trigger like the health
+  latches: hovering at a threshold neither flaps nor blocks):
+  - heat (≥ 30 °C for 45 min, off ≤ 27 °C for 30 min): down sooner on the cool floor, panting;
+  - cold (≤ 8 °C for an hour, off ≥ 11 °C): curled on her pillow;
+  - rain (15 min, off after 20 dry): cosy naps on the pillow; a visit starting within 30 min after rain begins
+    with a shake;
+  - a storm (thunder, or gusts ≥ 50 km/h; off 45 min after): she comes to the pot and stays close and awake,
+    ears down, breathing slowly;
+  - a fine day (clear, 15–26 °C, for an hour): more sitting up and about.
+- **Within a visit her poses only move one way:** walking in → sitting → down → asleep → walking out. How soon
+  she settles comes from her settle value at arrival (the time of day, after lunch and evening sooner, and the
+  weather). Bedtime and the nap after a hike go straight down to sleep.
+- **The tree never sends her away.** A trusted moderate or worse stress makes her stay close: by the pot, chin on
+  her paws, eyes up at the tree, visits 1.5× longer, check-ins between them, never asleep. She never looks happy
+  over a suffering tree. Without trustworthy data she still comes, only neutral: an unsure tree never looks falsely
+  ill or falsely well cared for.
+- **Hike day:** she goes along. She is away from 30 min before the hike's best hours to 30 min after, her pillow
+  empty, then comes back tired for a 90-minute nap.
+- **Peace, nonverbal first:** while she is down or asleep she breathes about six times a minute (five at night),
+  a pace to breathe along with. Petting her (her own pointer handlers, never the tree's petting, never stored) gets
+  a head tilt, a tail thump and a look up, or asleep only an ear twitch: she is never woken. No reward loop: petting
+  never brings more visits.
+- **Art:** hand-inked in the style of the reference card: white shaggy fur outlined in soft navy ink, blue-grey
+  shading, big dark eyes with catch-lights, a large glossy nose, a dusty-rose pillow with a cream band. She walks in
+  from the left and out again on the clock between polls. Reduced motion: no walking, breathing or reactions.
+- **Words:** her company calms the tree's mood a little (`mood.visitors.lucy`: warmer, stiller). One quiet thought
+  of the day while she lies by the pot ("Lucy is resting beside me. Nothing to do but be here."), its tip an
+  invitation to watch her six slow breaths. Diary: "Lucy kept me company · 5 visits", "Lucy slept by the pot",
+  "Lucy stayed close through the storm".
+- **With the others:** awake and calm, she looks up at a visiting squirrel (her head tilt), or follows a dragonfly.
+- Health, vitality, energy, speech priorities and the other visitors' engines never read her. Tested: LU1–LU10.
+- **Open:** the diary doesn't know past hike days (it counts the plan); her anchor hours could be learned from the
+  household instead of set; the rest of the app still uses the server's local clock (UTC on Cloudflare) for day
+  keys, morning lines and the visitors' slots.
+
 ## 7. Known gaps
 
 The owner's **Living Art V1 audit** listed the gaps below. **The audit document itself is not in this repository**

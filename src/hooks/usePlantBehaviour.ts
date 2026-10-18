@@ -3,7 +3,7 @@ import type { LivingSnapshot } from '../api/types';
 import { evaluateBehaviour } from '../behaviour/BehaviourEngine';
 import type { PlantBehaviourState } from '../behaviour/behaviourTypes';
 import { expressBehaviour } from '../expression/ExpressionEngine';
-import { encounterCues, lucyPresentation, visitorPlay, weatherLook } from '../expression/ExpressionEngine';
+import { encounterCues, lucyPresentation, visitorPlay, weatherLook, withLucyLook } from '../expression/ExpressionEngine';
 import type { DreyLook, ExpressionState, LucyPresentation, SlothPresentation, VisitorPresentation } from '../expression/expressionTypes';
 import { meet } from '../behaviour/encounters';
 import { dragonflyRoute } from '../behaviour/dragonfly';
@@ -109,6 +109,11 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
         m.encounters
       );
       r = { behaviour: r.behaviour, expression: { ...x, ...cast, encounters: m.encounters } };
+    }
+    if ((previewLucy || previewVisitor || previewDragonfly) && r.expression?.lucy) {
+      // Lucy looks up at a previewed visitor by the same rule
+      const x = r.expression;
+      r = { behaviour: r.behaviour, expression: { ...x, lucy: withLucyLook(x.lucy ? { ...x.lucy, lookAt: null } : null, x.visitor, x.dragonfly) } };
     }
     if (previewCanopy && r.expression) {
       r = { behaviour: r.behaviour, expression: { ...r.expression, avatar: { ...r.expression.avatar, canopy: previewCanopy } } };

@@ -2,7 +2,7 @@ import React from 'react';
 import { RotateCcw, Wrench } from 'lucide-react';
 import { DEV_PRESETS } from '../../health/developerOverrides';
 import type { DevPreviews, SetPreview } from '../../hooks/useDevPreviews';
-import type { CanopyPreview, DragonflyPreview, HikePreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
+import type { CanopyPreview, DragonflyPreview, HikePreview, LucyPreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
 import { SEASONS, type Season } from '../../perception/season';
 
 interface StateTesterProps {
@@ -149,7 +149,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 // Preview any health state, time, weather and visitor. Presentation only: telemetry, the database, care
 // events and episodes are untouched. Grouped: tree health · time & season · outside · the tree over time · visitors.
 export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, onClearPreviews }) => {
-  const { preset: activePresetId, season: activeSeason, visitor: activeVisitor, drey: activeDrey, canopy: activeCanopy, twilight: activeTwilight, dragonfly: activeDragonfly, sloth: activeSloth, weather: activeWeather, hike: activeHike } = previews;
+  const { preset: activePresetId, season: activeSeason, visitor: activeVisitor, drey: activeDrey, canopy: activeCanopy, twilight: activeTwilight, dragonfly: activeDragonfly, sloth: activeSloth, lucy: activeLucy, weather: activeWeather, hike: activeHike } = previews;
   const onSelectPreset = (v: string | null) => onPreview('preset', v);
   const onSelectSeason = (v: Season | null) => onPreview('season', v);
   const onSelectVisitor = (v: VisitorPreview | null) => onPreview('visitor', v);
@@ -158,12 +158,13 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
   const onSelectTwilight = (v: TwilightPreview | null) => onPreview('twilight', v);
   const onSelectDragonfly = (v: DragonflyPreview | null) => onPreview('dragonfly', v);
   const onSelectSloth = (v: SlothPreview | null) => onPreview('sloth', v);
+  const onSelectLucy = (v: LucyPreview | null) => onPreview('lucy', v);
   const onSelectWeather = (v: WeatherPreview | null) => onPreview('weather', v);
   const onSelectHike = (v: HikePreview | null) => {
     onPreview('hike', v);
     onPreview('hikeChoice', null); // a fresh sample week: nothing chosen yet
   };
-  const anyActive = !!(activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeWeather || activeHike);
+  const anyActive = !!(activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeLucy || activeWeather || activeHike);
   const resetAll = onClearPreviews;
   return (
     <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
@@ -274,7 +275,7 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
       </Group>
 
       {/* 5. The habitat's visitors (real visits need their own conditions; these show them now) */}
-      <Group title="Visitors" icon="🐾" active={!!activeVisitor || !!activeDrey || !!activeDragonfly || !!activeSloth}>
+      <Group title="Visitors" icon="🐾" active={!!activeVisitor || !!activeDrey || !!activeDragonfly || !!activeSloth || !!activeLucy}>
         <Row label="Squirrel">
           <button onClick={() => onSelectVisitor(null)} className={chip(!activeVisitor)}>
             Live
@@ -370,6 +371,50 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
               ['two_legs_one_arm', 'Legs + arm'],
             ] as const).map(([grip, label]) => (
               <button key={grip} onClick={() => onSelectSloth({ ...activeSloth, grip })} className={chip((activeSloth.grip ?? 'arms') === grip)}>
+                {label}
+              </button>
+            ))}
+          </Row>
+        )}
+        <Row label="Lucy">
+          <button onClick={() => onSelectLucy(null)} className={chip(!activeLucy)}>
+            Live
+          </button>
+          {([
+            ['walking', '🐾 Walking'],
+            ['sitting', 'Sitting'],
+            ['down', 'Down'],
+            ['sleeping', '🌙 Asleep'],
+          ] as const).map(([pose, label]) => (
+            <button key={pose} onClick={() => onSelectLucy({ pose, spot: activeLucy?.spot ?? (pose === 'sleeping' ? 'pillow' : 'floor_left'), cue: activeLucy?.cue })} className={chip(activeLucy?.pose === pose)}>
+              {label}
+            </button>
+          ))}
+        </Row>
+        {activeLucy && (
+          <Row label="· spot">
+            {([
+              ['pillow', 'Pillow'],
+              ['floor_left', 'Floor'],
+              ['by_pot', 'By the pot'],
+            ] as const).map(([spot, label]) => (
+              <button key={spot} onClick={() => onSelectLucy({ ...activeLucy, spot })} className={chip(activeLucy.spot === spot)}>
+                {label}
+              </button>
+            ))}
+          </Row>
+        )}
+        {activeLucy && (
+          <Row label="· cue">
+            {([
+              [undefined, 'None'],
+              ['concern', 'Watching over'],
+              ['storm', 'Storm'],
+              ['panting', 'Heat'],
+              ['shake_off', 'Shake off'],
+              ['tired', 'Tired'],
+            ] as const).map(([cue, label]) => (
+              <button key={label} onClick={() => onSelectLucy({ ...activeLucy, cue })} className={chip(activeLucy.cue === cue)}>
                 {label}
               </button>
             ))}
