@@ -3,7 +3,8 @@ import type { LivingSnapshot } from '../api/types';
 import { evaluateBehaviour } from '../behaviour/BehaviourEngine';
 import type { PlantBehaviourState } from '../behaviour/behaviourTypes';
 import { expressBehaviour } from '../expression/ExpressionEngine';
-import { encounterCues, lucyPresentation, visitorPlay, weatherLook, withLucyLook } from '../expression/ExpressionEngine';
+import { encounterCues, lucyPresentation, visitorPlay, weatherLook, withLucyInterest } from '../expression/ExpressionEngine';
+import { lucyRoute } from '../behaviour/lucy';
 import type { DreyLook, ExpressionState, LucyPresentation, SlothPresentation, VisitorPresentation } from '../expression/expressionTypes';
 import { meet } from '../behaviour/encounters';
 import { dragonflyRoute } from '../behaviour/dragonfly';
@@ -73,7 +74,19 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
     if (previewLucy && r.expression) {
       // Settled for a while (walking: she walks in now)
       const startedAt = previewLucy.pose === 'walking' ? Date.now() : Date.now() - 10 * 60 * 1000;
-      const lucy = lucyPresentation({ id: `preview:lucy:${previewLucy.pose}:${previewLucy.spot}:${previewLucy.cue ?? ''}`, kind: 'day', pose: previewLucy.pose, spot: previewLucy.spot, cue: previewLucy.cue ?? null, startedAt, endsAt: startedAt + 2 * 3600 * 1000 });
+      const id = `preview:lucy:${previewLucy.pose}:${previewLucy.spot}:${previewLucy.cue ?? ''}`;
+      const visit = { id, kind: 'day' as const, startedAt, endsAt: startedAt + 2 * 3600 * 1000 };
+      // Walking: a real, lively route (up and about for a long while); otherwise she stays put in the pose,
+      // her look moving between you, the tree and around
+      const act = ({ walking: 'sniff', sitting: 'sit', down: 'down', sleeping: 'sleep' } as const)[previewLucy.pose];
+      const looks = previewLucy.pose === 'down' ? (['user', 'tree'] as const) : (['user', 'tree', 'around'] as const);
+      const route =
+        previewLucy.pose === 'walking'
+          ? lucyRoute(visit, { settle: 0, rest: previewLucy.spot, awake: true, close: previewLucy.cue === 'concern' || previewLucy.cue === 'storm' })
+          : act === 'sleep'
+          ? [{ at: startedAt, spot: previewLucy.spot, act, look: 'user' as const }]
+          : Array.from({ length: 480 }, (_, i) => ({ at: startedAt + i * 15_000, spot: previewLucy.spot, act, look: looks[i % looks.length] }));
+      const lucy = lucyPresentation({ ...visit, pose: previewLucy.pose, spot: previewLucy.spot, rest: previewLucy.spot, route, cue: previewLucy.cue ?? null });
       r = { behaviour: r.behaviour, expression: { ...r.expression, lucy } };
     }
     if (previewDragonfly && r.expression) {
@@ -110,10 +123,10 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
       );
       r = { behaviour: r.behaviour, expression: { ...x, ...cast, encounters: m.encounters } };
     }
-    if ((previewLucy || previewVisitor || previewDragonfly) && r.expression?.lucy) {
+    if ((previewLucy || previewVisitor || previewDragonfly || previewSloth) && r.expression?.lucy) {
       // Lucy looks up at a previewed visitor by the same rule
       const x = r.expression;
-      r = { behaviour: r.behaviour, expression: { ...x, lucy: withLucyLook(x.lucy ? { ...x.lucy, lookAt: null } : null, x.visitor, x.dragonfly) } };
+      r = { behaviour: r.behaviour, expression: { ...x, lucy: withLucyInterest(x.lucy ?? null, x.visitor, x.dragonfly, x.sloth) } };
     }
     if (previewCanopy && r.expression) {
       r = { behaviour: r.behaviour, expression: { ...r.expression, avatar: { ...r.expression.avatar, canopy: previewCanopy } } };

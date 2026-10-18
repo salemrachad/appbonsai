@@ -585,8 +585,11 @@ for her, so her presence is a portrait of her habits, not a measurement. Unlike 
 earn trust: she lives here.
 
 - **Her day follows the household clock, not the sun** (`behaviour/lucy.ts`, numbers in `APP_CONFIG.habitat.lucy`).
-  - 4–6 visits a day at anchor hours (≈ 07:45, 10:15, 13:00, 15:30, 17:45, 20:00, each ± 40 min), 15–45 min each.
-  - Most nights (≈ 85 %) she sleeps on her pillow by the pot, from about 22:45 to about 06:15.
+  - 10 visits a day at anchor hours 85 min apart (≈ 07:15 … 20:00, each ± 20 min), 15–45 min each; they never
+    overlap.
+  - Most nights (≈ 85 %) she sleeps by the pot, from about 22:45 to about 06:15: on her pillow, or on about a
+    third of those nights on the floor (always the pillow when it is cold, the cool floor when it is hot). On the
+    floor she wakes now and then and lies there looking at you, heavy-lidded, then dozes off again.
   - The plan is fixed per day (stable rolls on the date), so a refresh, a restart or the weather never moves a
     visit. The clock is the tree's timezone from the settings, so it is right on a server running in UTC.
 - **The outside weather changes how she spends a visit, never when she comes.** Latches with enter/exit
@@ -599,9 +602,14 @@ earn trust: she lives here.
   - a storm (thunder, or gusts ≥ 50 km/h; off 45 min after): she comes to the pot and stays close and awake,
     ears down, breathing slowly;
   - a fine day (clear, 15–26 °C, for an hour): more sitting up and about.
-- **Within a visit her poses only move one way:** walking in → sitting → down → asleep → walking out. How soon
-  she settles comes from her settle value at arrival (the time of day, after lunch and evening sooner, and the
-  weather). Bedtime and the nap after a hike go straight down to sleep.
+- **A visit is a route, like a real dog's** (`lucyRoute()`, played by the avatar on the clock between polls):
+  - up and about first: she sniffs along the floor to a neighbouring spot (slowly, nose down), sits here or
+    somewhere else (her pillow, the floor beside it, by the stand, in front of the pot, to its right, right of the
+    stand), stands about; at each stop she looks at you, up at the tree, or around the room;
+  - then she settles at her resting place, down, her look moving between you and the tree, and may doze off;
+  - how soon she settles comes from her settle value at arrival (the time of day, after lunch and evening
+    sooner, and the weather); bedtime and the nap after a hike go straight to her resting place;
+  - she faces where she walks, or what she looks at; on hike day she keeps off the boots right of the stand.
 - **The tree never sends her away.** A trusted moderate or worse stress makes her stay close: by the pot, chin on
   her paws, eyes up at the tree, visits 1.5× longer, check-ins between them, never asleep. She never looks happy
   over a suffering tree. Without trustworthy data she still comes, only neutral: an unsure tree never looks falsely
@@ -617,10 +625,18 @@ earn trust: she lives here.
   from the left and out again on the clock between polls. Reduced motion: no walking, breathing or reactions.
 - **Words:** her company calms the tree's mood a little (`mood.visitors.lucy`: warmer, stiller). One quiet thought
   of the day while she lies by the pot ("Lucy is resting beside me. Nothing to do but be here."), its tip an
-  invitation to watch her six slow breaths. Diary: "Lucy kept me company · 5 visits", "Lucy slept by the pot",
+  invitation to watch her six slow breaths. Diary: "Lucy kept me company · 10 visits", "Lucy slept by the pot" (on her pillow, or on the floor),
   "Lucy stayed close through the storm".
-- **With the others:** awake and calm, she looks up at a visiting squirrel (her head tilt), or follows a dragonfly.
-- Health, vitality, energy, speech priorities and the other visitors' engines never read her. Tested: LU1–LU10.
+- **With the others: interest at various levels** (`withLucyInterest()`, a stable roll per pair of visits, shares in
+  `APP_CONFIG.habitat.lucy.interest`): a squirrel out on a branch first, else a dragonfly, else an awake sloth.
+  - a glance now and then;
+  - watching it, her eyes following it;
+  - curious: she walks under it and sits looking up, head tilted, tail going;
+  - excited: the same, quicker, with a little bounce and her tongue out.
+
+  The squirrel excites her most; the sloth only ever gets a glance, a watch, or now and then curiosity. Asleep she
+  ignores them; watching over a struggling tree or in a storm she only glances.
+- Health, vitality, energy, speech priorities and the other visitors' engines never read her. Tested: LU1–LU13.
 - **Open:** the diary doesn't know past hike days (it counts the plan); her anchor hours could be learned from the
   household instead of set; the rest of the app still uses the server's local clock (UTC on Cloudflare) for day
   keys, morning lines and the visitors' slots.

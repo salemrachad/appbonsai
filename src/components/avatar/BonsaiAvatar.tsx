@@ -390,7 +390,7 @@ const BonsaiAvatarView: React.FC<BonsaiAvatarProps> = ({ expression, onClick, on
           <path d="M 217,398 L 223,398 M 220,398 L 220,404 M 217,404 L 223,404" stroke="#C86D4B" strokeWidth="1.2" strokeLinecap="round" opacity="0.7" />
         </g>
         {/* Lucy, the household dog: on the floor in front of the stand and the pot, never in the tree */}
-        <Lucy lucy={expression?.lucy ?? null} lookToward={expression?.lucy?.lookAt === 'squirrel' ? squirrelAt : expression?.lucy?.lookAt === 'dragonfly' && dragonfly ? dragonflyAt(flight, riderSpot) : null} />
+        <Lucy lucy={expression?.lucy ?? null} targets={{ squirrel: squirrelAt, dragonfly: dragonfly ? dragonflyAt(flight, riderSpot) : null, sloth: slothGrip ? { x: slothGrip.x, y: slothGrip.y + 30 } : null }} />
 
         {/* The living tree: gestures move it from the base of the trunk; filters tint it whole */}
         <g className={gestureClass} style={pivot}>

@@ -396,7 +396,10 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
             {([
               ['pillow', 'Pillow'],
               ['floor_left', 'Floor'],
-              ['by_pot', 'By the pot'],
+              ['by_pot', 'By the stand'],
+              ['pot_front', 'Pot front'],
+              ['pot_right', 'Pot right'],
+              ['floor_right', 'Right'],
             ] as const).map(([spot, label]) => (
               <button key={spot} onClick={() => onSelectLucy({ ...activeLucy, spot })} className={chip(activeLucy.spot === spot)}>
                 {label}

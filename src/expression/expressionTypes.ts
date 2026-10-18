@@ -240,21 +240,26 @@ export interface SlothPresentation {
   rider?: boolean; // encounter: a dragonfly rests on it (slow blinks)
 }
 
-// Lucy (from behaviour.habitat.lucy): the household dog on the floor by the pot. The avatar walks her in at
-// `startedAt` and out at `endsAt` on its own clock, and breathes her at `breathMs` per breath: ~10 s (six a
-// minute) when she is down or asleep, a calm pace to breathe along with. A stroke gets a tilt, a wag or (asleep)
-// an ear twitch. Her pillow is always there.
+// Lucy (from behaviour.habitat.lucy): the household dog on the floor around the pot. The avatar plays her
+// route on its own clock: walking in at `startedAt`, sniffing along the floor, sitting in different places,
+// looking at you, up at the tree or around, settling down, dozing, and walking out at `endsAt`. She breathes
+// at `breath` (ms per breath): ~10 s (six a minute) when down or asleep, a calm pace to breathe along with. A
+// stroke gets a tilt, a wag or (asleep) an ear twitch. Her pillow is always there.
+export type LucySpotLook = 'pillow' | 'floor_left' | 'by_pot' | 'pot_front' | 'pot_right' | 'floor_right';
 export interface LucyPresentation {
   id: string;
-  pose: 'walking' | 'sitting' | 'down' | 'sleeping';
-  spot: 'floor_left' | 'pillow' | 'by_pot';
+  pose: 'walking' | 'sitting' | 'down' | 'sleeping'; // at the last evaluation (the route has the rest)
+  spot: LucySpotLook;
+  rest: LucySpotLook;
+  route: { at: number; spot: LucySpotLook; act: 'sniff' | 'stand' | 'sit' | 'down' | 'sleep'; look: 'user' | 'tree' | 'around' }[];
   cue: 'shake_off' | 'panting' | 'concern' | 'tired' | 'storm' | null;
-  breathMs: number;
+  breath: { up: number; down: number; asleep: number };
+  night: boolean; // her night by the pot: sleepy eyes when she lies looking at you
   startedAt: number;
   endsAt: number;
-  walkInMs: number; // the arrival phase (walking in, sniffing around)
-  walkOutMs: number;
-  lookAt?: 'squirrel' | 'dragonfly' | null; // encounter: she looks up at a visitor in the tree
+  // A visitor in the tree, and how much it interests her: a glance now and then, watching it, curious (she
+  // walks under it and sits looking up), excited (the same, wagging, a little bounce). Asleep she ignores it.
+  interest?: { who: 'squirrel' | 'dragonfly' | 'sloth'; level: 'glance' | 'watch' | 'curious' | 'excited' } | null;
 }
 
 // The drey (nest) in the crown: weeks of a welcoming tree made visible. Drawn even when nobody is home.

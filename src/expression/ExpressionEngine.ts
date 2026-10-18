@@ -1,6 +1,6 @@
 import type { LucyVisit, Mood, PlantBehaviourState, ReactionKind } from '../behaviour/behaviourTypes';
 import { renderMessage } from '../behaviour/messages';
-import { decideSpeech, INITIAL_MESSAGE_MEMORY, SpeechDecision } from '../behaviour/speech';
+import { decideSpeech, INITIAL_MESSAGE_MEMORY, SpeechDecision, stableVariant } from '../behaviour/speech';
 import type { HealthCondition, HealthModifier, PlantHealthState, QualitativeState } from '../health/healthTypes';
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { Season } from '../perception/season';
@@ -561,7 +561,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     squirrelTraces: h?.traces ?? null,
     dragonfly: met.dragonfly,
     sloth: met.sloth,
-    lucy: withLucyLook(lucy, met.visitor, met.dragonfly),
+    lucy: withLucyInterest(lucy, met.visitor, met.dragonfly, met.sloth),
     encounters: h?.encounters ?? [],
     drey,
     ...(b.hike ? { hike: { boots: b.hike.today, plan: b.hike } } : {}),
@@ -632,7 +632,7 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
     out.push(`${thin} after a hard stretch${a.canopy.refilling > 0.05 ? ', refilling with fresh tips' : ''} (${Math.round(a.canopy.fullness * 100)}%)`);
   }
   const lu = b.habitat.lucy?.visit;
-  if (lu) out.push(`Lucy ${{ walking: 'walking about', sitting: 'sitting', down: 'lying down', sleeping: 'asleep' }[lu.pose]} ${{ floor_left: 'on the floor', pillow: 'on her pillow', by_pot: 'by the pot' }[lu.spot]}${lu.cue ? ` (${lu.cue.replace('_', ' ')})` : ''}`);
+  if (lu) out.push(`Lucy ${{ walking: 'walking about', sitting: 'sitting', down: 'lying down', sleeping: 'asleep' }[lu.pose]} ${{ floor_left: 'on the floor', pillow: 'on her pillow', by_pot: 'by the pot', pot_front: 'in front of the pot', pot_right: 'by the pot', floor_right: 'right of the stand' }[lu.spot]}${lu.cue ? ` (${lu.cue.replace('_', ' ')})` : ''}`);
   else if (b.habitat.lucy?.presence === 'away_hiking') out.push('her pillow empty: Lucy is out on the hike');
   if (sl) out.push(sl.pose === 'sleeping' ? 'a sloth asleep on a branch, curled up' : sl.pose === 'climbing' ? 'a sloth inching along a branch' : `a sloth ${GRIP_WORDS[sl.grip ?? 'arms']}`);
   if (df) {
@@ -660,17 +660,30 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
   return out;
 }
 
-// Lucy looks up at whoever is in the tree, awake and calm (her signature head tilt): the squirrel out on a
-// branch first, else a dragonfly. Art only; nothing reads it back.
-export function withLucyLook(lucy: LucyPresentation | null, v: VisitorPresentation | null, df: DragonflyPresentation | null): LucyPresentation | null {
-  if (!lucy || lucy.pose === 'sleeping' || lucy.cue === 'concern' || lucy.cue === 'storm') return lucy;
-  const lookAt = v && (v.mode === 'visiting' || v.mode === 'peek') ? 'squirrel' : df ? 'dragonfly' : null;
-  return lookAt ? { ...lucy, lookAt } : lucy;
+// A visitor in the tree, and how much it interests Lucy (stable per pair of visits): the squirrel out on a
+// branch first, else a dragonfly, else an awake sloth. Watching over a struggling tree or in a storm she only
+// glances. Art only; nothing reads it back.
+const INTEREST = ['glance', 'watch', 'curious', 'excited'] as const;
+export function withLucyInterest(lucy: LucyPresentation | null, v: VisitorPresentation | null, df: DragonflyPresentation | null, sl: SlothPresentation | null): LucyPresentation | null {
+  if (!lucy) return lucy;
+  const who = v && (v.mode === 'visiting' || v.mode === 'peek') ? { who: 'squirrel' as const, id: v.id } : df ? { who: 'dragonfly' as const, id: df.id } : sl && sl.pose !== 'sleeping' ? { who: 'sloth' as const, id: sl.id } : null;
+  if (!who) {
+    const { interest, ...rest } = lucy;
+    return interest ? rest : lucy;
+  }
+  const shares = APP_CONFIG.habitat.lucy.interest[who.who];
+  const x = stableVariant(`${lucy.id}:${who.id}:interest`, 997) / 997;
+  let i = 0;
+  for (let acc = shares[0]; i < shares.length - 1 && x >= acc; acc += shares[++i]);
+  const level = lucy.cue === 'concern' || lucy.cue === 'storm' ? 'glance' : INTEREST[i];
+  return { ...lucy, interest: { who: who.who, level } };
 }
 
-// Lucy as the avatar draws her: the pose and spot behaviour decided, and her breathing tempo
-export function lucyPresentation(v: Pick<LucyVisit, 'id' | 'kind' | 'pose' | 'spot' | 'cue' | 'startedAt' | 'endsAt'>): LucyPresentation {
+// Lucy as the avatar draws her: the route behaviour planned, and her breathing tempo
+export function lucyPresentation(v: Pick<LucyVisit, 'id' | 'kind' | 'pose' | 'spot' | 'rest' | 'route' | 'cue' | 'startedAt' | 'endsAt'>): LucyPresentation {
   const c = APP_CONFIG.habitat.lucy;
-  const breathMs = v.cue === 'panting' ? c.breathMs.panting : v.pose === 'sleeping' && v.kind === 'night' ? c.breathMs.night : c.breathMs[v.pose];
-  return { id: v.id, pose: v.pose, spot: v.spot, cue: v.cue, breathMs, startedAt: v.startedAt, endsAt: v.endsAt, walkInMs: c.walkInMin * 60_000, walkOutMs: c.walkOutMin * 60_000 };
+  const b = c.breathMs;
+  const pant = v.cue === 'panting';
+  const breath = { up: pant ? b.panting : b.sitting, down: pant ? b.panting : b.down, asleep: v.kind === 'night' ? b.night : b.sleeping };
+  return { id: v.id, pose: v.pose, spot: v.spot, rest: v.rest, route: v.route, cue: v.cue, breath, night: v.kind === 'night', startedAt: v.startedAt, endsAt: v.endsAt };
 }

@@ -203,13 +203,31 @@ export const APP_CONFIG = {
     // follows the household clock (meals, walks), not the sun; the outside weather changes how she spends
     // each visit, never when she comes. Her job is peace: slow breathing when down or asleep. Art + context.
     lucy: {
-      anchors: [7.75, 10.25, 13, 15.5, 17.75, 20], // local hours she tends to come by
-      jitterMin: 40, // ± around each anchor (stable per day)
-      visitsPerDay: { min: 4, max: 6 }, // of the anchors, this many come true each day
+      anchors: [7.25, 8.67, 10.08, 11.5, 12.92, 14.33, 15.75, 17.17, 18.58, 20], // local hours she comes by (85 min apart)
+      jitterMin: 20, // ± around each anchor (stable per day); with ≤ 45-min visits they never overlap
+      visitsPerDay: { min: 10, max: 10 }, // of the anchors, this many come true each day
       visitMinutes: { min: 15, max: 45 },
       bedtime: { hour: 22.75, jitterMin: 20 }, // she settles on her pillow for the night…
       wake: { hour: 6.25, jitterMin: 20 }, // …and walks off in the morning
       nightChance: 0.85, // "most nights"
+      nightFloorChance: 0.35, // some nights she sleeps on the floor instead of her pillow (cold: pillow, heat: floor)
+      // Asleep on the floor she wakes now and then and lies looking at you (stretches of this many minutes)
+      floorWatch: { segmentMinutes: 8, share: 0.35 },
+      // Her route through a visit: what she does next while she is up (shares), and for how long (seconds)
+      route: {
+        sniff: 0.3, // sniff along to a neighbouring spot, nose to the floor
+        sit: 0.45, // sit somewhere (here, or after a walk) and look at you, the tree, or around
+        lookUser: 0.5, // of the sitting and lying looks: at you, else mostly the tree
+        lookTree: 0.38,
+        seconds: { sniff: [20, 50], sit: [40, 120], stand: [15, 40], downLook: [45, 120] },
+      },
+      // How interested she is in a visitor in the tree (expression only): glance, watch, curious (walks under it
+      // and sits looking up), excited (the same, wagging, a little bounce). Shares per visitor, by stable roll.
+      interest: {
+        squirrel: [0.2, 0.3, 0.3, 0.2],
+        dragonfly: [0.35, 0.4, 0.2, 0.05],
+        sloth: [0.5, 0.4, 0.1, 0],
+      },
       walkInMin: 2, // arriving: walking in, sniffing around
       walkOutMin: 1.5, // leaving
       sitMinutes: { calm: 3, restless: 12 }, // sitting before she lies down, by her settle value

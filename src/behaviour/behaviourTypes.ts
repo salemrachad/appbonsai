@@ -202,7 +202,17 @@ export interface SlothState {
 // Lucy: the household's Coton de Tuléar, a permanent companion by the pot (not a wild visitor). She comes by
 // 4–6 times a day on her household's clock, sleeps most nights on her pillow, takes her mood from the
 // outside weather, stays close when the tree struggles, and goes along on hike day. Art + context.
-export type LucySpot = 'floor_left' | 'pillow' | 'by_pot';
+// Floor spots from left to right: her pillow, the floor beside it, by the stand's left leg (close to the tree),
+// in front of the pot, toward its right, and right of the stand (left alone on hike day: the boots are there)
+export type LucySpot = 'pillow' | 'floor_left' | 'by_pot' | 'pot_front' | 'pot_right' | 'floor_right';
+// One stop of her visit: from `at` she is at `spot` doing `act`, looking at `look` (the avatar walks her between
+// stops on the clock, slowly while sniffing). Planned per visit, deterministic.
+export interface LucyStop {
+  at: number;
+  spot: LucySpot;
+  act: 'sniff' | 'stand' | 'sit' | 'down' | 'sleep';
+  look: 'user' | 'tree' | 'around';
+}
 export type LucyPose = 'walking' | 'sitting' | 'down' | 'sleeping';
 export type LucyCue = 'shake_off' | 'panting' | 'concern' | 'tired' | 'storm';
 export type LucyVisitKind = 'day' | 'night' | 'check' | 'storm' | 'after_hike';
@@ -219,8 +229,10 @@ export interface LucyVisit {
   kind: LucyVisitKind;
   startedAt: number;
   endsAt: number;
-  spot: LucySpot;
-  pose: LucyPose; // right now, from the visit's phases (walking in → sitting → down → sleeping → walking out)
+  spot: LucySpot; // where she is right now (from her route)
+  rest: LucySpot; // where she settles to lie down and sleep
+  pose: LucyPose; // right now: walking (sniffing, standing about), sitting, down or asleep
+  route: LucyStop[];
   phaseEndsAt: number; // when the current pose gives way to the next
   cue: LucyCue | null;
   settle: number; // 0-1: how ready to settle she was when she came (weather and the time of day)

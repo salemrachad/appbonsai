@@ -409,6 +409,18 @@
 .lucy-shake { animation: lucy-shake 4s ease-in-out infinite; }
 @keyframes lucy-in { from { opacity: 0; } to { opacity: 1; } }
 .lucy-in { animation: lucy-in 0.8s ease-out 1 both; }
+/* Looking around the room: the head sweeps slowly one way, then the other */
+@keyframes lucy-look-around { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-13deg); } 65% { transform: rotate(11deg); } }
+.lucy-look-around { animation: lucy-look-around 5.5s ease-in-out infinite; }
+/* Sniffing the floor: small quick bobs of the nose */
+@keyframes lucy-sniff { 0%, 100% { transform: rotate(0deg) translateY(0); } 30% { transform: rotate(3deg) translateY(1px); } 45% { transform: rotate(-2deg); } 60% { transform: rotate(3deg) translateY(1px); } }
+.lucy-sniff { animation: lucy-sniff 0.9s ease-in-out infinite; }
+/* Excited by a visitor: a little bounce on her haunches */
+@keyframes lucy-bounce { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-3px); } 60% { transform: translateY(-1px); } }
+.lucy-bounce { animation: lucy-bounce 0.7s ease-in-out infinite; }
+/* Lying awake at night looking at you: heavy lids that close slowly now and then */
+@keyframes lucy-slowblink { 0%, 82%, 100% { transform: scaleY(1); } 88%, 93% { transform: scaleY(2.1); } }
+.lucy-slowblink { animation: lucy-slowblink 7s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   [class*="animate-tree-"], .trunk-breathe, .leaf-quiver, .leaf-fresh, [class*="gesture-"],
@@ -420,7 +432,8 @@
   .visitor-ripple, .visitor-shaking, .visitor-flick, .traces-tail, .drey-tail, .drey-twitch, .drey-zzz,
   .df-wings-fly, .df-perch, .df-hover, .df-hover-here, .df-fly, .df-dart,
   .sloth-hang, .sloth-climb, .sloth-sleep, .sloth-look, .sloth-blink, .sloth-regrip, .sloth-slowblink, .hike-boots-in, .tree-diary-in,
-  .lucy-breathe, .lucy-breathe-down, .lucy-tilt, .lucy-wag, .lucy-ear-twitch, .lucy-pant, .lucy-leg-a, .lucy-leg-b, .lucy-shake, .lucy-in {
+  .lucy-breathe, .lucy-breathe-down, .lucy-tilt, .lucy-wag, .lucy-ear-twitch, .lucy-pant, .lucy-leg-a, .lucy-leg-b, .lucy-shake, .lucy-in,
+  .lucy-look-around, .lucy-sniff, .lucy-bounce, .lucy-slowblink {
     animation: none !important;
   }
   .dew-fall { opacity: 0; } /* a still frame shows no drop in mid-air */

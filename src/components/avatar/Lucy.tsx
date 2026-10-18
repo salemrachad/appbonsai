@@ -2,13 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { APP_CONFIG } from '../../config/appConfig';
 import type { LucyPresentation } from '../../expression/expressionTypes';
 
-// Lucy (expression.lucy): the household's Coton de Tuléar on the floor by the pot. Draws what upstream
-// decided: walking in or out, sitting, lying down, or asleep, on her pillow, on the cool floor or right by
-// the pot. Evidence class "art". Her look follows the hand-inked card style: white shaggy fur outlined in a
+// Lucy (expression.lucy): the household's Coton de Tuléar on the floor around the pot. Plays the route
+// upstream planned, on the clock: she walks in, sniffs along the floor, sits in different places looking at
+// you, up at the tree or around, settles down, dozes, and walks out. A visitor in the tree gets a glance, her
+// watching it, or (curious, excited) she walks under it and sits looking up. Evidence class "art". Her look follows the hand-inked card style: white shaggy fur outlined in a
 // soft navy ink, blue-grey shading instead of grey, big dark eyes with catch-lights and a large glossy nose.
 //
 // Local behaviour (UI only, never stored, never brings more visits):
-// - she walks in from the left when a visit begins and out again as it ends, on the clock between polls;
+// - she walks between her stops at a dog's pace (slowly, nose down, when sniffing), facing where she goes or
+//   what she looks at; in from the left when a visit begins and out again as it ends;
 // - she breathes at `breathMs` (about six breaths a minute when down or asleep: a pace to breathe along with);
 // - a stroke or a tap: a head tilt (sitting, walking), a tail thump and a look up (down), only an ear twitch
 //   asleep: she is never woken. Reduced motion: no walking, no breathing, no reactions; she is just there.
@@ -23,10 +25,16 @@ const DARK = '#191A20'; // eyes and nose
 const SPOT: Record<LucyPresentation['spot'], { x: number; y: number }> = {
   pillow: { x: 46, y: 446 }, // on her cushion, left of the stand
   floor_left: { x: 84, y: 456 }, // the cool floor beside her pillow
-  by_pot: { x: 140, y: 457 }, // right in front of the stand, close to the tree
+  by_pot: { x: 140, y: 457 }, // by the stand's left leg, close to the tree
+  pot_front: { x: 206, y: 458 }, // in front of the pot
+  pot_right: { x: 274, y: 458 },
+  floor_right: { x: 362, y: 457 }, // right of the stand (where the boots stand on hike day)
 };
+const FLOOR_Y = 457;
+const TREE_X = 220;
+const SPEED = { walk: 70, sniff: 24, excited: 120 }; // px per second
 const SIZE = 1.1;
-const ARRIVE_MS = 5200; // the walk in or out across the floor
+const LEAVE_MS = 6000; // she sets off this long before the visit ends
 const OFFSTAGE_X = -70; // she comes in from (and leaves to) the left
 
 const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -67,6 +75,7 @@ interface Face {
   tongue: boolean;
   earsDown: boolean; // a storm: ears pressed back and low
   twitch: boolean; // an ear twitch (a stroke while asleep)
+  drowsy: boolean; // lying awake at night looking at you: heavy lids, slow blinks
 }
 
 // The head, centred at (0,0), seen from the front: the shaggy dome with its top tufts, the long hanging ears
@@ -102,6 +111,12 @@ const Head: React.FC<{ f: Face }> = ({ f }) => {
               <ellipse cx={ex + f.look.x * 0.5} cy={-0.4 + f.look.y * 0.5} rx="2.45" ry="2.75" fill={DARK} />
               <circle cx={ex + f.look.x * 0.5 + 0.75} cy={-1.45 + f.look.y * 0.5} r="0.85" fill="#FFFFFF" />
               <circle cx={ex + f.look.x * 0.5 - 0.7} cy={0.75 + f.look.y * 0.5} r="0.32" fill="#FFFFFF" opacity="0.8" />
+              {f.drowsy && (
+                <g className="lucy-slowblink" style={{ transformBox: 'fill-box', transformOrigin: '50% 0%' }}>
+                  <path d={`M ${ex - 2.9},-3.6 L ${ex + 2.9},-3.6 L ${ex + 2.9},-0.9 Q ${ex},0.2 ${ex - 2.9},-0.9 Z`} fill={FUR} />
+                  <path d={`M ${ex - 2.9},-0.9 Q ${ex},0.2 ${ex + 2.9},-0.9`} stroke={INK} strokeWidth="0.7" fill="none" strokeLinecap="round" />
+                </g>
+              )}
             </g>
           ))}
         </g>
@@ -149,14 +164,17 @@ interface Pose {
   wag: boolean;
   breathMs: number;
   breathe: boolean;
-  lookUp: boolean; // chin up toward the tree
+  lookUp: boolean; // chin up toward the tree, or a visitor
+  lookAround: boolean; // the head sweeping slowly, taking in the room
+  bounce: boolean; // excited by a visitor: a little bounce
 }
+const headClass = (p: Pose) => (p.tilt ? 'lucy-tilt' : p.lookAround ? 'lucy-look-around' : undefined);
 
 function Sitting({ p }: { p: Pose }) {
   return (
     <g>
       <Tail x={-16} y={-24} rot={-35} wag={p.wag} />
-      <g className={p.breathe ? 'lucy-breathe' : undefined} style={{ animationDuration: `${p.breathMs}ms`, transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
+      <g className={[p.breathe ? 'lucy-breathe' : '', p.bounce ? 'lucy-bounce' : ''].filter(Boolean).join(' ') || undefined} style={{ animationDuration: p.bounce ? undefined : `${p.breathMs}ms`, transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
         <Fluff cx={-8} cy={-11} rx={13} ry={11} n={12} seed={3} />
         <Fluff cx={-1} cy={-2.2} rx={6.5} ry={2.6} n={7} amp={0.14} seed={5} />
         <Fluff cx={3} cy={-22} rx={11} ry={15} n={13} seed={6} />
@@ -165,7 +183,7 @@ function Sitting({ p }: { p: Pose }) {
       <Leg x={11.5} top={-17} far />
       <Leg x={5.5} top={-17} />
       <g transform="translate(6 -40)">
-        <g className={p.tilt ? 'lucy-tilt' : undefined} style={{ transformBox: 'fill-box', transformOrigin: '50% 90%', transform: p.lookUp ? 'rotate(-10deg)' : undefined }}>
+        <g className={headClass(p)} style={{ transformBox: 'fill-box', transformOrigin: '50% 90%', transform: p.lookUp ? 'rotate(-10deg)' : undefined }}>
           <Head f={p.face} />
         </g>
       </g>
@@ -185,7 +203,7 @@ function Down({ p, chinOnPaws }: { p: Pose; chinOnPaws: boolean }) {
       <Paw x={14} far />
       <Paw x={19} />
       <g transform={chinOnPaws ? 'translate(22 -15) rotate(6)' : 'translate(15 -24)'}>
-        <g className={p.tilt ? 'lucy-tilt' : undefined} style={{ transformBox: 'fill-box', transformOrigin: '50% 90%', transform: p.lookUp ? 'rotate(-8deg)' : undefined }}>
+        <g className={headClass(p)} style={{ transformBox: 'fill-box', transformOrigin: '50% 90%', transform: p.lookUp ? 'rotate(-8deg)' : undefined }}>
           <Head f={p.face} />
         </g>
       </g>
@@ -214,21 +232,22 @@ function Sleeping({ p }: { p: Pose }) {
   );
 }
 
-function Walking({ p, moving }: { p: Pose; moving: boolean }) {
+function Walking({ p, moving, sniff }: { p: Pose; moving: boolean; sniff: boolean }) {
   const leg = (a: boolean) => (moving ? (a ? 'lucy-leg-a' : 'lucy-leg-b') : undefined);
   return (
     <g>
       <Tail x={-19} y={-31} rot={-50} wag />
       <Leg x={-12} top={-16} far className={leg(false)} />
       <Leg x={13} top={-16} far className={leg(true)} />
-      <g className={p.breathe ? 'lucy-breathe' : undefined} style={{ animationDuration: `${p.breathMs}ms`, transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
+      <g className={[p.breathe ? 'lucy-breathe' : '', p.bounce ? 'lucy-bounce' : ''].filter(Boolean).join(' ') || undefined} style={{ animationDuration: p.bounce ? undefined : `${p.breathMs}ms`, transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
         <Fluff cx={0} cy={-21} rx={19} ry={10} n={15} seed={31} />
         <Hairs d="M -12,-13 q -1,2 -1,4 M 6,-13 q 1,2 0,4 M -4,-30 q 2,-1 4,0" />
       </g>
       <Leg x={-7} top={-16} className={leg(true)} />
       <Leg x={17} top={-16} className={leg(false)} />
-      <g transform="translate(21 -33)">
-        <g className={p.tilt ? 'lucy-tilt' : undefined} style={{ transformBox: 'fill-box', transformOrigin: '50% 90%' }}>
+      {/* Sniffing: the head low, nose to the floor, bobbing; else up, looking */}
+      <g transform={sniff ? 'translate(25 -16) rotate(26)' : 'translate(21 -33)'}>
+        <g className={sniff ? 'lucy-sniff' : headClass(p)} style={{ transformBox: 'fill-box', transformOrigin: '50% 90%', transform: !sniff && p.lookUp ? 'rotate(-10deg)' : undefined }}>
           <Head f={p.face} />
         </g>
       </g>
@@ -248,42 +267,75 @@ export const LucyPillow: React.FC = () => (
   </g>
 );
 
-// Walking in and out on the clock: an offset from her spot (0 = there), and whether she is moving now
-function useLucyWalk(lucy: LucyPresentation | null) {
-  const [, tick] = useState(0);
-  const arrivedAt = useRef<{ id: string; at: number } | null>(null);
-  const id = lucy?.id ?? null;
-  // The arrival plays once per visit, and only if the page sees her while she is still walking in
-  if (lucy && arrivedAt.current?.id !== lucy.id) {
-    const walkingIn = Date.now() < lucy.startedAt + lucy.walkInMs;
-    arrivedAt.current = { id: lucy.id, at: walkingIn && !reducedMotion() ? Date.now() : 0 };
-  }
-  useEffect(() => {
-    if (!id || reducedMotion()) return;
-    const t = setInterval(() => tick((n) => n + 1), 120);
-    return () => clearInterval(t);
-  }, [id]);
-  if (!lucy || reducedMotion()) return { dx: 0, moving: false, leaving: false, gone: false };
-  const now = Date.now();
-  const from = SPOT[lucy.spot].x;
-  const offstage = OFFSTAGE_X - from;
-  const start = arrivedAt.current?.at ?? 0;
-  if (start && now - start < ARRIVE_MS) {
-    const k = (now - start) / ARRIVE_MS;
-    const ease = 1 - (1 - k) * (1 - k);
-    return { dx: offstage * (1 - ease), moving: true, leaving: false, gone: false };
-  }
-  // Leaving: the last seconds of the visit she trots off to the left (the next poll removes her)
-  const leaveAt = lucy.endsAt - ARRIVE_MS;
-  if (now >= leaveAt) {
-    const k = Math.min(1, (now - leaveAt) / ARRIVE_MS);
-    return { dx: offstage * k * k, moving: k < 1, leaving: true, gone: k >= 1 };
-  }
-  return { dx: 0, moving: false, leaving: false, gone: false };
+type Point = { x: number; y: number };
+export type LucyTargets = Partial<Record<'squirrel' | 'dragonfly' | 'sloth', Point | null>>;
+type Stop = LucyPresentation['route'][number];
+
+// The stop her route has her at now
+function stopAt(lucy: LucyPresentation, now: number): Stop {
+  const act = lucy.pose === 'sleeping' ? 'sleep' : lucy.pose === 'down' ? 'down' : lucy.pose === 'sitting' ? 'sit' : 'stand';
+  let cur: Stop = lucy.route[0] ?? { at: lucy.startedAt, spot: lucy.spot, act, look: 'user' };
+  for (const x of lucy.route) if (x.at <= now) cur = x;
+  return cur;
 }
 
-export const Lucy: React.FC<{ lucy: LucyPresentation | null; lookToward?: { x: number; y: number } | null }> = ({ lucy, lookToward = null }) => {
-  const walk = useLucyWalk(lucy);
+// Her body on the floor, moved on the clock toward where she should be: her route's spot, under a visitor
+// that makes her curious, or off to the left at the end. Speed by what she does (sniffing is slow).
+function useLucyMotion(lucy: LucyPresentation | null, targets: LucyTargets) {
+  const [, tick] = useState(0);
+  const st = useRef<{ id: string; x: number; y: number; facing: 1 | -1; t: number } | null>(null);
+  const id = lucy?.id ?? null;
+  useEffect(() => {
+    if (!id || reducedMotion()) return;
+    const t = setInterval(() => tick((n) => n + 1), 100);
+    return () => clearInterval(t);
+  }, [id]);
+  if (!lucy) {
+    st.current = null;
+    return null;
+  }
+  const now = Date.now();
+  const still = reducedMotion();
+  const stop = stopAt(lucy, now);
+  const awake = stop.act !== 'sleep';
+  const it = lucy.interest ?? null;
+  const target = it ? targets[it.who] ?? null : null;
+  const leaving = now >= lucy.endsAt - LEAVE_MS;
+  const follow = !!(it && target && awake && !leaving && (it.level === 'curious' || it.level === 'excited'));
+  const goal: Point = leaving ? { x: OFFSTAGE_X, y: FLOOR_Y } : follow ? { x: Math.max(30, Math.min(400, target!.x)), y: FLOOR_Y } : SPOT[stop.spot];
+  if (st.current?.id !== lucy.id) {
+    // She walks in from the left if the page sees her arrive; otherwise she is already where she should be
+    const entering = !still && now < lucy.startedAt + 90_000;
+    st.current = { id: lucy.id, x: entering ? OFFSTAGE_X : goal.x, y: entering ? FLOOR_Y : goal.y, facing: 1, t: now };
+  }
+  const s = st.current;
+  const dt = Math.min(0.5, Math.max(0, (now - s.t) / 1000));
+  s.t = now;
+  const dx = goal.x - s.x;
+  const moving = !still && Math.abs(dx) > 0.5;
+  if (still) {
+    s.x = goal.x;
+    s.y = goal.y;
+  } else if (moving) {
+    const speed = follow && it!.level === 'excited' ? SPEED.excited : stop.act === 'sniff' && !follow ? SPEED.sniff : SPEED.walk;
+    s.x += Math.sign(dx) * Math.min(Math.abs(dx), speed * dt);
+    s.facing = dx > 0 ? 1 : -1;
+  }
+  // On the floor while walking; up onto the cushion once there
+  const yGoal = moving ? FLOOR_Y : goal.y;
+  s.y += Math.sign(yGoal - s.y) * Math.min(Math.abs(yGoal - s.y), still ? 99 : 30 * dt);
+  // A glance now and then; watching, curious and excited: her eyes stay on it
+  const onVisitor = !!(it && target && awake && (it.level !== 'glance' || now % 14_000 < 3_500));
+  if (!moving) {
+    // Facing what she looks at: a visitor, else the tree
+    const toward = onVisitor ? target!.x : TREE_X;
+    if (Math.abs(toward - s.x) > 4) s.facing = toward > s.x ? 1 : -1;
+  }
+  return { x: s.x, y: s.y, facing: s.facing, moving, stop, follow, onVisitor, target, gone: leaving && Math.abs(s.x - OFFSTAGE_X) < 1 };
+}
+
+export const Lucy: React.FC<{ lucy: LucyPresentation | null; targets?: LucyTargets }> = ({ lucy, targets = {} }) => {
+  const m = useLucyMotion(lucy, targets);
   const [react, setReact] = useState<{ kind: 'tilt' | 'thump' | 'twitch'; at: number } | null>(null);
   const travel = useRef<{ x: number; y: number; d: number } | null>(null);
   useEffect(() => {
@@ -293,11 +345,13 @@ export const Lucy: React.FC<{ lucy: LucyPresentation | null; lookToward?: { x: n
   }, [react]);
   useEffect(() => setReact(null), [lucy?.id]);
 
-  if (!lucy || walk.gone) return null;
-  const spot = SPOT[lucy.spot];
-  const asleep = lucy.pose === 'sleeping';
-  // Out of a walk the pose is upstream's; while she walks in or out she is walking
-  const pose = walk.moving ? 'walking' : lucy.pose;
+  if (!lucy || !m || m.gone) return null;
+  const { stop } = m;
+  const it = lucy.interest ?? null;
+  // What she is doing right now: walking while she moves; sitting under a visitor she follows; else her stop
+  const pose: 'walking' | 'sitting' | 'down' | 'sleeping' = m.moving ? 'walking' : m.follow ? 'sitting' : stop.act === 'sit' ? 'sitting' : stop.act === 'down' ? 'down' : stop.act === 'sleep' ? 'sleeping' : 'walking';
+  const asleep = pose === 'sleeping';
+  const sniffing = pose === 'walking' && stop.act === 'sniff' && !m.follow;
 
   // Petting (UI only): a stroke across her, or a tap, gets one answer at a time
   const answer = () => {
@@ -321,22 +375,34 @@ export const Lucy: React.FC<{ lucy: LucyPresentation | null; lookToward?: { x: n
     }
   };
 
-  // Where her eyes go: up at the tree when she watches over it, toward a visitor she looks at
-  const watching = lucy.cue === 'concern' || lucy.cue === 'storm';
-  const look = lookToward ? { x: Math.max(-2, Math.min(2, (lookToward.x - spot.x) / 60)), y: -2 } : watching ? { x: 1.4, y: -1.8 } : { x: 0.6, y: 0 };
+  // Where her eyes go (her own coordinates: +x is the way she faces): a visitor, up at the tree, at you, around
+  const look = m.onVisitor ? 'visitor' : m.moving && !sniffing ? 'ahead' : stop.look;
+  const eyes =
+    look === 'visitor' && m.target
+      ? { x: Math.max(-2, Math.min(2, ((m.target.x - m.x) * m.facing) / 40)), y: -2 }
+      : look === 'tree'
+      ? { x: 1.6, y: -1.8 }
+      : look === 'ahead'
+      ? { x: 1.6, y: 0.4 }
+      : look === 'around'
+      ? { x: 0.8, y: -0.2 }
+      : { x: 0, y: 0.3 }; // at you
+  const excited = m.onVisitor && it?.level === 'excited';
+  const breath = pose === 'sleeping' ? lucy.breath.asleep : pose === 'down' ? lucy.breath.down : lucy.breath.up;
   const p: Pose = {
-    face: { asleep, look, tongue: lucy.cue === 'panting' && !asleep, earsDown: lucy.cue === 'storm', twitch: react?.kind === 'twitch' },
-    tilt: react?.kind === 'tilt' || (!!lookToward && !asleep),
-    wag: react?.kind === 'thump' || react?.kind === 'tilt',
-    breathMs: lucy.breathMs,
+    face: { asleep, look: eyes, tongue: (lucy.cue === 'panting' || excited) && !asleep, earsDown: lucy.cue === 'storm', twitch: react?.kind === 'twitch', drowsy: lucy.night && pose === 'down' && look === 'user' },
+    tilt: react?.kind === 'tilt' || (m.onVisitor && !m.moving && (it?.level === 'curious' || it?.level === 'excited')),
+    wag: react?.kind === 'thump' || react?.kind === 'tilt' || excited || (m.follow && !m.moving),
+    breathMs: breath,
     breathe: !reducedMotion(),
-    lookUp: watching || !!lookToward,
+    lookUp: look === 'tree' || look === 'visitor',
+    lookAround: look === 'around' && !m.moving,
+    bounce: excited && !m.moving && !reducedMotion(),
   };
-  const facing = walk.leaving ? -1 : 1; // facing the pot; leaving, she turns to go
-  const shaking = lucy.cue === 'shake_off' && pose === 'walking' && !walk.moving;
+  const shaking = lucy.cue === 'shake_off' && !m.moving; // just in from the rain: a good shake now and then
   return (
     <g
-      transform={`translate(${spot.x + walk.dx} ${spot.y}) scale(${SIZE * facing} ${SIZE})`}
+      transform={`translate(${m.x.toFixed(1)} ${m.y.toFixed(1)}) scale(${SIZE * m.facing} ${SIZE})`}
       onPointerMove={onMove}
       onPointerLeave={() => (travel.current = null)}
       onPointerDown={(e) => e.stopPropagation()}
@@ -350,7 +416,15 @@ export const Lucy: React.FC<{ lucy: LucyPresentation | null; lookToward?: { x: n
       <title>Lucy</title>
       <ellipse cx="0" cy="0.5" rx={pose === 'sitting' ? 17 : 27} ry="2.6" fill="#000" opacity="0.09" />
       <g key={lucy.id} className={`lucy-in${shaking ? ' lucy-shake' : ''}`} style={{ transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
-        {pose === 'walking' ? <Walking p={p} moving={walk.moving} /> : pose === 'sitting' ? <Sitting p={p} /> : pose === 'down' ? <Down p={p} chinOnPaws={lucy.cue === 'concern' || lucy.cue === 'tired'} /> : <Sleeping p={p} />}
+        {pose === 'walking' ? (
+          <Walking p={p} moving={m.moving} sniff={sniffing} />
+        ) : pose === 'sitting' ? (
+          <Sitting p={p} />
+        ) : pose === 'down' ? (
+          <Down p={p} chinOnPaws={lucy.cue === 'concern' || lucy.cue === 'tired' || (lucy.night && look === 'user')} />
+        ) : (
+          <Sleeping p={p} />
+        )}
       </g>
     </g>
   );

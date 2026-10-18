@@ -1400,16 +1400,16 @@ async function main() {
     for (let d = 0; d < 365; d++) {
       const p = lucyDay(new Date(2026, 0, 1 + d, 12).getTime());
       const dayVisits = p.visits.filter((v) => v.kind === 'day').length;
-      if (dayVisits < 4 || dayVisits > 6) badCount++;
+      if (dayVisits !== 10) badCount++;
       for (let i = 1; i < p.visits.length; i++) if (p.visits[i].startedAt < p.visits[i - 1].endsAt) overlaps++;
       if (p.visits.some((v) => v.kind === 'night')) nights++;
     }
-    check('LU1 4–6 visits every day of a year, never overlapping', badCount === 0 && overlaps === 0, `${badCount} days off count, ${overlaps} overlaps`);
+    check('LU1 10 visits every day of a year, never overlapping', badCount === 0 && overlaps === 0, `${badCount} days off count, ${overlaps} overlaps`);
     check('LU2 most nights on her pillow (≈ 85 %)', nights / 365 > 0.75 && nights / 365 < 0.95, `${nights}/365 nights`);
     const p22 = lucyDay(at(22, 12));
     const night = lucyDay(at(23, 12)).visits.find((v) => v.kind === 'night') ?? p22.visits.find((v) => v.kind === 'night');
     const mid = night ? night.startedAt + 3 * HOUR : 0;
-    check('LU2b a night visit runs past midnight and is the same visit before and after it', !!night && ev(mid).visit?.id === night.id && ev(mid).presence === 'sleeping' && ev(night.startedAt + 30 * MIN).visit?.id === night.id, night?.id);
+    check('LU2b a night visit runs past midnight and is the same visit before and after it', !!night && ev(mid).visit?.id === night.id && ['sleeping', 'down'].includes(ev(mid).presence) && ev(night.startedAt + 30 * MIN).visit?.id === night.id, night?.id);
 
     // LU3: poses only move one way through a visit
     const order = ['walking', 'sitting', 'down', 'sleeping'];
@@ -1452,7 +1452,7 @@ async function main() {
     const into = firstDay.startedAt + 6 * MIN;
     const hot = ev(into, { outsideToday: wx(at(22, 0), 96, 'clear', 33) });
     const cold = ev(into, { outsideToday: wx(at(22, 0), 96, 'overcast', 4) });
-    check('LU5b heat: the cool floor, panting; cold: curled on her pillow', hot.visit?.spot === 'floor_left' && hot.visit.cue === 'panting' && cold.visit?.spot === 'pillow', `heat ${hot.visit?.spot}/${hot.visit?.cue} · cold ${cold.visit?.spot}`);
+    check('LU5b heat: she rests on the cool floor, panting; cold: on her pillow', hot.visit?.rest === 'floor_left' && hot.visit.cue === 'panting' && cold.visit?.rest === 'pillow', `heat ${hot.visit?.rest}/${hot.visit?.cue} · cold ${cold.visit?.rest}`);
 
     // LU6: a struggling tree: she stays close, longer, with check-ins, awake
     const stressed = ev(into, { condition: 'very_dry' });
@@ -1465,16 +1465,16 @@ async function main() {
       if (v?.kind === 'check') checks++;
       if (v && v.kind !== 'night' && v.pose === 'sleeping') asleepWhileStressed++;
     }
-    check('LU6 stress: by the pot, watching (concern), 1.5× longer, check-ins between visits, never asleep', stressed.visit?.spot === 'by_pot' && stressed.visit.cue === 'concern' && Math.abs(longer - 1.5) < 0.01 && checks > 0 && asleepWhileStressed === 0, `${stressed.visit?.spot}/${stressed.visit?.cue} ×${longer.toFixed(2)} · ${checks} check polls`);
+    check('LU6 stress: by the pot, watching (concern), 1.5× longer, check-ins between visits, never asleep', stressed.visit?.rest === 'by_pot' && stressed.visit.route.every((x) => x.spot === 'by_pot' || x.spot === 'pot_front') && stressed.visit.cue === 'concern' && Math.abs(longer - 1.5) < 0.01 && checks > 0 && asleepWhileStressed === 0, `${stressed.visit?.spot}/${stressed.visit?.cue} ×${longer.toFixed(2)} · ${checks} check polls`);
     // LU7: no trustworthy data: still here, only neutral
     const unsure = ev(into, { condition: 'very_dry', modifiers: ['sensor_uncertain'] });
-    check('LU7 uncertain data: she is still there, without concern', unsure.visit?.id === calm.visit?.id && unsure.visit?.cue !== 'concern' && unsure.visit?.spot !== 'by_pot', `${unsure.visit?.spot}/${unsure.visit?.cue}`);
+    check('LU7 uncertain data: she is still there, without concern', unsure.visit?.id === calm.visit?.id && unsure.visit?.cue !== 'concern' && unsure.visit?.rest !== 'by_pot', `${unsure.visit?.spot}/${unsure.visit?.cue}`);
 
     // LU8: hike day: away around the best hours, then a tired nap on the pillow
     const hike = { today: true, detail: { from: 9, to: 13 } as any };
     const hiking = ev(at(22, 11), { hike });
     const back = ev(at(22, 14), { hike });
-    check('LU8 hike day: away on the hike, then back for a tired nap', hiking.presence === 'away_hiking' && back.visit?.kind === 'after_hike' && back.visit.spot === 'pillow' && back.presence === 'sleeping', `${hiking.presence} · ${back.visit?.kind} ${back.presence}`);
+    check('LU8 hike day: away on the hike, then back for a tired nap', hiking.presence === 'away_hiking' && back.visit?.kind === 'after_hike' && back.visit.rest === 'pillow' && back.presence === 'sleeping', `${hiking.presence} · ${back.visit?.kind} ${back.presence}`);
 
     // LU9: deterministic; a storm brings her close; after the rain she comes in with a shake
     check('LU9 deterministic (refresh, restart)', JSON.stringify(ev(into, { outsideToday: rainyDay })) === JSON.stringify(ev(into, { outsideToday: rainyDay })));
@@ -1483,9 +1483,9 @@ async function main() {
       return at(22, 12);
     })();
     const storm = ev(free, { outsideToday: wx(free - 60 * MIN, 5, 'thunderstorm', 18, 60) });
-    check('LU9b a storm brings her to the pot, awake', storm.visit?.kind === 'storm' && storm.visit.spot === 'by_pot' && storm.presence !== 'sleeping', storm.why);
+    check('LU9b a storm brings her to the pot, awake', storm.visit?.kind === 'storm' && storm.visit.rest === 'by_pot' && storm.presence !== 'sleeping', storm.why);
     const shake = ev(firstDay.startedAt + MIN, { rainEndedAt: firstDay.startedAt - 10 * MIN });
-    check('LU9c after the rain she comes in with a shake', shake.presence === 'walking' && shake.visit?.cue === 'shake_off', shake.why);
+    check('LU9c after the rain she comes in with a shake (while she arrives)', shake.visit?.cue === 'shake_off' && ev(firstDay.startedAt + 5 * MIN, { rainEndedAt: firstDay.startedAt - 10 * MIN }).visit?.cue !== 'shake_off', shake.why);
 
     const diary = lucyDiary(wx(at(21, 0), 4 * 24 * 2, 'clear', 20), at(22, 23, 59), 2);
     // LU10: her company calms the mood a little; it changes nothing else (energy, words, the other visitors)
@@ -1503,14 +1503,72 @@ async function main() {
       check('LU10 her company calms the mood a little (warmer, stiller), never more than the visitors\' cap', !!here.habitat.lucy?.visit && !!lift && /Lucy/.test(lift.why) && lift.v > 0 && lift.v <= 0.1 && lift.a < 0, `${here.habitat.lucy?.why} · ${lift?.why} v ${lift?.v} a ${lift?.a}`);
     }
 
-    // LU11: she looks up at a visiting squirrel (else a dragonfly), never asleep or while watching over the tree
+    // LU11: visitors interest her at various levels (the squirrel most, the sloth least); watching over the
+    // tree she only glances; a hiding squirrel or a sleeping sloth isn't noticed
     {
-      const { withLucyLook, lucyPresentation } = await import('../src/expression/ExpressionEngine');
-      const base = (pose: any, cue: any = null) => lucyPresentation({ id: 'l', kind: 'day', pose, spot: 'floor_left', cue, startedAt: 0, endsAt: 1 });
-      const sq: any = { kind: 'squirrel', id: 's', mode: 'visiting', spot: 'crown' };
+      const { withLucyInterest, lucyPresentation } = await import('../src/expression/ExpressionEngine');
+      const base = (id: string, cue: any = null) => lucyPresentation({ id, kind: 'day', pose: 'sitting', spot: 'floor_left', rest: 'pillow', route: [], cue, startedAt: 0, endsAt: 1 });
+      const sq = (id: string): any => ({ kind: 'squirrel', id, mode: 'visiting', spot: 'crown' });
       const df: any = { id: 'd', presence: 'perched', perch: 'left_tip' };
-      const looks = [withLucyLook(base('sitting'), sq, df)?.lookAt, withLucyLook(base('down'), null, df)?.lookAt, withLucyLook(base('sleeping'), sq, df)?.lookAt, withLucyLook(base('down', 'concern'), sq, null)?.lookAt, withLucyLook(base('sitting'), { ...sq, mode: 'hiding' }, null)?.lookAt];
-      check('LU11 she looks up at the squirrel, else a dragonfly; never asleep, never while watching over the tree', JSON.stringify(looks) === JSON.stringify(['squirrel', 'dragonfly', undefined, undefined, undefined]), JSON.stringify(looks));
+      const sl = (pose: string): any => ({ id: 'sl', pose, branch: 'left_branch', grip: 'arms', tempo: 0.5 });
+      const levels = (who: 'squirrel' | 'sloth') => {
+        const n: Record<string, number> = {};
+        for (let k = 0; k < 400; k++) {
+          const l = who === 'squirrel' ? withLucyInterest(base(`l${k}`), sq(`s${k}`), null, null) : withLucyInterest(base(`l${k}`), null, null, sl('hanging'));
+          n[l!.interest!.level] = (n[l!.interest!.level] ?? 0) + 1;
+        }
+        return n;
+      };
+      const ls = levels('squirrel');
+      const lsl = levels('sloth');
+      const picks = [
+        withLucyInterest(base('a'), sq('s'), df, sl('hanging'))?.interest?.who,
+        withLucyInterest(base('a'), null, df, sl('hanging'))?.interest?.who,
+        withLucyInterest(base('a', 'concern'), sq('s'), null, null)?.interest?.level,
+        withLucyInterest(base('a'), { ...sq('s'), mode: 'hiding' }, null, sl('sleeping'))?.interest ?? null,
+      ];
+      check(
+        'LU11 interest in visitors at four levels (the squirrel can excite her, the sloth never does); watching over the tree only a glance',
+        Object.keys(ls).length === 4 && !lsl.excited && (ls.excited ?? 0) > (lsl.curious ?? 0) && JSON.stringify(picks) === JSON.stringify(['squirrel', 'dragonfly', 'glance', null]),
+        `squirrel ${JSON.stringify(ls)} · sloth ${JSON.stringify(lsl)} · ${JSON.stringify(picks)}`
+      );
+    }
+
+    // LU12: some nights on the floor (looking up at you now and then), most on her pillow (sound asleep)
+    {
+      const { lucyRest, lucyRoute } = await import('../src/behaviour/lucy');
+      const none = { heat: false, cold: false, storm: false, rain: false, fineDay: false };
+      let floor = 0;
+      let watchStops = 0;
+      let pillowWatch = 0;
+      for (let d = 0; d < 300; d++) {
+        const v = { id: `lucy:night:2026-1-${d}`, kind: 'night' as const, startedAt: at(1, 22, 45) + d * 24 * HOUR, endsAt: at(2, 6, 15) + d * 24 * HOUR };
+        const rest = lucyRest(v.id, 'night', none, false);
+        const route = lucyRoute(v, { settle: 0.8, rest, awake: false, close: false });
+        const watching = route.filter((x) => x.act === 'down' && x.look === 'user' && x.at > v.startedAt + 10 * MIN).length;
+        if (rest === 'floor_left') {
+          floor++;
+          watchStops += watching;
+        } else pillowWatch += watching;
+      }
+      const coldRest = lucyRest('lucy:night:x', 'night', { ...none, cold: true }, false);
+      check('LU12 about a third of nights on the floor, waking now and then to lie looking at you; on her pillow she sleeps through; cold nights on the pillow', floor / 300 > 0.25 && floor / 300 < 0.45 && watchStops / floor > 5 && pillowWatch === 0 && coldRest === 'pillow', `${floor}/300 floor nights, ${(watchStops / floor).toFixed(1)} looks per floor night, pillow ${pillowWatch}`);
+    }
+
+    // LU13: a visit is lively: she sniffs, sits in different places, looks at you and at the tree, then
+    // settles; the route is deterministic, keeps off the right of the stand on hike day
+    {
+      const { lucyRoute } = await import('../src/behaviour/lucy');
+      const v = { id: 'lucy:2026-6-22:3', kind: 'day' as const, startedAt: at(22, 11), endsAt: at(22, 11, 45) };
+      const r1 = lucyRoute(v, { settle: 0.2, rest: 'pillow', awake: false, close: false });
+      const r2 = lucyRoute(v, { settle: 0.2, rest: 'pillow', awake: false, close: false });
+      const spots = new Set(r1.map((x) => x.spot));
+      const acts = new Set(r1.map((x) => x.act));
+      const looks = new Set(r1.filter((x) => x.act === 'sit' || x.act === 'down').map((x) => x.look));
+      let offRight = true;
+      for (let k = 0; k < 60; k++) if (lucyRoute({ ...v, id: `lucy:h:${k}` }, { settle: 0.2, rest: 'pillow', awake: false, close: false, avoid: ['floor_right'] }).some((x) => x.spot === 'floor_right')) offRight = false;
+      const ordered = r1.every((x, j) => j === 0 || x.at > r1[j - 1].at);
+      check('LU13 a lively visit: sniffing, sitting in different places, looking at you and at the tree; deterministic; off the boots on hike day', spots.size >= 3 && acts.has('sniff') && acts.has('sit') && acts.has('down') && looks.has('user') && looks.has('tree') && JSON.stringify(r1) === JSON.stringify(r2) && offRight && ordered, `${r1.length} stops · spots ${[...spots].join(',')} · acts ${[...acts].join(',')}`);
     }
 
     check('LU9d diary: her company per day and her nights by the pot', diary.filter((d) => d.title === 'Lucy kept me company').length === 2 && diary.every((d) => d.habitat === 'lucy'), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));

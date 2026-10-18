@@ -59,7 +59,7 @@ export function previewsFromHash(hash: string): DevPreviews {
     })(),
     // #lucy=sitting, #lucy=down:by_pot:concern, #lucy=sleeping:pillow or #lucy=walking:floor_left:shake_off
     lucy: (() => {
-      const r = m(/lucy=(walking|sitting|down|sleeping)(?::(pillow|floor_left|by_pot))?(?::(shake_off|panting|concern|tired|storm))?/);
+      const r = m(/lucy=(walking|sitting|down|sleeping)(?::(pillow|floor_left|by_pot|pot_front|pot_right|floor_right))?(?::(shake_off|panting|concern|tired|storm))?/);
       return r ? { pose: r[1] as LucyPreview['pose'], spot: (r[2] ?? (r[1] === 'sleeping' ? 'pillow' : 'floor_left')) as LucyPreview['spot'], cue: r[3] as LucyPreview['cue'] } : null;
     })(),
     // #dragonfly=perched or #dragonfly=hovering:crown_tip
