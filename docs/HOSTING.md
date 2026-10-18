@@ -88,6 +88,39 @@ notifications, a capacitive soil probe (the FC-28 corrodes), more species.
   - after a restart (the object unloaded) the state is back without a new evaluation;
   - the alarm notices a missing push on its own (90 s).
 
+## Deploying (Workers Builds)
+
+Decided 2026-10-18: GitHub → Cloudflare Workers Builds. A push to `main` builds, tests and deploys the existing
+Worker `appbonsai`; other branches become Worker Previews.
+
+| Dashboard field (Worker `appbonsai` → Settings → Build) | Value |
+|---|---|
+| Git repository / production branch | this repository, `main` |
+| Build command | `npm run check && npm run build` |
+| Deploy command | `npx wrangler deploy` |
+| Non-production branch builds | on; command `npx wrangler preview` |
+| Root directory | empty (the repository root) |
+| Build variables | none (Node comes from `.node-version`: 24) |
+
+- **A failing test stops the deploy:** the build command runs the type-check, all scenario suites and the golden
+  master before `vite build`.
+- **What a deploy never touches:**
+  - the tree's Durable Object and its data (same Worker name, same class, migration `v1` already applied);
+  - the secret `APP_PASSWORD` (deploys keep the Worker's secrets);
+  - the backups in KV.
+- **No data scripts in the pipeline:** nothing in it runs `cf:migrate` or `cf:backup`.
+- **No credentials in the build:** none are needed (`.env.cloud` and `.dev.vars` are gitignored).
+- **Manual fallback:** `npm run cf:deploy` from the laptop does the same deploy (without the tests: run
+  `npm run check` first).
+- **Previews** (`previews` in `wrangler.jsonc`):
+  - Each branch's Preview gets its own `TREE` namespace and storage: an empty tree, deleted with the Preview.
+    Production's tree is never reachable from it.
+  - It has no `BACKUPS` binding, so it makes no backups and can't write production's KV.
+  - Its password is separate (`npx wrangler preview base-config secret put APP_PASSWORD`); without one it
+    answers 503.
+  - The ESP32 only ever pushes to the production address.
+  - Previews are an open beta (wrangler ≥ 4.135).
+
 ## Backups
 
 Decided 2026-10-18. Two layers, because the likeliest loss is our own bug or a wrong deploy, and the

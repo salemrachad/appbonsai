@@ -22,5 +22,13 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TreeObject"] }],
   // Nightly backups of the tree (server/backup.ts): KV, free without a card (1 GB, 1,000 writes a day)
   "kv_namespaces": [{ "binding": "BACKUPS", "id": "c6e6e94df7a14f97a9f2d8df796e0bce" }],
+  // Feature branches (Workers Builds runs `npx wrangler preview`): each Preview gets its own TREE namespace
+  // and storage, so it starts as an empty tree and never sees production's. No BACKUPS on purpose: KV is not
+  // isolated per Preview, and without the binding the object makes no backups. Its password is set apart:
+  // npx wrangler preview base-config secret put APP_PASSWORD
+  "previews": {
+    "durable_objects": { "bindings": [{ "name": "TREE", "class_name": "TreeObject" }] },
+    "observability": { "enabled": true }
+  },
   "observability": { "enabled": true }
 }
