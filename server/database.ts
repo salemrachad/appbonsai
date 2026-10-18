@@ -15,7 +15,24 @@ export interface SqlDriver {
   readonly path: string; // where the data lives, for status pages
   exec(sql: string): void; // several statements, no parameters (the schema)
   all(sql: string, ...params: SqlValue[]): Row[]; // one statement; writes return their RETURNING rows
+  transaction<T>(fn: () => T): T; // all or nothing (a restore)
   close(): void;
+}
+
+// A whole tree's data, to move it to another server (scripts/cloudMigrate.ts → POST /api/admin/restore).
+// The tree's own id stays with the server it lands on; its devices are moved to that tree.
+export const DUMP_TABLES = ['telemetry', 'plant_events', 'behaviour_episodes', 'calibration_history', 'interactions', 'outside_weather', 'devices'] as const;
+export interface DatabaseDump {
+  schemaVersion: number;
+  tables: Record<(typeof DUMP_TABLES)[number], Row[]>;
+  meta: Record<string, unknown>; // every key but schema_version, values as stored (parsed JSON)
+}
+
+export function dumpDatabase(sql: SqlDriver): DatabaseDump {
+  const tables = Object.fromEntries(DUMP_TABLES.map((t) => [t, sql.all(`SELECT * FROM ${t} ORDER BY rowid`)])) as DatabaseDump['tables'];
+  const meta = Object.fromEntries(sql.all("SELECT key, value FROM meta WHERE key <> 'schema_version'").map((r) => [r.key, json(r.value, null)]));
+  const version = sql.all("SELECT value FROM meta WHERE key = 'schema_version'")[0];
+  return { schemaVersion: version ? Number(json(version.value, 0)) : 0, tables, meta };
 }
 
 export interface TreeRecord {
@@ -160,6 +177,54 @@ export class AppDatabase {
 
   close() {
     this.sql.close();
+  }
+
+  // ---- moving a tree between servers ----
+  dump(): DatabaseDump {
+    return dumpDatabase(this.sql);
+  }
+
+  // Replace everything with a dump (all or nothing). Rows keep their ids (the saved runtime and state refer to
+  // events and episodes by id). Columns are checked against the actual tables. The collector must be rebuilt.
+  restore(dump: DatabaseDump): Record<string, number> {
+    if (dump.schemaVersion !== SCHEMA_VERSION) throw new Error(`The dump is schema v${dump.schemaVersion}, this server v${SCHEMA_VERSION}`);
+    const treeId = this.tree().id;
+    const counts: Record<string, number> = {};
+    this.sql.transaction(() => {
+      for (const table of DUMP_TABLES) {
+        this.all(`DELETE FROM ${table}`);
+        const rows = dump.tables[table] ?? [];
+        for (const row of rows) this.insertRow(table, table === 'devices' ? { ...row, tree_id: treeId } : row, 'INSERT');
+        counts[table] = rows.length;
+      }
+      this.all("DELETE FROM meta WHERE key <> 'schema_version'");
+      for (const [key, value] of Object.entries(dump.meta)) if (key !== 'schema_version') this.setMeta(key, value);
+      counts.meta = Object.keys(dump.meta).length;
+    });
+    return counts;
+  }
+
+  // Readings from another server's dump that this one doesn't have yet (the minutes between a restore and the
+  // device's switch). Stored as history, without their ids; the same reading twice is ignored.
+  topUpTelemetry(rows: Row[]): number {
+    let added = 0;
+    this.sql.transaction(() => {
+      for (const { id: _id, ...row } of rows) added += this.insertRow('telemetry', row, 'INSERT OR IGNORE');
+    });
+    return added;
+  }
+
+  private columns = new Map<string, Set<string>>();
+  private insertRow(table: string, row: Row, verb: 'INSERT' | 'INSERT OR IGNORE'): number {
+    let known = this.columns.get(table);
+    if (!known) this.columns.set(table, (known = new Set(this.all(`PRAGMA table_info(${table})`).map((c) => c.name as string))));
+    const cols = Object.keys(row).filter((c) => known.has(c));
+    const values = cols.map((c) => {
+      const v = row[c];
+      if (v === null || typeof v === 'number' || typeof v === 'string') return v as SqlValue;
+      throw new Error(`${table}.${c}: not a plain value`);
+    });
+    return this.all(`${verb} INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')}) RETURNING rowid`, ...values).length;
   }
 
   // ---- the tree (its name, species and location are its settings, in meta) ----

@@ -9,12 +9,13 @@ export function openDatabase(dbPath: string): AppDatabase {
   return new AppDatabase(nodeSqliteDriver(dbPath));
 }
 
-export function nodeSqliteDriver(dbPath: string): SqlDriver {
+// readOnly: only reads (a dump of a database a running server is using)
+export function nodeSqliteDriver(dbPath: string, opts: { readOnly?: boolean } = {}): SqlDriver {
   const memory = dbPath === ':memory:';
   const file = memory ? dbPath : path.resolve(dbPath);
-  if (!memory) fs.mkdirSync(path.dirname(file), { recursive: true });
-  const db = new DatabaseSync(file);
-  db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;');
+  if (!memory && !opts.readOnly) fs.mkdirSync(path.dirname(file), { recursive: true });
+  const db = new DatabaseSync(file, { readOnly: !!opts.readOnly });
+  if (!opts.readOnly) db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON;');
 
   // Compile each SQL statement once and reuse it (prepare() on every call was a noticeable share of a poll)
   const statements = new Map<string, StatementSync>();
@@ -28,6 +29,17 @@ export function nodeSqliteDriver(dbPath: string): SqlDriver {
     path: file,
     exec: (sql) => db.exec(sql),
     all: (sql: string, ...params: SqlValue[]) => prepare(sql).all(...params) as Row[],
+    transaction: (fn) => {
+      db.exec('BEGIN');
+      try {
+        const result = fn();
+        db.exec('COMMIT');
+        return result;
+      } catch (err) {
+        db.exec('ROLLBACK');
+        throw err;
+      }
+    },
     close: () => db.close(),
   };
 }

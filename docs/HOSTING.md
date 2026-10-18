@@ -69,9 +69,19 @@ notifications, a capacitive soil probe (the FC-28 corrodes), more species.
   - `npx wrangler secret put APP_PASSWORD` sets the password.
   - `npm run cf:types` regenerates `worker/worker-configuration.d.ts` after a change to `wrangler.jsonc`.
   - `npm run lint` also type-checks the Worker (`worker/tsconfig.json`).
-- **Setting up a new tree:** `PUT /api/config` with the settings (`dataSource: esp32_sensor`,
-  `esp32Transport: push`), then `POST /api/devices {id, label, token}` with the token the ESP32 already has. The
-  ESP32 then only needs its server address changed at `http://<device>/settings`.
+- **Moving the laptop's tree there:** `npm run cf:migrate -- migrate` (`scripts/cloudMigrate.ts`).
+  - It reads the cloud address and password from the gitignored `.env.cloud` (`APPBONSAI_CLOUD_URL`,
+    `APPBONSAI_CLOUD_PASSWORD`), so the password is never on a command line.
+  - It sends a dump of the laptop's database (read only) to `POST /api/admin/restore`. The object stops its
+    collector, replaces everything in one transaction (rows keep their ids, devices move to the cloud's tree with
+    their token hashes) and rebuilds the collector. The tree then resumes as it was on the laptop (scenarios
+    MV1–MV4).
+  - A second `migrate` is refused once the cloud tree has sensor readings of its own.
+  - `npm run cf:migrate -- top-up` adds the readings the laptop got before the ESP32 switched; `-- status` shows
+    the devices and their last push.
+- **Setting up a new tree by hand:** `PUT /api/config` with the settings (`dataSource: esp32_sensor`,
+  `esp32Transport: push`), then `POST /api/devices {id, label, token}` with the token the ESP32 already has. Either
+  way the ESP32 then only needs its server address changed at `http://<device>/settings`.
 - **Checked locally (wrangler dev):**
   - the password works on the page and the API, and assets stay public;
   - a firmware-shaped push is accepted, a retry is dropped, a wrong token gets 401;

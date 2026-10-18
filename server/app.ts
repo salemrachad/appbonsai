@@ -2,7 +2,7 @@ import express from 'express';
 import type { BackendInfo } from '../src/api/types';
 import { CalibrationService } from './calibration';
 import type { LivingCollector } from './collector';
-import type { AppDatabase } from './database';
+import type { AppDatabase, DatabaseDump } from './database';
 import { calibrationRoutes } from './routes/calibration';
 import { deviceRoutes } from './routes/devices';
 import { eventRoutes } from './routes/events';
@@ -16,7 +16,13 @@ import { telemetryRoutes } from './routes/telemetry';
 // the built app around it) and run inside the tree's Durable Object on Cloudflare (worker/index.ts).
 // stream: false leaves out GET /api/stream (an open stream keeps a Durable Object awake and billed; the
 // browser then polls /api/current with its ETag instead).
-export function apiApp(db: AppDatabase, collector: LivingCollector, opts: { startedAt: number; backend: BackendInfo; stream?: boolean }): express.Express {
+// restore: given, POST /api/admin/restore takes a whole tree from another server (scripts/cloudMigrate.ts).
+// It runs apply() with the collector stopped and rebuilds the collector from the restored database after.
+export function apiApp(
+  db: AppDatabase,
+  collector: LivingCollector,
+  opts: { startedAt: number; backend: BackendInfo; stream?: boolean; restore?: <T>(apply: () => T) => Promise<T> }
+): express.Express {
   const app = express();
   app.use(jsonBody(5 * 1024 * 1024)); // browser history import can be a few MB
   const api = express.Router();
@@ -28,6 +34,22 @@ export function apiApp(db: AppDatabase, collector: LivingCollector, opts: { star
   api.use('/telemetry', telemetryRoutes(db, collector));
   api.use('/ingest', ingestRoutes(db, collector));
   api.use('/devices', deviceRoutes(db));
+  const restore = opts.restore;
+  if (restore) {
+    // {dump}: replace this tree's data (refused once it has sensor readings of its own: only a top-up then).
+    // {dump, topUp: true}: add the dump's readings this tree doesn't have yet.
+    api.post('/admin/restore', async (req, res) => {
+      const { dump, topUp } = (req.body ?? {}) as { dump?: DatabaseDump; topUp?: boolean };
+      if (!dump || typeof dump !== 'object' || !dump.tables || !dump.meta) return res.status(400).json({ error: 'Expected {dump}' });
+      try {
+        if (topUp) return res.json({ ok: true, added: await restore(() => db.topUpTelemetry(dump.tables.telemetry ?? [])) });
+        if (db.latestTelemetry('esp32_sensor', 1).length) return res.status(409).json({ error: 'This tree already has sensor readings of its own: only a top-up ({topUp: true}) is possible' });
+        res.json({ ok: true, counts: await restore(() => db.restore(dump)) });
+      } catch (err: any) {
+        res.status(400).json({ error: err?.message ?? String(err) });
+      }
+    });
+  }
   api.use((_req, res) => res.status(404).json({ error: 'Unknown API route' }));
   app.use('/api', api);
   return app;

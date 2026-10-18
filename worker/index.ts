@@ -40,23 +40,42 @@ export class TreeObject extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
-    this.db = openDurableDatabase(ctx.storage.sql, `durable-object:${TREE_NAME}`);
-    // No setTimeout timers: the object's alarm wakes it (it may be unloaded between requests)
-    this.collector = new LivingCollector(this.db, { autoSchedule: false });
-    const startedAt = Date.now();
-    const app = apiApp(this.db, this.collector, {
-      startedAt,
-      stream: false,
-      backend: { mode: 'cloud', hostname: 'cloudflare', host: 'workers.dev', port: 443, dbPath: this.db.path, collector: 'this server', servesApp: true },
-    });
-    serve(app);
+    this.db = openDurableDatabase(ctx.storage, `durable-object:${TREE_NAME}`);
+    this.collector = this.load();
     console.log(`[tree] ${TREE_NAME} loaded`);
     // Resume (or start) before the first request is handled
-    this.ready = ctx.blockConcurrencyWhile(async () => {
-      await this.collector.start();
-      await this.collector.settled();
-      await this.arm();
-    });
+    this.ready = ctx.blockConcurrencyWhile(() => this.begin());
+  }
+
+  // A collector and its routes over the database. No setTimeout timers: the object's alarm wakes it (it may be
+  // unloaded between requests).
+  private load(): LivingCollector {
+    const collector = new LivingCollector(this.db, { autoSchedule: false });
+    serve(
+      apiApp(this.db, collector, {
+        startedAt: Date.now(),
+        stream: false,
+        backend: { mode: 'cloud', hostname: 'cloudflare', host: 'workers.dev', port: 443, dbPath: this.db.path, collector: 'this server', servesApp: true },
+        restore: (apply) => this.replaceData(apply),
+      })
+    );
+    return collector;
+  }
+
+  private async begin() {
+    await this.collector.start();
+    await this.collector.settled();
+    await this.arm();
+  }
+
+  // POST /api/admin/restore: the data changes under the collector, so it is stopped first and rebuilt after
+  private async replaceData<T>(apply: () => T): Promise<T> {
+    await this.collector.settled();
+    this.collector.stop();
+    const result = apply();
+    this.collector = this.load();
+    await this.begin();
+    return result;
   }
 
   async fetch(request: Request): Promise<Response> {

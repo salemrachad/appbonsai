@@ -440,6 +440,47 @@ async function main() {
     check('PU10d afterwards back to the normal interval and stored', normal?.body.ok === true && normal.body.interval_s === 60 && b.db.telemetryStats().count === n + 1);
   }
 
+  console.log('\n— Moving the tree to another server (laptop → Cloudflare) —');
+  {
+    const script = (i: number) => (i >= 100 && i < 115 ? null : { soil: i < 60 ? 55 - i * 0.4 : i < 62 ? 31 : i < 64 ? 72 : 71, temp: 23 + (i % 70) / 20 });
+    const same = (b: Bench) =>
+      JSON.stringify({ ...b.collector.snapshot(), status: b.collector.collectorStatus(), events: b.db.eventsSince(0), episodes: b.episodes() }, (k, v) => (k === 'updatedAt' ? undefined : v));
+    const laptop = new Bench();
+    laptop.usePush();
+    await laptop.boot();
+    laptop.pushRun(150, script);
+    laptop.collector.recordInteraction({ kind: 'pet', startedAt: laptop.clock - 20_000, endedAt: laptop.clock - 2_000, count: 4, activeMs: 15_000 });
+    // The cloud tree: made fresh (its own tree id, default settings), then given the laptop's data
+    const cloud = new Bench();
+    cloud.db.setMeta('collector_settings', { ...cloud.db.getMeta<any>('collector_settings'), dataSource: 'weather_estimate' });
+    const counts = cloud.db.restore(laptop.db.dump());
+    cloud.clock = laptop.clock;
+    cloud.device = { ...laptop.device };
+    await cloud.boot();
+    check('MV1 restored on the other server it resumes as the same tree: state, status, events, episodes', same(cloud) === same(laptop), JSON.stringify(counts));
+    const d = cloud.db.getDevice(laptop.device.id);
+    check('MV2 the device moved with its token hash, onto the new server\'s own tree', !!d && d.tokenHash === laptop.db.getDevice(laptop.device.id)!.tokenHash && d.treeId === cloud.db.tree().id && cloud.db.tree().id !== laptop.db.tree().id);
+    let identical = 0;
+    for (let i = 150; i < 180; i++) {
+      laptop.push(script(i));
+      cloud.push(script(i));
+      if (same(cloud) === same(laptop)) identical++;
+    }
+    check('MV2b the device pushes to it with the same token, and both carry on identically', identical === 30 && cloud.db.telemetryStats().count === laptop.db.telemetryStats().count, `${identical}/30`);
+    // Readings that reached the laptop after the copy, before the device switched
+    laptop.pushRun(5, () => ({ soil: 70 }));
+    const added = cloud.db.topUpTelemetry(laptop.db.dump().tables.telemetry);
+    const again = cloud.db.topUpTelemetry(laptop.db.dump().tables.telemetry);
+    check('MV3 a top-up adds only the readings it doesn\'t have, once', added === 5 && again === 0, `${added}, then ${again}`);
+    let refused = false;
+    try {
+      cloud.db.restore({ ...laptop.db.dump(), schemaVersion: SCHEMA_VERSION - 1 });
+    } catch {
+      refused = true;
+    }
+    check('MV4 a dump from another schema version is refused, nothing changed', refused && cloud.db.telemetryStats().count === laptop.db.telemetryStats().count);
+  }
+
   console.log('\n— Restarts between steps (a Durable Object waking up) —');
   {
     // The same pushes to a collector that never stops and to one restarted before every push. On Cloudflare a
