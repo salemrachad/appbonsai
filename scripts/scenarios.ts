@@ -1,5 +1,6 @@
 // Scenario checks for the living engines (npm run test:scenarios). Pure: no server, no database.
 // Simulates minute-by-minute readings and checks health, hysteresis, behaviour and expression.
+import './tz'; // first: the tree's timezone (the build machines run in UTC)
 import { evaluateBehaviour } from '../src/behaviour/BehaviourEngine';
 import { expressBehaviour } from '../src/expression/ExpressionEngine';
 import { applyDeveloperOverride, DEV_PRESETS } from '../src/health/developerOverrides';

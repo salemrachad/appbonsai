@@ -1,5 +1,6 @@
 // Collector-level scenarios (npm run test:collector): watering detection, data quality, outages,
 // restarts, long gaps and DB migration, on the shared test bench (scripts/bench.ts).
+import './tz'; // first: the tree's timezone (the build machines run in UTC)
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';

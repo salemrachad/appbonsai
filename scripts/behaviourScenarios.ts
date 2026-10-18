@@ -1,6 +1,7 @@
 // Behaviour + speech scenarios (npm run test:behaviour): mood, energy, duration, recovery,
 // silence, cooldowns, once-per-episode lines, time of day, restarts. Runs the real collector
 // (so speech memory is persisted exactly as in production) on the shared bench.
+import './tz'; // first: the tree's timezone (the build machines run in UTC)
 import { evaluateBehaviour } from '../src/behaviour/BehaviourEngine';
 import { DAY_LINES, MESSAGE_CATALOG } from '../src/behaviour/messages';
 import { stableVariant } from '../src/behaviour/speech';
