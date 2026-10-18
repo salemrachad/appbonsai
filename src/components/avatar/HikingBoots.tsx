@@ -2,7 +2,8 @@ import React from 'react';
 
 // Hike day (expression.hike.boots): two pairs of hiking boots and their two water bottles, set down together
 // on the ground right of the stand, ready to go. Drawn only; the tree's state never depends on them. The
-// toes point toward the tree; one pair a step behind the other, the bottles at the heels.
+// two pairs stand side by side, toes toward the tree, neither hiding the other; the bottles stand in front
+// between them.
 
 interface BootColors {
   upper: string;
@@ -12,17 +13,20 @@ interface BootColors {
   bottle: string; // the water bottle next to the pair
 }
 
-// Mirrored (toes left, toward the tree): the pair's heel is at x, its toes reach about 52 × scale to the left
+// Mirrored (toes left, toward the tree): the pair's heel is at x, its toes reach about 52.5 × scale to the
+// left. Side by side on one ground line with a small gap: the free ground right of the stand (x ≈ 340–440)
+// holds both only a little smaller than life.
 const PAIRS: { x: number; y: number; scale: number; shade: number; colors: BootColors; label: string }[] = [
-  // A step behind: slate and plum, teal laces
-  { x: 432, y: 437, scale: 0.92, shade: 0.9, colors: { upper: '#6D5A72', dark: '#3E3346', collar: '#B9A7BC', lace: '#3FA39A', bottle: '#D98A6C' }, label: 'the other pair' },
-  // In front: tan leather, orange laces
-  { x: 404, y: 450, scale: 1.0, shade: 1, colors: { upper: '#9A6B43', dark: '#5E3F27', collar: '#C9A27A', lace: '#E0823D', bottle: '#4F7F6A' }, label: 'one pair' },
+  // Nearer the tree: tan leather, orange laces (x ≈ 339–387)
+  { x: 386, y: 447, scale: 0.9, shade: 1, colors: { upper: '#9A6B43', dark: '#5E3F27', collar: '#C9A27A', lace: '#E0823D', bottle: '#4F7F6A' }, label: 'one pair' },
+  // Further out: slate and plum, teal laces (x ≈ 391–438)
+  { x: 437, y: 447, scale: 0.88, shade: 1, colors: { upper: '#6D5A72', dark: '#3E3346', collar: '#B9A7BC', lace: '#3FA39A', bottle: '#D98A6C' }, label: 'the other pair' },
 ];
-// The two bottles stand together at the front pair's heels, in front of the back pair
+// The two bottles stand in front (lower on the ground, drawn after the boots) between the pairs: x is a
+// bottle's right edge. They may cover a heel or a toe, never a whole boot.
 const BOTTLES = [
-  { x: 423, y: 451, scale: 0.9, pair: 1 },
-  { x: 436, y: 455, scale: 0.95, pair: 0 },
+  { x: 398, y: 456, scale: 0.9, pair: 0 },
+  { x: 409, y: 456, scale: 0.9, pair: 1 },
 ];
 
 // One boot, side view: heel at x=0, toe at x≈40, standing on y=0
@@ -65,11 +69,11 @@ export const HikingBoots: React.FC<{ show: boolean }> = ({ show }) => {
   return (
     <g id="hiking-boots" pointerEvents="none">
       <title>Hike day: the boots and the water bottles are out</title>
-      <ellipse cx="398" cy="449" rx="50" ry="6" fill="#000" opacity="0.1" />
+      <ellipse cx="388" cy="450" rx="54" ry="6" fill="#000" opacity="0.1" />
       {PAIRS.map((p, i) => (
         <g key={p.label} transform={`translate(${p.x} ${p.y}) scale(${-p.scale} ${p.scale})`}>
           <g className="hike-boots-in" style={{ animationDelay: `${i * 180}ms`, filter: p.shade < 1 ? `brightness(${p.shade})` : undefined }}>
-            {/* The back boot, a step behind and in shade */}
+            {/* The pair's other boot, half a step back and in shade */}
             <g transform="translate(12 -3)" style={{ filter: 'brightness(0.78)' }}>
               <Boot c={p.colors} />
             </g>
