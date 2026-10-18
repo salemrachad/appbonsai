@@ -623,6 +623,14 @@ earn trust: she lives here.
 - **Art:** hand-inked in the style of the reference card: white shaggy fur outlined in soft navy ink, blue-grey
   shading, big dark eyes with catch-lights, a large glossy nose, a dusty-rose pillow with a cream band. She walks in
   from the left and out again on the clock between polls. Reduced motion: no walking, breathing or reactions.
+- **Alive between the big moves** (UI only, random, never stored; `useLucyLife` in `Lucy.tsx`):
+  - her head turns toward what she looks at (her face toward you, or three-quarter toward the tree, a visitor,
+    the floor, across the room), easing from one look to the next; sniffing, her nose is down and her eyes on the
+    floor where she sniffs, moving in little bursts;
+  - one small thing every second or two: glances that drift from what her route has her watching to anything
+    else, blinks, ear flicks, head tilts, sniffing the air, a yawn, a scratch behind the ear with a hind leg, a
+    few steps aside and settling again, a sigh lying down; asleep, dream twitches; her tail never quite stops;
+  - she turns around once before she lies down.
 - **Words:** her company calms the tree's mood a little (`mood.visitors.lucy`: warmer, stiller). One quiet thought
   of the day while she lies by the pot ("Lucy is resting beside me. Nothing to do but be here."), its tip an
   invitation to watch her six slow breaths. Diary: "Lucy kept me company · 10 visits", "Lucy slept by the pot" (on her pillow, or on the floor),
