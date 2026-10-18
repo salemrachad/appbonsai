@@ -199,6 +199,41 @@ export const APP_CONFIG = {
         loungingFrom: 0.9, // above: one arm or by the legs (in between: both arms or two legs + one arm)
       },
     },
+    // Lucy (behaviour/lucy.ts): the household's Coton de Tuléar, a permanent companion by the pot. Her day
+    // follows the household clock (meals, walks), not the sun; the outside weather changes how she spends
+    // each visit, never when she comes. Her job is peace: slow breathing when down or asleep. Art + context.
+    lucy: {
+      anchors: [7.75, 10.25, 13, 15.5, 17.75, 20], // local hours she tends to come by
+      jitterMin: 40, // ± around each anchor (stable per day)
+      visitsPerDay: { min: 4, max: 6 }, // of the anchors, this many come true each day
+      visitMinutes: { min: 15, max: 45 },
+      bedtime: { hour: 22.75, jitterMin: 20 }, // she settles on her pillow for the night…
+      wake: { hour: 6.25, jitterMin: 20 }, // …and walks off in the morning
+      nightChance: 0.85, // "most nights"
+      walkInMin: 2, // arriving: walking in, sniffing around
+      walkOutMin: 1.5, // leaving
+      sitMinutes: { calm: 3, restless: 12 }, // sitting before she lies down, by her settle value
+      downBeforeSleep: { calm: 8, restless: 25 }, // lying down before she falls asleep
+      sleepFrom: 0.45, // settle value from which a visit can end in a nap
+      // Staying close: a trusted moderate or worse stress makes her visits longer and adds check-ins
+      stress: { longer: 1.5, checkSlotMinutes: 120, checkChance: 0.6, checkMinutes: { min: 20, max: 40 } },
+      stormSlotMinutes: 60, // a storm brings her to the pot (one visit per slot while it lasts)
+      hike: { marginMin: 30, napMinutes: 90 }, // away around the hike's best hours, then a long tired nap
+      shakeOffAfterRainMin: 30, // a visit starting this soon after rain begins with a shake
+      // Weather latches (outside; °C, km/h): enter/exit thresholds and minutes, like the health latches
+      latch: {
+        heat: { enter: 30, exit: 27, enterMin: 45, exitMin: 30 },
+        cold: { enter: 8, exit: 11, enterMin: 60, exitMin: 30 },
+        storm: { gusts: 50, enterMin: 0, exitMin: 45 },
+        rain: { enterMin: 15, exitMin: 20 },
+        fineDay: { tempMin: 15, tempMax: 26, enterMin: 60, exitMin: 30 },
+      },
+      // How ready to settle she is (0 restless … 1 sleepy): the time of day and the weather at her arrival
+      settle: { base: 0.35, afterLunch: 0.3, evening: 0.3, morning: -0.1, rain: 0.25, cold: 0.25, heat: 0.2, storm: 0.1, fineDay: -0.25 },
+      // Her breathing (ms per breath): ~6/min down or asleep is the calming pace; 5/min asleep at night
+      breathMs: { sitting: 3200, walking: 2400, down: 10_000, sleeping: 10_000, night: 12_000, panting: 700 },
+      petCooldownMs: 3500, // a stroke gets a tilt or a wag at most this often (UI only)
+    },
     // Encounters: two visitors in the tree at the same time (behaviour/encounters.ts). Art only.
     encounters: {
       dragonflyOnSlothChance: 0.5, // share of perched dragonfly visits spent resting on a sloth that is there

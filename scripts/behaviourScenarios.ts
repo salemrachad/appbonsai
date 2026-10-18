@@ -1386,6 +1386,111 @@ async function main() {
     }
   }
 
+  console.log('\n— Lucy (the household dog by the pot) —');
+  {
+    const { lucyDay, lucyWeather, lucyPhase, evaluateLucy, lucyDiary } = await import('../src/behaviour/lucy');
+    const wx = (from: number, n: number, sky: string, temperature: number | null = 18, gusts = 10) =>
+      Array.from({ length: n }, (_, k) => ({ at: from + k * 15 * MIN, sky, code: 0, temperature, humidity: 70, precipitation: sky.includes('rain') ? 2 : 0, cloudCover: 50, wind: gusts / 2, gusts, isDay: true })) as any[];
+    const ev = (now: number, o: Partial<Parameters<typeof evaluateLucy>[0]> = {}) => evaluateLucy({ outsideToday: [], rainEndedAt: null, condition: 'comfortable', modifiers: [], now, ...o });
+
+    // LU1: 4–6 visits every day of a year, never overlapping (the night one included)
+    let badCount = 0;
+    let overlaps = 0;
+    let nights = 0;
+    for (let d = 0; d < 365; d++) {
+      const p = lucyDay(new Date(2026, 0, 1 + d, 12).getTime());
+      const dayVisits = p.visits.filter((v) => v.kind === 'day').length;
+      if (dayVisits < 4 || dayVisits > 6) badCount++;
+      for (let i = 1; i < p.visits.length; i++) if (p.visits[i].startedAt < p.visits[i - 1].endsAt) overlaps++;
+      if (p.visits.some((v) => v.kind === 'night')) nights++;
+    }
+    check('LU1 4–6 visits every day of a year, never overlapping', badCount === 0 && overlaps === 0, `${badCount} days off count, ${overlaps} overlaps`);
+    check('LU2 most nights on her pillow (≈ 85 %)', nights / 365 > 0.75 && nights / 365 < 0.95, `${nights}/365 nights`);
+    const p22 = lucyDay(at(22, 12));
+    const night = lucyDay(at(23, 12)).visits.find((v) => v.kind === 'night') ?? p22.visits.find((v) => v.kind === 'night');
+    const mid = night ? night.startedAt + 3 * HOUR : 0;
+    check('LU2b a night visit runs past midnight and is the same visit before and after it', !!night && ev(mid).visit?.id === night.id && ev(mid).presence === 'sleeping' && ev(night.startedAt + 30 * MIN).visit?.id === night.id, night?.id);
+
+    // LU3: poses only move one way through a visit
+    const order = ['walking', 'sitting', 'down', 'sleeping'];
+    let backward = 0;
+    let slept = 0;
+    for (const settle of [0, 0.3, 0.5, 0.8, 1]) {
+      const s0 = at(22, 13);
+      const end = s0 + 45 * MIN;
+      let rank = 0;
+      for (let t = s0; t < end - 1.5 * MIN; t += MIN) {
+        const r = order.indexOf(lucyPhase('day', s0, end, settle, t, false).pose);
+        if (r < rank) backward++;
+        rank = Math.max(rank, r);
+      }
+      if (rank === 3) slept++;
+    }
+    check('LU3 walking in → sitting → down → asleep, never back up; restless visits stay awake', backward === 0 && slept >= 1 && slept < 5 && lucyPhase('day', at(22, 13), at(22, 13) + 45 * MIN, 0.8, at(22, 13) + 44 * MIN, false).pose === 'walking', `${backward} steps back, ${slept}/5 settle levels fell asleep`);
+
+    // LU4: the weather latches have hysteresis (no flapping at a threshold, no blocking either)
+    const t0 = at(22, 6);
+    const temps = [...Array.from({ length: 8 }, (_, k) => (k % 2 ? 31 : 29.5)), ...Array.from({ length: 8 }, (_, k) => (k % 2 ? 27.5 : 29)), 25, 25, 25, 25];
+    const series = temps.map((temperature, k) => ({ ...wx(t0 + k * 15 * MIN, 1, 'clear', temperature)[0] }));
+    const flips: boolean[] = series.map((o) => lucyWeather(series, o.at).heat);
+    const switches = flips.filter((h, i) => i > 0 && h !== flips[i - 1]).length;
+    check('LU4 heat: hovering at the entry turns it on, hovering above the exit keeps it, a real cool-down ends it (2 switches)', switches === 2 && flips[7] && flips[15] && !flips[19], flips.map((f) => (f ? 'H' : '.')).join(''));
+
+    // LU5: the weather never moves her visits (it only changes how she spends them)
+    const ids = (obs: any[]) => {
+      const seen = new Set<string>();
+      for (let t = at(22, 6); t < at(22, 22); t += 5 * MIN) {
+        const v = ev(t, { outsideToday: obs.filter((o) => o.at <= t) }).visit;
+        if (v && v.kind === 'day') seen.add(`${v.id}@${v.startedAt}`);
+      }
+      return [...seen].join(',');
+    };
+    const clearDay = wx(at(22, 0), 96, 'clear', 22);
+    const rainyDay = wx(at(22, 0), 96, 'rain', 12);
+    check('LU5 the same visits at the same times on a clear and on a rainy day', ids(clearDay) === ids(rainyDay) && ids(clearDay).length > 0, ids(clearDay));
+    const firstDay = p22.visits.find((v) => v.kind === 'day')!;
+    const into = firstDay.startedAt + 6 * MIN;
+    const hot = ev(into, { outsideToday: wx(at(22, 0), 96, 'clear', 33) });
+    const cold = ev(into, { outsideToday: wx(at(22, 0), 96, 'overcast', 4) });
+    check('LU5b heat: the cool floor, panting; cold: curled on her pillow', hot.visit?.spot === 'floor_left' && hot.visit.cue === 'panting' && cold.visit?.spot === 'pillow', `heat ${hot.visit?.spot}/${hot.visit?.cue} · cold ${cold.visit?.spot}`);
+
+    // LU6: a struggling tree: she stays close, longer, with check-ins, awake
+    const stressed = ev(into, { condition: 'very_dry' });
+    const calm = ev(into);
+    const longer = stressed.visit && calm.visit ? (stressed.visit.endsAt - stressed.visit.startedAt) / (calm.visit.endsAt - calm.visit.startedAt) : 0;
+    let checks = 0;
+    let asleepWhileStressed = 0;
+    for (let t = at(22, 6); t < at(22, 22); t += 5 * MIN) {
+      const v = ev(t, { condition: 'very_dry' }).visit;
+      if (v?.kind === 'check') checks++;
+      if (v && v.kind !== 'night' && v.pose === 'sleeping') asleepWhileStressed++;
+    }
+    check('LU6 stress: by the pot, watching (concern), 1.5× longer, check-ins between visits, never asleep', stressed.visit?.spot === 'by_pot' && stressed.visit.cue === 'concern' && Math.abs(longer - 1.5) < 0.01 && checks > 0 && asleepWhileStressed === 0, `${stressed.visit?.spot}/${stressed.visit?.cue} ×${longer.toFixed(2)} · ${checks} check polls`);
+    // LU7: no trustworthy data: still here, only neutral
+    const unsure = ev(into, { condition: 'very_dry', modifiers: ['sensor_uncertain'] });
+    check('LU7 uncertain data: she is still there, without concern', unsure.visit?.id === calm.visit?.id && unsure.visit?.cue !== 'concern' && unsure.visit?.spot !== 'by_pot', `${unsure.visit?.spot}/${unsure.visit?.cue}`);
+
+    // LU8: hike day: away around the best hours, then a tired nap on the pillow
+    const hike = { today: true, detail: { from: 9, to: 13 } as any };
+    const hiking = ev(at(22, 11), { hike });
+    const back = ev(at(22, 14), { hike });
+    check('LU8 hike day: away on the hike, then back for a tired nap', hiking.presence === 'away_hiking' && back.visit?.kind === 'after_hike' && back.visit.spot === 'pillow' && back.presence === 'sleeping', `${hiking.presence} · ${back.visit?.kind} ${back.presence}`);
+
+    // LU9: deterministic; a storm brings her close; after the rain she comes in with a shake
+    check('LU9 deterministic (refresh, restart)', JSON.stringify(ev(into, { outsideToday: rainyDay })) === JSON.stringify(ev(into, { outsideToday: rainyDay })));
+    const free = (() => {
+      for (let t = at(22, 8); t < at(22, 20); t += 5 * MIN) if (!ev(t).visit && !ev(t - 60 * MIN).visit) return t;
+      return at(22, 12);
+    })();
+    const storm = ev(free, { outsideToday: wx(free - 60 * MIN, 5, 'thunderstorm', 18, 60) });
+    check('LU9b a storm brings her to the pot, awake', storm.visit?.kind === 'storm' && storm.visit.spot === 'by_pot' && storm.presence !== 'sleeping', storm.why);
+    const shake = ev(firstDay.startedAt + MIN, { rainEndedAt: firstDay.startedAt - 10 * MIN });
+    check('LU9c after the rain she comes in with a shake', shake.presence === 'walking' && shake.visit?.cue === 'shake_off', shake.why);
+
+    const diary = lucyDiary(wx(at(21, 0), 4 * 24 * 2, 'clear', 20), at(22, 23, 59), 2);
+    check('LU9d diary: her company per day and her nights by the pot', diary.filter((d) => d.title === 'Lucy kept me company').length === 2 && diary.every((d) => d.habitat === 'lucy'), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));
+  }
+
   finish();
 }
 

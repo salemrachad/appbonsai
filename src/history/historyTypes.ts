@@ -112,7 +112,7 @@ export interface DiaryItem {
   condition?: HealthCondition;
   eventType?: PlantEventType;
   weather?: WeatherSpellKind;
-  habitat?: 'visit' | 'returned' | 'left' | 'drey_built' | 'drey_gone' | 'dragonfly' | 'sloth' | 'encounter' | 'traces' | 'peek' | 'wary' | 'settled' | 'sloth_home';
+  habitat?: 'visit' | 'returned' | 'left' | 'drey_built' | 'drey_gone' | 'dragonfly' | 'sloth' | 'encounter' | 'traces' | 'peek' | 'wary' | 'settled' | 'sloth_home' | 'lucy';
   said?: 'state' | 'day_line' | 'care_line' | 'musing' | 'observation'; // what kind of line the tree said
   moment?: MomentKind;
 }

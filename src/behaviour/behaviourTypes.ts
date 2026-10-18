@@ -199,6 +199,40 @@ export interface SlothState {
   why: string;
 }
 
+// Lucy: the household's Coton de Tuléar, a permanent companion by the pot (not a wild visitor). She comes by
+// 4–6 times a day on her household's clock, sleeps most nights on her pillow, takes her mood from the
+// outside weather, stays close when the tree struggles, and goes along on hike day. Art + context.
+export type LucySpot = 'floor_left' | 'pillow' | 'by_pot';
+export type LucyPose = 'walking' | 'sitting' | 'down' | 'sleeping';
+export type LucyCue = 'shake_off' | 'panting' | 'concern' | 'tired' | 'storm';
+export type LucyVisitKind = 'day' | 'night' | 'check' | 'storm' | 'after_hike';
+// The outside weather as she lives it: latches with enter/exit thresholds and durations (hysteresis)
+export interface LucyWeather {
+  heat: boolean;
+  cold: boolean;
+  storm: boolean;
+  rain: boolean;
+  fineDay: boolean;
+}
+export interface LucyVisit {
+  id: string;
+  kind: LucyVisitKind;
+  startedAt: number;
+  endsAt: number;
+  spot: LucySpot;
+  pose: LucyPose; // right now, from the visit's phases (walking in → sitting → down → sleeping → walking out)
+  phaseEndsAt: number; // when the current pose gives way to the next
+  cue: LucyCue | null;
+  settle: number; // 0-1: how ready to settle she was when she came (weather and the time of day)
+}
+export interface LucyState {
+  presence: 'none' | 'away_hiking' | LucyPose;
+  visit: LucyVisit | null;
+  weather: LucyWeather; // the latches now
+  visitsToday: { count: number; firstAt: number | null; minutes: number }; // planned visits begun today
+  why: string; // developer panel
+}
+
 // Two visitors in the tree at the same time (art): the squirrel peeks at the sloth, the squirrel watches the
 // dragonfly, the dragonfly rests on the sloth
 export type HabitatEncounter = 'squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth';
@@ -254,6 +288,7 @@ export interface HabitatState {
   visitsToday: { count: number; firstAt: number | null }; // squirrel visits so far today (for its thoughts)
   dragonfly?: DragonflyState; // the second wanderer (set by the behaviour engine)
   sloth?: SlothState; // the third wanderer
+  lucy?: LucyState; // the household dog by the pot (not a wanderer: she lives here)
   encounters?: HabitatEncounter[]; // visitors in the tree together right now (behaviour/encounters.ts)
   calmHours14d: number; // observed hours that raised it
   stressHours14d: number; // observed hours that lowered it
