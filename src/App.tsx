@@ -98,8 +98,7 @@ export default function App() {
       try {
         const { settings: serverSettings, configured } = await api.getConfig();
         if (cancelled) return;
-        if (configured || BACKEND.remote) {
-          // Against the Pi, the Pi's settings always win: a dev browser never seeds them
+        if (configured) {
           const merged = { ...DEFAULT_SETTINGS, ...serverSettings };
           settingsRef.current = merged;
           setSettings(merged);
@@ -114,9 +113,7 @@ export default function App() {
             /* storage unavailable */
           }
         }
-        // Old browser-only history is moved into the server that served this page, never into the Pi
-        // from a development browser (its localStorage would be the laptop's, not the tree's)
-        if (BACKEND.remote) return;
+        // Old browser-only history is moved into the server that served this page
         const imported = await importBrowserHistoryOnce();
         if (imported && (imported.telemetry || imported.events)) {
           notify(`Moved ${imported.telemetry} readings and ${imported.events} waterings into the local database`);
@@ -186,9 +183,7 @@ export default function App() {
   const statusLabel = previewing
     ? 'Test mode'
     : serverOffline
-    ? BACKEND.remote
-      ? 'Raspberry Pi offline'
-      : 'Server offline'
+    ? 'Server offline'
     : !snapshot
     ? 'Connecting…'
     : sensorDown
@@ -212,9 +207,9 @@ export default function App() {
   const isNight = atmosphere?.theme === 'night';
   const scene = atmosphere?.scene ?? 'calm';
   const offlineMessage = serverOffline
-    ? BACKEND.remote
-      ? `I can't reach the Raspberry Pi (${BACKEND.displayUrl}). Is it on, and is the Appbonsai service running?`
-      : "I can't reach my server. Is it running (npm run server, or npm run dev:local for development)?"
+    ? BACKEND.devBuild
+      ? "I can't reach my server. Is it running (npm run dev)?"
+      : "I can't reach my server right now. Check your connection; I'll try again."
     : null;
   const backendMode = snapshot?.status.backend?.mode;
   const changeKey = `${snapshot?.status.counts.episodes ?? 0}-${snapshot?.status.counts.events ?? 0}-${snapshot?.recentEpisodes[0]?.id ?? 0}`;
@@ -239,7 +234,7 @@ export default function App() {
             <MapPin className="w-3 h-3 text-[#4A6741]" />
             {settings.locationName}
           </span>
-          {BACKEND.devBuild && <BackendBadge remote={BACKEND.remote} mode={backendMode} offline={serverOffline} />}
+          {BACKEND.devBuild && <BackendBadge mode={backendMode} offline={serverOffline} />}
           {perception?.season && <SeasonChip season={previews.season ? midSeasonState(previews.season, settings.latitude) : perception.season} />}
         </div>
 

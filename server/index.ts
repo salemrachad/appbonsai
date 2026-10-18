@@ -12,13 +12,14 @@ import { openDatabase } from './nodeSqlite';
 
 // The Appbonsai server: polls the ESP32, stores everything in SQLite, runs the living loop
 // (perception → health → behaviour → expression) and serves it on /api (and the built app on /).
-// Local network only: no accounts, no cloud.
+// The live tree runs on Cloudflare (worker/index.ts, the same routes via server/app.ts); this is the
+// laptop's (or any machine's) Node server. Local network only: no accounts.
 //
 // Two modes:
-// - production (`npm run server`, on the Raspberry Pi under systemd): THE authoritative collector
-//   and database. Listens on the local network so the laptop's dev frontend can use it.
-// - local-dev (`npm run dev:local`, flag --local-dev): a separate, throwaway full stack on this
-//   machine with its own database (data/appbonsai-dev.db). Listens on 127.0.0.1 only.
+// - production (`npm run server`): a self-hosted collector and database (data/appbonsai.db), listening
+//   on the local network and serving the built app.
+// - local-dev (`npm run dev`, flag --local-dev): a separate, throwaway full stack on this machine with
+//   its own database (data/appbonsai-dev.db). Listens on 127.0.0.1 only.
 
 const localDev = process.argv.includes('--local-dev') || process.env.APPBONSAI_MODE === 'local-dev';
 const mode: BackendInfo['mode'] = localDev ? 'local-dev' : 'production';

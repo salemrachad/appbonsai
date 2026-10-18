@@ -1,7 +1,7 @@
 import React from 'react';
 
-// The last line of defence: an error while rendering shows what broke instead of a blank page (e.g. the
-// laptop's frontend newer than the Pi's server). Nothing is sent anywhere; reload tries again.
+// The last line of defence: an error while rendering shows what broke instead of a blank page (e.g. a page
+// still open from before a deploy, reading a server that has changed). Nothing is sent anywhere; reload tries again.
 export class ErrorScreen extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
 
@@ -27,8 +27,8 @@ export class ErrorScreen extends React.Component<{ children: React.ReactNode }, 
           <div className="text-2xl">🌱</div>
           <h1 className="serif text-2xl font-semibold">Something broke while drawing the tree</h1>
           <p className="sans text-sm opacity-75">
-            The real bonsai and its data are fine: this is only the screen. If the laptop's app is newer than the Pi's
-            server, updating the Pi (<code>git pull</code>, then restart the server) usually fixes it.
+            The real bonsai and its data are fine: this is only the screen. If the app was just updated, reloading the
+            page usually fixes it.
           </p>
           <pre className="sans text-xs whitespace-pre-wrap break-words rounded-lg bg-[var(--tone-alert)]/10 text-[var(--tone-alert)] p-3">
             {error.name}: {error.message}

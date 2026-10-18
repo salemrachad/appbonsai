@@ -141,6 +141,11 @@ rarest but worst is losing the Cloudflare account (the Pi's history was lost for
 2. **Monthly, by hand, outside Cloudflare:** `npm run cf:backup` saves the whole tree to
    `backups/appbonsai-<date>.json.gz` (gitignored), to keep in Google Drive.
 
+**Known issue (2026-10-18, left for later):** the automatic nightly trigger hasn't produced a backup on the
+live tree yet. The first one, 000001, was made by hand with `cf:backup -- --now`, which works. Next step: check
+the Worker's logs (`npx wrangler tail`, or Observability) for whether the alarm runs `backup()` at all. Until
+then, make one by hand now and then.
+
 **Commands and routes** (all behind the password):
 
 | Command | What it does |

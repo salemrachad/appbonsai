@@ -1,118 +1,67 @@
 # Appbonsai
 
-A digital living companion for one real Ficus bonsai. An ESP32 on the balcony measures soil, air and light;
-the Appbonsai server collects the readings into SQLite and runs the living loop
+A digital living companion for one real Ficus bonsai. An ESP32 in the greenhouse measures soil, air and light
+and sends its readings every minute; the server stores them and runs the living loop
 (perception → health → behaviour → expression); a React app shows the tree.
 
-> **The Raspberry Pi is gone** (2026-10-17). The sections below about the Pi describe how it used to run. The
-> server is moving to Cloudflare with the ESP32 pushing its readings: see [docs/HOSTING.md](docs/HOSTING.md).
-> Until then, `npm run dev:local` is the only running stack.
-
-## One collector, one database: the Raspberry Pi
+## How it runs: Cloudflare
 
 ```
-ESP32 (bonsai.local)
-  ↓  polled every minute
-Raspberry Pi: Appbonsai server (npm run server, systemd)
-  ├─ collector         ← the ONLY process that polls the ESP32
-  ├─ SQLite            ← data/appbonsai.db, the authoritative history
-  ├─ Health + Behaviour engines
-  └─ HTTP API on :3001 (+ the built app)
-       ↓  HTTP only
-Laptop: Vite dev frontend (npm run dev)
+ESP32 (at the pot)
+  ↓  HTTPS push every minute: POST /api/ingest with its device token
+Cloudflare
+  ├─ front Worker       ← a password for the app; /api/ingest takes the device token instead
+  ├─ the app            ← the built frontend (static assets)
+  └─ the tree's Durable Object
+       ├─ its own SQLite: readings, care, episodes, memories, devices
+       ├─ the collector (the living loop) and the API
+       └─ an alarm: overdue pushes, outside weather, the hike forecast, the nightly backup (to KV)
 ```
 
-The laptop never opens the Pi's database and never polls the ESP32 in normal development. It only talks
-to the Pi's HTTP API, so the Pi stays the authority. Care events you log or settings you save from the
-laptop go through that API into the Pi's database, exactly as from the production app.
+- **The app:** https://appbonsai.appbonsai.workers.dev (any user name, the app's password). Works from anywhere.
+- **Deploying:** a push to `main` runs the type-check, all tests and the build on Cloudflare (Workers Builds),
+  then deploys. Other branches get a preview with its own empty tree. `npm run cf:deploy` is the manual fallback.
+- **Backups:** nightly in KV, plus `npm run cf:backup` for a copy to keep elsewhere (e.g. Google Drive).
+- Decisions, the push protocol, deploying and backups: [docs/HOSTING.md](docs/HOSTING.md).
 
-| Mode | Command | Polls the ESP32 | Writes telemetry / history | Database |
-|---|---|---|---|---|
-| **Production (Pi)** | `npm run server` (systemd) | **yes** | **yes** | `data/appbonsai.db` on the Pi |
-| **Laptop dev against the Pi** (default) | `npm run dev` = `npm run dev:remote` | no | no (only via the Pi's API) | none on the laptop |
-| **Local full stack** (only when needed) | `npm run dev:local` | **yes, a second collector** | **yes, a separate history** | `data/appbonsai-dev.db` on the laptop |
+The Raspberry Pi that used to collect everything is gone (2026-10-17); its history went with it.
 
-## Production on the Raspberry Pi
+## Developing on the laptop
 
 ```bash
 npm install
-npm run build      # builds the frontend into dist/
-npm run server     # API + ESP32 collector + SQLite, serves dist/ too
+npm run dev        # = npm run dev:local
 ```
 
-Normally systemd runs `npm run server` automatically at boot and restarts it, so you only rebuild and
-restart after pulling changes:
+Starts Vite on http://localhost:3000 **and a local development server** with its own collector and its own
+database, `data/appbonsai-dev.db`: a separate history that the live tree never sees. The terminal shows a
+`LOCAL DEVELOPMENT BACKEND` banner and the app a yellow **LOCAL DEV DB** badge. The local server listens on
+127.0.0.1 only; Vite proxies `/api` to it.
 
-```bash
-git pull && npm install && npm run build && sudo systemctl restart appbonsai   # use your unit's name
-```
+To try the Cloudflare side itself on the laptop: `npm run cf:dev` (the Worker and the tree's object in
+wrangler's local runtime; its password in the gitignored `.dev.vars`, e.g. `APP_PASSWORD=local-test`).
 
-- The server listens on `0.0.0.0:3001`, so the app is at **http://ender3.local:3001** and the laptop can
-  reach the API. Port 80 on the Pi belongs to Mainsail/Moonraker, not Appbonsai.
-- The API accepts browser requests only from this machine and the local network (localhost, private IPs,
-  `*.local` names). There are no accounts: keep port 3001 off the internet.
-- Optional settings for the systemd unit (`Environment=...`): `APPBONSAI_API_PORT`, `APPBONSAI_HOST`,
-  `APPBONSAI_DB`, `APPBONSAI_CORS_ORIGINS`, `APPBONSAI_SERVE_APP` (see `.env.example`).
+## Commands
 
-An example unit (`/etc/systemd/system/appbonsai.service`), in case you need to recreate it (adjust the user and path to your checkout):
+| Command | What it does |
+|---|---|
+| `npm run check` | Type-check (app, server, Worker) + all tests. Run before every push: a push to main is a deploy |
+| `npm test` | The scenario suites (engines, collector, behaviour) and the golden master (a scripted three days that must stay identical); in-memory databases |
+| `npm run cf:deploy` | Build and deploy by hand (the fallback to Workers Builds) |
+| `npm run cf:backup [-- --nightly \| --now]` | A copy of the live tree in `backups/` (gitignored), or rebuild it from the nightly backups, or back up now |
+| `npm run cf:migrate -- status` | What the live tree has: devices, last push, readings. `migrate --file <backup>` restores a backup into an empty tree |
+| `npm run device -- add <id> [label]` | An ESP32 allowed to push to the laptop's server (`--local-dev` for the dev database) |
+| `npm run server` | A self-hosted Node server instead of Cloudflare: API + collector + `data/appbonsai.db`, serves `dist/` |
+| `npm run db:inspect` | Read-only summary of a local database (`APPBONSAI_DB` picks the file) |
 
-```ini
-[Unit]
-Description=Appbonsai server (ESP32 collector + SQLite + API)
-After=network-online.target
-Wants=network-online.target
+`npm run cf:migrate` and `cf:backup` read the app's address and password from `.env.cloud` (gitignored); see
+`.env.example`.
 
-[Service]
-WorkingDirectory=/home/rachad/appbonsai
-ExecStart=/usr/bin/npm run server
-Restart=always
-User=rachad
+## The ESP32
 
-[Install]
-WantedBy=multi-user.target
-```
-
-## Laptop development against the Pi (normal)
-
-Once: create `.env.remote` (gitignored) with the Pi's API address:
-
-```bash
-VITE_API_BASE_URL=http://ender3.local:3001
-```
-
-Then:
-
-```bash
-npm run dev        # same as npm run dev:remote
-```
-
-Open http://localhost:3000. This runs **only Vite**. There's no local API, no collector and no local
-database. Every API call goes from your browser straight to the Pi. The terminal prints
-`Backend: Raspberry Pi / remote → …`. In the app, a green `PI · …` badge in the header and the
-**Backend** box in the Developer panel show the API address, who collects and which database it is.
-If the Pi is off, the header says **Raspberry Pi offline** and the tree tells you which address it
-couldn't reach.
-
-Without `VITE_API_BASE_URL`, `npm run dev:remote` refuses to start rather than guessing.
-
-## Local full-stack development (separate history)
-
-```bash
-npm run dev:local
-```
-
-Starts Vite **and a local development server** with its own collector and its own database,
-`data/appbonsai-dev.db`. **This writes a separate development history**: it polls the ESP32 (if the
-dev settings point at it) and records readings, care events and episodes that the Pi never sees.
-The terminal shows a `LOCAL DEVELOPMENT BACKEND` banner, and the app shows a yellow **LOCAL DEV DB**
-badge. The local server only listens on 127.0.0.1. Use it to test server or collector changes; for
-everything else use `npm run dev`.
-
-## Other commands
-
-- `npm test`: the scenario suites (engines, collector, behaviour) and the golden master (`scripts/golden.ts`, a scripted three days that must stay identical). They use in-memory databases.
-- `npm run check`: type-check + all tests.
-- `npm run lint`: type-check.
-- `npm run db:inspect`: read-only summary of `data/appbonsai.db` (`APPBONSAI_DB` picks another file).
+`firmware/appbonsai_esp32/` (firmware 1.2.x): FC-28 soil probe, LDR, HTS221. Its page on the home Wi-Fi
+(`http://bonsai.local`) shows the readings and the push status; `/settings` holds the server address and the
+device token. It takes firmware updates over Wi-Fi (`POST /update` with the device token, see
+`docs/HOSTING.md`).
 
 Architecture details for contributors live in `CLAUDE.md`.

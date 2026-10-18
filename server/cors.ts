@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
-// CORS for the API, so a development frontend on the laptop (e.g. http://localhost:3000) can read
-// from and talk to the Raspberry Pi. Only browser origins on this machine or the local network are
+// CORS for the laptop's API (npm run dev / npm run server), so a page from another local origin can
+// talk to it. (The Cloudflare Worker serves the page and the API from one origin and needs none.) Only browser origins on this machine or the local network are
 // allowed: loopback, private IPv4 ranges, and *.local mDNS names. Anything else gets no CORS headers,
 // so other websites can't drive the API from a visitor's browser.
 // APPBONSAI_CORS_ORIGINS adds exact origins (comma-separated), e.g. "http://my-laptop.lan:3000".

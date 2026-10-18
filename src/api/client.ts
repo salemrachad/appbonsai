@@ -5,7 +5,7 @@ import type { CaptureStats } from '../telemetry/calibration';
 import { apiUrl, BACKEND } from '../config/backend';
 
 // Frontend → the Appbonsai server. Every API call goes through here, and the address comes only
-// from src/config/backend.ts (the Raspberry Pi via VITE_API_BASE_URL, or the same origin).
+// from src/config/backend.ts (always the same origin: the server that served this page).
 async function send(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<Response> {
   try {
     return await fetch(apiUrl(path), {

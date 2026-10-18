@@ -573,7 +573,7 @@ The owner's **Living Art V1 audit** listed the gaps below. **The audit document 
 
 | Audit finding | Status now |
 |---|---|
-| Watering detection produced false positives. | Addressed in design: confirmation, spike and probe-pull rejection, sessions, calibration pause, all covered by `npm run test:collector`. **Not yet validated against weeks of real Pi data.** |
+| Watering detection produced false positives. | Addressed in design: confirmation, spike and probe-pull rejection, sessions, calibration pause, all covered by `npm run test:collector`. **Not yet validated against weeks of real sensor data.** |
 | Sensor thresholds and biological durations need validation. | Still open: all soil/light numbers are PROTOTYPE. |
 | Seasonal behaviour is incomplete. | Partial: season is perceived, blended and expressed in all three layers; it still doesn't affect health or water need. |
 | Some behaviour/expression values never reach the avatar. | Partly fixed: motion, gaze, gesture, filter, droop, reactionStrength, seasonal leaves and scenes are rendered. The `layers.epidermal` and `layers.diffraction` text only reaches the debug panel. Re-audit the rest. |

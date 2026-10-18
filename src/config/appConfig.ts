@@ -3,9 +3,9 @@
 
 export const APP_CONFIG = {
   server: {
-    port: 3001, // Appbonsai API + collector (on the Pi: http://<pi>:3001; npm run dev:local proxies /api here)
-    dbPath: 'data/appbonsai.db', // production (the Pi): the authoritative history
-    devDbPath: 'data/appbonsai-dev.db', // npm run dev:local: a separate, throwaway development history
+    port: 3001, // the laptop's Appbonsai API + collector (npm run dev proxies /api here)
+    dbPath: 'data/appbonsai.db', // npm run server (self-hosted); the live tree's history is on Cloudflare
+    devDbPath: 'data/appbonsai-dev.db', // npm run dev: a separate, throwaway development history
   },
 
   polling: {

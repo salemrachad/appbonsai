@@ -4,8 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run dev:remote",
-    "dev:remote": "vite --mode remote --port=3000 --strictPort --host=0.0.0.0",
+    "dev": "npm run dev:local",
     "dev:local": "concurrently -n web,LOCAL-DEV-API -c green,yellow \"npm:dev:local:web\" \"npm:dev:local:api\"",
     "dev:local:web": "vite --mode fullstack --port=3000 --strictPort --host=0.0.0.0",
     "dev:local:api": "tsx watch --clear-screen=false server/index.ts --local-dev",
