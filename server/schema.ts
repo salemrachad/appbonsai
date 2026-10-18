@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS behaviour_episodes (
   engine_version TEXT    NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_episodes_started ON behaviour_episodes(started_at);
+-- Episodes still relevant since a time (episodesSince, every poll) and the last closed one: by index, never a
+-- scan of the whole (ever-growing) table (a Durable Object bills rows read)
+CREATE INDEX IF NOT EXISTS idx_episodes_last_seen ON behaviour_episodes(last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_episodes_ended ON behaviour_episodes(ended_at);
 
 -- Every calibration change: which sensor, old and new values. Explains later shifts in percentages.
 -- (Raw telemetry is never rewritten; calibration only changes how raw values are interpreted.)

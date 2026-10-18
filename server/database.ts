@@ -547,7 +547,9 @@ export class AppDatabase {
     this.all('UPDATE behaviour_episodes SET ended_at = ?, last_seen_at = MAX(last_seen_at, ?) WHERE id = ?', endedAt, endedAt, id);
   }
   episodesSince(since: number): BehaviourEpisode[] {
-    return this.all('SELECT * FROM behaviour_episodes WHERE COALESCE(ended_at, last_seen_at) >= ? ORDER BY started_at DESC', since).map(toEpisode);
+    // last_seen_at >= since is implied (closing sets last_seen_at = MAX(last_seen_at, ended_at), and the open one's
+    // only moves forward), so it adds no row and lets the index answer instead of reading the whole table
+    return this.all('SELECT * FROM behaviour_episodes INDEXED BY idx_episodes_last_seen WHERE last_seen_at >= ? AND COALESCE(ended_at, last_seen_at) >= ? ORDER BY started_at DESC', since, since).map(toEpisode);
   }
   episodeCount(): number {
     return this.countOf('behaviour_episodes');

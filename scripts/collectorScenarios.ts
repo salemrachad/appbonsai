@@ -900,6 +900,21 @@ async function main() {
     check('RR3 a day with the page open stays far under the free tier (< 1 M rows)', day < 1_000_000, `${day} rows returned in the day`);
   }
 
+  // The per-poll episode queries are answered by an index, never by reading the whole (ever-growing) table
+  {
+    const d = new DatabaseSync(':memory:');
+    const { SCHEMA_SQL } = await import('../server/schema');
+    d.exec(SCHEMA_SQL);
+    const plan = (q: string) => (d.prepare(`EXPLAIN QUERY PLAN ${q}`).all(...Array((q.match(/\?/g) ?? []).length).fill(0)) as { detail: string }[]).map((r) => r.detail).join('; ');
+    const plans = [
+      plan('SELECT * FROM behaviour_episodes INDEXED BY idx_episodes_last_seen WHERE last_seen_at >= ? AND COALESCE(ended_at, last_seen_at) >= ? ORDER BY started_at DESC'),
+      plan('SELECT * FROM behaviour_episodes WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1'),
+      plan('SELECT * FROM behaviour_episodes WHERE ended_at IS NOT NULL ORDER BY ended_at DESC LIMIT 1'),
+    ];
+    const dbSrc = fs.readFileSync(path.join(import.meta.dirname, '..', 'server', 'database.ts'), 'utf8');
+    check('RR5 episode queries use an index (no whole-table scan per poll)', plans.every((p) => /SEARCH behaviour_episodes USING INDEX/.test(p)) && dbSrc.includes('INDEXED BY idx_episodes_last_seen'), plans.join(' | '));
+  }
+
   // The cached diary equals the diary read straight from the database (new rows, backfill, a restore)
   {
     const { diaryFor } = await import('../server/routes/history');
