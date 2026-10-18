@@ -104,14 +104,21 @@ export interface DailySummary {
 // A line in the plant diary.
 export interface DiaryItem {
   at: number;
-  kind: 'episode_start' | 'episode_gap' | 'event' | 'weather' | 'habitat'; // weather: outside, context only; habitat: the squirrel
+  // weather: outside, context only; habitat: the visitors; said: the tree's own words (as it said them);
+  // moment: a fact found in the day's readings; day_summary: the day in short, closing a finished day
+  kind: 'episode_start' | 'episode_gap' | 'event' | 'weather' | 'habitat' | 'said' | 'moment' | 'day_summary';
   title: string;
   detail?: string;
   condition?: HealthCondition;
   eventType?: PlantEventType;
   weather?: WeatherSpellKind;
   habitat?: 'visit' | 'returned' | 'left' | 'drey_built' | 'drey_gone' | 'dragonfly' | 'sloth' | 'encounter' | 'traces' | 'peek' | 'wary' | 'settled' | 'sloth_home';
+  said?: 'state' | 'day_line' | 'care_line' | 'musing' | 'observation'; // what kind of line the tree said
+  moment?: MomentKind;
 }
+
+// The moments of a day found in its readings (src/history/moments.ts)
+export type MomentKind = 'brightest' | 'warmest' | 'coolest_night' | 'humid_morning' | 'first_light' | 'quick_change';
 
 // A notable stretch of outside weather (the tree is in a greenhouse: context, never the tree's state).
 export type WeatherSpellKind = 'rain' | 'storm' | 'snow' | 'fog' | 'frost';

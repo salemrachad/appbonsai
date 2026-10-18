@@ -22,7 +22,7 @@ export interface SqlDriver {
 
 // A whole tree's data, to move it to another server (scripts/cloudMigrate.ts → POST /api/admin/restore).
 // The tree's own id stays with the server it lands on; its devices are moved to that tree.
-export const DUMP_TABLES = ['telemetry', 'plant_events', 'behaviour_episodes', 'calibration_history', 'interactions', 'outside_weather', 'devices'] as const;
+export const DUMP_TABLES = ['telemetry', 'plant_events', 'behaviour_episodes', 'calibration_history', 'interactions', 'outside_weather', 'devices', 'utterances'] as const;
 export interface DatabaseDump {
   schemaVersion: number;
   tables: Record<(typeof DUMP_TABLES)[number], Row[]>;
@@ -31,7 +31,7 @@ export interface DatabaseDump {
 
 // The tables that grow all the time. A nightly backup (server/backup.ts) takes only their rows added since the
 // last one (by id, so a reading stored late, e.g. from the device's buffer, is still caught), the rest whole.
-export const GROWING_TABLES = ['telemetry', 'outside_weather'] as const;
+export const GROWING_TABLES = ['telemetry', 'outside_weather', 'utterances'] as const;
 export type BackupCursor = Record<(typeof GROWING_TABLES)[number], number>; // the highest id already backed up
 
 // after: only the growing tables' rows with a higher id (a nightly backup); without it, everything
@@ -43,6 +43,15 @@ export function dumpDatabase(sql: SqlDriver, after?: BackupCursor): DatabaseDump
   const meta = Object.fromEntries(sql.all("SELECT key, value FROM meta WHERE key NOT IN ('schema_version', 'backup_state')").map((r) => [r.key, json(r.value, null)]));
   const version = sql.all("SELECT value FROM meta WHERE key = 'schema_version'")[0];
   return { schemaVersion: version ? Number(json(version.value, 0)) : 0, tables, meta };
+}
+
+export type UtteranceKind = 'state' | 'day_line' | 'care_line' | 'musing' | 'observation';
+export interface Utterance {
+  id: number;
+  at: number;
+  key: string;
+  kind: UtteranceKind;
+  text: string;
 }
 
 export interface TreeRecord {
@@ -431,6 +440,14 @@ export class AppDatabase {
   }
   deleteDevice(id: string): boolean {
     return this.all('DELETE FROM devices WHERE id = ? RETURNING id', id).length > 0;
+  }
+
+  // ---- what the tree said (the diary keeps its words) ----
+  insertUtterance(u: Omit<Utterance, 'id'>) {
+    this.all('INSERT INTO utterances (at, key, kind, text) VALUES (?, ?, ?, ?)', u.at, u.key, u.kind, u.text);
+  }
+  utterancesSince(since: number): Utterance[] {
+    return this.all('SELECT id, at, key, kind, text FROM utterances WHERE at >= ? ORDER BY at', since) as Utterance[];
   }
 
   // ---- behaviour episodes ----

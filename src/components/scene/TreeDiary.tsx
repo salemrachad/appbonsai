@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../../api/client';
 import { weekdayName, withHikeDefaults, type HikeDayScore, type HikePlan } from '../../behaviour/hike';
 import { hikeAdvice, hikeSays } from '../../behaviour/messages';
 import type { DiaryItem } from '../../history/historyTypes';
+import { dayStartOf } from '../../history/moments';
 import { hhmm, MIN } from '../../lib/time';
 import { WEATHER_ICON } from './WeatherChip';
 
 const OPEN_KEY = 'appbonsai_tree_diary_open_v1'; // per-viewer convenience: the diary folded or not
-const SHOWN = 3; // the latest diary lines shown as bubbles (the hike is extra)
-const REFRESH_MS = 10 * MIN;
+const REFRESH_MS = 5 * MIN; // besides reloadKey (something new was said or happened)
 
 const readOpen = () => {
   try {
@@ -19,19 +19,31 @@ const readOpen = () => {
   }
 };
 
-// The tree's diary as a few quiet chat bubbles over the left of the scene: the week's hike as the tree
-// picked it (pinned on top, in the open sky above the crown) and the latest lines of today's diary
-// (/api/history/diary) in a narrow column below it, left of the crown. Folds away to a small label.
-export const TreeDiary: React.FC<{ hike: HikePlan | null; hikePreview?: boolean; onChooseHike?: (day: string) => void }> = ({ hike, hikePreview = false, onChooseHike }) => {
+// The tree's diary as quiet chat bubbles over the left of the scene: the week's hike as the tree picked it
+// (pinned on top, in the open sky above the crown) and ALL of today's diary (/api/history/diary: the same list
+// as History) in a narrow column below it, left of the crown, oldest first, scrolling and kept at its newest
+// line. Folds away to a small label. reloadKey: changes when the tree says something new or an episode or
+// care event changes, so the column follows the tree at once.
+export const TreeDiary: React.FC<{ hike: HikePlan | null; hikePreview?: boolean; onChooseHike?: (day: string) => void; reloadKey?: string; onOpenDiary?: () => void }> = ({
+  hike,
+  hikePreview = false,
+  onChooseHike,
+  reloadKey = '',
+  onOpenDiary,
+}) => {
   const [open, setOpen] = useState(readOpen);
   const [items, setItems] = useState<DiaryItem[]>([]);
+  const column = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
     const load = () =>
       api
         .diary(1)
-        .then((d) => alive && setItems([...d].sort((a, b) => a.at - b.at).slice(-SHOWN)))
+        .then((d) => {
+          const today = dayStartOf(Date.now());
+          if (alive) setItems([...d].filter((i) => i.at >= today).sort((a, b) => a.at - b.at));
+        })
         .catch(() => {});
     load();
     const t = setInterval(load, REFRESH_MS);
@@ -39,7 +51,13 @@ export const TreeDiary: React.FC<{ hike: HikePlan | null; hikePreview?: boolean;
       alive = false;
       clearInterval(t);
     };
-  }, []);
+  }, [reloadKey]);
+
+  // Keep the column at its newest line
+  useEffect(() => {
+    const el = column.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [items, open]);
 
   const toggle = () => {
     setOpen((o) => {
@@ -70,25 +88,37 @@ export const TreeDiary: React.FC<{ hike: HikePlan | null; hikePreview?: boolean;
       {open && (
         <>
           {hike && <HikeBubble plan={hike} preview={hikePreview} onChoose={onChooseHike} />}
-          <div className="max-w-[9.5rem] flex flex-col items-start gap-1">
+          <div ref={column} className="max-w-[9.5rem] max-h-[min(24rem,48vh)] overflow-y-auto overscroll-contain pr-1 flex flex-col items-start gap-1">
             {items.map((item) => (
-              <Bubble key={`${item.at}-${item.title}`} at={item.at} title={item.detail}>
-                {item.title}
+              <Bubble key={`${item.at}-${item.kind}-${item.title}`} at={item.at} title={item.detail} kind={item.kind}>
+                {item.kind === 'said' ? `“${item.title}”` : item.kind === 'moment' && item.detail ? `${item.title} · ${item.detail}` : item.title}
               </Bubble>
             ))}
           </div>
+          {onOpenDiary && (
+            <button id="tree-diary-full" type="button" onClick={onOpenDiary} className="sans text-[10px] text-[var(--ink)]/45 hover:text-[var(--ink)]/75 pl-1 cursor-pointer">
+              Full diary →
+            </button>
+          )}
         </>
       )}
     </div>
   );
 };
 
-// One line of the diary: a soft bubble from the tree, its time underneath
-const Bubble: React.FC<{ at?: number; title?: string; accent?: boolean; children: React.ReactNode }> = ({ at, title, accent = false, children }) => (
+// One line of the diary: a soft bubble, its time underneath. What the tree said is in its own voice (serif,
+// in quotes); a moment from the readings is smaller and muted; the rest is the plain record.
+const Bubble: React.FC<{ at?: number; title?: string; accent?: boolean; kind?: DiaryItem['kind']; children: React.ReactNode }> = ({ at, title, accent = false, kind, children }) => (
   <div className="max-w-full tree-diary-in" title={title}>
     <div
-      className={`rounded-2xl rounded-tl-md backdrop-blur-md leading-snug text-[var(--ink)]/80 ${
-        accent ? 'px-3 py-1.5 text-[12.5px] bg-[var(--paper)]/75 border border-[#D97757]/25 shadow-sm' : 'px-2.5 py-1 text-[11.5px] bg-[var(--paper)]/60 border border-[var(--ink)]/5'
+      className={`rounded-2xl rounded-tl-md backdrop-blur-md leading-snug ${
+        accent
+          ? 'px-3 py-1.5 text-[12.5px] text-[var(--ink)]/80 bg-[var(--paper)]/75 border border-[#D97757]/25 shadow-sm'
+          : kind === 'said'
+          ? 'px-2.5 py-1 serif italic text-[12.5px] text-[var(--ink)]/85 bg-[var(--paper)]/70 border border-[#4A6741]/15'
+          : kind === 'moment'
+          ? 'px-2.5 py-0.5 sans text-[10.5px] text-[var(--ink)]/55 bg-[var(--paper)]/45 border border-[var(--ink)]/5'
+          : 'px-2.5 py-1 text-[11.5px] text-[var(--ink)]/80 bg-[var(--paper)]/60 border border-[var(--ink)]/5'
       }`}
     >
       {children}

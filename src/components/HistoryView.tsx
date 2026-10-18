@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Squirrel, Home, Sparkles, PawPrint, Users } from 'lucide-react';
+import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Squirrel, Home, Sparkles, PawPrint, Users, MessageCircle, Sunrise, Droplets, Activity, CalendarCheck } from 'lucide-react';
 import type { HealthCondition } from '../health/healthTypes';
-import type { DailySummary, DiaryItem, PlantEventType, WeatherSpellKind } from '../history/historyTypes';
+import type { DailySummary, DiaryItem, MomentKind, PlantEventType, WeatherSpellKind } from '../history/historyTypes';
 import { hhmm } from '../lib/time';
 
 interface HistoryViewProps {
@@ -30,6 +30,16 @@ const EVENT_ICON: Record<PlantEventType, { Icon: typeof Droplet; color: string }
   repotting: { Icon: Package, color: '#8F5E24' },
   moved_location: { Icon: MapPin, color: '#8F5E24' },
   manual_note: { Icon: StickyNote, color: '#6B7A8F' },
+};
+
+// Moments from the day's readings: muted, the facts around the tree's own words
+const MOMENT_ICON: Record<MomentKind, { Icon: typeof Droplet; color: string }> = {
+  brightest: { Icon: Sun, color: '#C99A3A' },
+  first_light: { Icon: Sunrise, color: '#C99A3A' },
+  warmest: { Icon: Thermometer, color: '#D9A27A' },
+  coolest_night: { Icon: Thermometer, color: '#7C8FA3' },
+  humid_morning: { Icon: Droplets, color: '#7C8FA3' },
+  quick_change: { Icon: Activity, color: '#8B7B66' },
 };
 
 const CALM: HealthCondition[] = ['thriving', 'comfortable', 'recovering', 'very_bright'];
@@ -141,8 +151,22 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
           <div key={g.heading} className="space-y-1">
             <h3 className="sans text-[10px] font-bold uppercase tracking-widest text-[#2D332A]/50 pb-1">{g.heading}</h3>
             {g.items.map((item, i) => {
+              if (item.kind === 'day_summary')
+                return (
+                  <div key={`${item.at}-${i}`} className="flex items-start gap-3 my-1 px-3 py-2 rounded-xl bg-[#4A6741]/6 border border-[#4A6741]/15">
+                    <CalendarCheck className="w-3.5 h-3.5 mt-0.5 shrink-0 text-[#4A6741]" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="sans text-xs font-semibold text-[#2D332A]">{item.title}</span>
+                      {item.detail && <span className="sans text-[11px] text-[#2D332A]/65">{item.detail}</span>}
+                    </div>
+                  </div>
+                );
               const { Icon, color } =
-                item.kind === 'event' && item.eventType
+                item.kind === 'said'
+                  ? { Icon: MessageCircle, color: '#4A6741' }
+                  : item.kind === 'moment' && item.moment
+                  ? MOMENT_ICON[item.moment]
+                  : item.kind === 'event' && item.eventType
                   ? EVENT_ICON[item.eventType]
                   : item.kind === 'weather' && item.weather
                   ? { Icon: WEATHER_ICON[item.weather], color: '#7C8FA3' }
@@ -164,7 +188,11 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
                   </span>
                   {item.kind === 'episode_gap' ? <X className="w-3.5 h-3.5 mt-0.5 text-[#2D332A]/40 shrink-0" /> : <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color }} />}
                   <div className="flex flex-col min-w-0">
-                    <span className={`sans text-xs ${item.kind === 'event' ? 'font-bold' : 'font-semibold'} text-[#2D332A]`}>{item.title}</span>
+                    {item.kind === 'said' ? (
+                      <span className="serif italic text-[13px] leading-snug text-[#2D332A]/90">“{item.title}”</span>
+                    ) : (
+                      <span className={`sans text-xs ${item.kind === 'event' ? 'font-bold text-[#2D332A]' : item.kind === 'moment' ? 'font-medium text-[#2D332A]/70' : 'font-semibold text-[#2D332A]'}`}>{item.title}</span>
+                    )}
                     {item.detail && <span className="sans text-[11px] text-[#2D332A]/55">{item.detail}</span>}
                   </div>
                 </div>

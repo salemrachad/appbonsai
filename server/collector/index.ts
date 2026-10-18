@@ -646,11 +646,22 @@ export class LivingCollector {
     this.meta.set('mood_memory', behaviour.moodState.memory);
     // When to speak or stay quiet; persisted so refreshes and restarts don't replay lines
     const speech = decideSpeech({ behaviour, severity: health.severity, memory: this.messageMemory, now });
+    const spokeNow = speech.memory.lastSpokenAt === now && this.messageMemory.lastSpokenAt !== now;
     if (speech.memory !== this.messageMemory) {
       this.messageMemory = speech.memory;
       this.meta.set('message_memory', speech.memory);
     }
     const expression = expressBehaviour({ behaviour, health, perception, speech: speech.decision, now });
+    // A new line: the diary keeps the tree's words as it said them
+    if (spokeNow && expression.message.text) {
+      const d = speech.decision;
+      this.db.insertUtterance({
+        at: now,
+        key: d.musing ? d.musing.id : d.careLine ?? d.dayLine ?? d.key,
+        kind: d.musing ? 'musing' : d.careLine ? 'care_line' : d.dayLine ? 'day_line' : d.observation ? 'observation' : 'state',
+        text: expression.message.text,
+      });
+    }
     this.state = { perception, health, behaviour, expression };
     this.meta.set('collector_state', { perception: { ...perception, recent: [], outsideToday: [] }, health, behaviour, expression });
     this.saveRuntime();

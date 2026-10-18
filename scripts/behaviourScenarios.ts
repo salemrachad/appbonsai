@@ -5,7 +5,7 @@ import './tz'; // first: the tree's timezone (the build machines run in UTC)
 import { evaluateBehaviour } from '../src/behaviour/BehaviourEngine';
 import { DAY_LINES, MESSAGE_CATALOG } from '../src/behaviour/messages';
 import { stableVariant } from '../src/behaviour/speech';
-import { Bench, check, cond, finish, Reading } from './bench';
+import { Bench, check, cond, finish, HOUR, Reading } from './bench';
 
 const MIN = 60 * 1000;
 const at = (d: number, h: number, m = 0) => new Date(2026, 5, d, h, m).getTime(); // June: sunrise ≈ 05:30, sunset ≈ 19:50
@@ -56,7 +56,9 @@ async function main() {
     await l.run(4 * 60, () => day());
     const ownLines = l.spoken.filter((x) => !x.reason.startsWith('a thought'));
     check('S1 comfortable 4h: at most 2 lines besides the thoughts of the day', ownLines.length <= 2, l.keys());
-    check('S1b mostly silent (animation only)', l.visiblePolls / l.polls < 0.2, `${Math.round((100 * l.visiblePolls) / l.polls)}% of polls showed a line`);
+    // Since 2026-10-18 the tree shares about twice the thoughts (each on screen 15 min, at least 40 min apart):
+    // still quiet most of the time
+    check('S1b mostly silent (animation only)', l.visiblePolls / l.polls < 0.35, `${Math.round((100 * l.visiblePolls) / l.polls)}% of polls showed a line`);
   }
 
   // 2 + 3. Becoming thirsty, then staying thirsty for hours
@@ -795,7 +797,7 @@ async function main() {
     check('T1 a calm day: several thoughts, within the day budget', thoughts.length >= 2 && thoughts.length <= Math.max(voice.budget, 6), `${thoughts.length} thoughts (budget ${voice.budget}): ${ids.join(' / ')}`);
     check('T1b each thought at most once a day', new Set(ids).size === ids.length);
     const gaps = thoughts.slice(1).map((x, i) => x.t - thoughts[i].t);
-    check('T2 spread over the day, never close together', gaps.every((g) => g >= 60 * MIN), gaps.map((g) => `${Math.round(g / MIN)}m`).join(', '));
+    check('T2 spread over the day, never close together (at least 40 min)', gaps.every((g) => g >= 40 * MIN), gaps.map((g) => `${Math.round(g / MIN)}m`).join(', '));
     check('T3 every thought is grounded: its words and its detail', thoughts.every((x) => x.text.length > 0) && !thoughts.some((x) => /\{\w+\}/.test(x.text)), thoughts.map((x) => x.text).join(' | '));
 
     // A stressed tree talks about its stress, not about its day
@@ -828,9 +830,64 @@ async function main() {
     const summer = voiceFor(95, 'active');
     const autumn = voiceFor(85, 'slowing');
     const winter = voiceFor(85, 'resting');
-    check('T5 the voice follows energy and season: thriving summer > calm autumn > winter rest', summer >= 5 && autumn >= 3 && autumn <= 4 && winter <= 2 && winter >= 1, `summer ${summer}, autumn ${autumn}, winter ${winter}`);
+    check('T5 the voice follows energy and season: thriving summer > calm autumn > winter rest', summer >= 9 && autumn >= 5 && autumn <= 7 && winter <= 4 && winter >= 2 && summer > autumn && autumn >= winter, `summer ${summer}, autumn ${autumn}, winter ${winter}`);
     const night = evaluateVoice({ health: base.health, perception: base.perception, species: ACTIVE_SPECIES, intent: 'content', timeOfDay: 'night', season: base.behaviour.season, relationship: base.behaviour.relationship, habitat: base.behaviour.habitat, canopy: base.behaviour.canopy, now: b.clock });
     check('T5b at night: no thoughts', night.budget === 0 && night.musings.length === 0);
+
+    // The new thoughts (2026-10-18): each only when its measured condition holds
+    type Voice = Parameters<typeof evaluateVoice>[0];
+    const sp = ACTIVE_SPECIES;
+    const thoughtsIf = (over: { timeOfDay?: Voice['timeOfDay']; readings?: Partial<Voice['perception']['readings']>; recent?: Voice['perception']['recent']; lastWateredAgo?: number }) =>
+      evaluateVoice({
+        health: { ...base.health, vitality: 90 },
+        perception: {
+          ...base.perception,
+          readings: { ...base.perception.readings, ...over.readings },
+          recent: over.recent ?? base.perception.recent,
+          care: { ...base.perception.care, lastWatering: over.lastWateredAgo === undefined ? null : ({ timestamp: b.clock - over.lastWateredAgo } as any) },
+        },
+        species: sp,
+        intent: 'content',
+        timeOfDay: over.timeOfDay ?? 'day',
+        season: base.behaviour.season,
+        relationship: base.behaviour.relationship,
+        habitat: base.behaviour.habitat,
+        canopy: base.behaviour.canopy,
+        now: b.clock,
+      }).musings.map((m) => m.id);
+    const useful = sp.light.usefulMinPercent;
+    const sample = (minAgo: number, temp: number, hum: number) => ({ ...base.perception.recent[0], t: b.clock - minAgo * MIN, temp, hum });
+    const hourOf = (hum: number) => Array.from({ length: 30 }, (_, i) => sample(i * 2, 22, hum));
+    const cooling = [sample(120, 26, 60), ...Array.from({ length: 30 }, (_, i) => sample(110 - i * 3, 25, 60))];
+    check(
+      'T6 light now: only with useful light by day (not in the evening)',
+      thoughtsIf({ readings: { lightPercent: useful + 10 } }).includes('light_now') && !thoughtsIf({ readings: { lightPercent: useful - 5 } }).includes('light_now') && !thoughtsIf({ timeOfDay: 'evening', readings: { lightPercent: useful + 10 } }).includes('light_now')
+    );
+    check(
+      'T6b evening cooling: only in the evening and 2 °C below two hours ago',
+      thoughtsIf({ timeOfDay: 'evening', readings: { temperature: 23.5 }, recent: cooling }).includes('evening_cooling') &&
+        !thoughtsIf({ timeOfDay: 'evening', readings: { temperature: 25.5 }, recent: cooling }).includes('evening_cooling') &&
+        !thoughtsIf({ timeOfDay: 'day', readings: { temperature: 23.5 }, recent: cooling }).includes('evening_cooling')
+    );
+    check(
+      'T6c cool morning: in the morning, within 2 °C above the optimal minimum',
+      thoughtsIf({ timeOfDay: 'morning', readings: { temperature: sp.temperature.minOptimal + 1 } }).includes('cool_morning') &&
+        !thoughtsIf({ timeOfDay: 'morning', readings: { temperature: sp.temperature.minOptimal + 4 } }).includes('cool_morning') &&
+        !thoughtsIf({ timeOfDay: 'morning', readings: { temperature: sp.temperature.minOptimal - 1 } }).includes('cool_morning')
+    );
+    check(
+      'T6d gentle air: humidity optimal for the last hour and the VPD optimal',
+      thoughtsIf({ readings: { vpd: 1, humidity: 60 }, recent: hourOf(60) }).includes('air_gentle') &&
+        !thoughtsIf({ readings: { vpd: 1, humidity: 60 }, recent: [...hourOf(60).slice(0, 29), sample(40, 22, 85)] }).includes('air_gentle') &&
+        !thoughtsIf({ readings: { vpd: 2, humidity: 60 }, recent: hourOf(60) }).includes('air_gentle')
+    );
+    check(
+      'T6e settled after a drink: 3 to 24 h after a watering, soil in range',
+      thoughtsIf({ readings: { soilMoisture: 60 }, lastWateredAgo: 5 * HOUR }).includes('settled_after_drink') &&
+        !thoughtsIf({ readings: { soilMoisture: 60 }, lastWateredAgo: HOUR }).includes('settled_after_drink') &&
+        !thoughtsIf({ readings: { soilMoisture: 60 }, lastWateredAgo: 30 * HOUR }).includes('settled_after_drink') &&
+        !thoughtsIf({ readings: { soilMoisture: 30 }, lastWateredAgo: 5 * HOUR }).includes('settled_after_drink')
+    );
   }
 
   console.log('\n— Canopy (the last weeks, drawn only) —');

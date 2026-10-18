@@ -12,6 +12,7 @@ import { openDatabase } from '../server/nodeSqlite';
 import { SCHEMA_VERSION } from '../server/schema';
 import { APP_CONFIG } from '../src/config/appConfig';
 import { Bench, check, cond, epList, finish, HOUR, MIN, START } from './bench';
+import { DAY } from '../src/lib/time';
 
 async function main() {
   console.log('— Watering detection —');
@@ -459,6 +460,7 @@ async function main() {
     cloud.device = { ...laptop.device };
     await cloud.boot();
     check('MV1 restored on the other server it resumes as the same tree: state, status, events, episodes', same(cloud) === same(laptop), JSON.stringify(counts));
+    check('DI3 what the tree said moves with it', laptop.db.utterancesSince(0).length > 0 && JSON.stringify(cloud.db.utterancesSince(0)) === JSON.stringify(laptop.db.utterancesSince(0)), `${laptop.db.utterancesSince(0).length} lines`);
     const d = cloud.db.getDevice(laptop.device.id);
     check('MV2 the device moved with its token hash, onto the new server\'s own tree', !!d && d.tokenHash === laptop.db.getDevice(laptop.device.id)!.tokenHash && d.treeId === cloud.db.tree().id && cloud.db.tree().id !== laptop.db.tree().id);
     let identical = 0;
@@ -538,6 +540,61 @@ async function main() {
     );
   }
 
+  console.log('\n— The diary: what the tree said, the moments of the day, the day in short —');
+  {
+    const { diaryFor } = await import('../server/routes/history');
+    const { dayMoments } = await import('../src/history/moments');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    const b = new Bench();
+    b.weather = { code: 1, temp: 20 };
+    await b.boot();
+    // From Monday 09:00 for 30 hours: a warm afternoon, drying to thirsty, a watering at 18:00, a humid night
+    const day = (i: number) => {
+      const h = ((9 * 60 + i) / 60) % 24;
+      const sun = h >= 6 && h < 20;
+      return { soil: i < 540 ? 60 - i * 0.05 : i < 545 ? 33 : 70 - (i - 545) * 0.01, temp: 20 + 6 * Math.max(0, Math.sin(((h - 7) / 14) * Math.PI)), hum: sun ? 55 : 82, light: sun ? 25 + 50 * Math.max(0, Math.sin(((h - 6) / 14) * Math.PI)) : 2 };
+    };
+    for (let i = 0; i < 30 * 60; i++) {
+      if (i % 15 === 0) await b.collector.pollWeather();
+      await b.poll(day(i));
+    }
+    const said = b.db.utterancesSince(0);
+    const bootAgain = async () => {
+      await b.boot();
+      return b.db.utterancesSince(0).length;
+    };
+    const afterRestart = await bootAgain();
+    b.db.setMeta('health_memory', null);
+    const afterReplay = await bootAgain();
+    check('DI1 each spoken line is stored once; a restart or a replay stores nothing again', said.length >= 10 && afterRestart === said.length && afterReplay === said.length && new Set(said.map((u) => `${u.at}|${u.text}`)).size === said.length, `${said.length} lines, ${afterRestart} after a restart, ${afterReplay} after a replay`);
+
+    const diary = diaryFor(b.db, b.collector, 2, b.clock);
+    const kinds = (k: string) => diary.filter((i) => i.kind === k);
+    const monday = new Date(START).setHours(0, 0, 0, 0);
+    const summary = kinds('day_summary');
+    check('DI2 the diary keeps the tree\'s words: one line per thing it said', kinds('said').length === said.length && kinds('said').every((i) => said.some((u) => u.at === i.at && u.text === i.title)), `${kinds('said').length} said`);
+    check(
+      'DI2b moments of the day from the readings, one of each kind per day',
+      kinds('moment').length >= 4 && new Set(kinds('moment').map((i) => `${new Date(i.at).toDateString()}|${i.moment}`)).size === kinds('moment').length,
+      kinds('moment').map((i) => i.moment).join(', ')
+    );
+    check(
+      'DI2c the finished Monday in short (soil, temperature, humidity, light, how it went); none for today',
+      summary.length === 1 && summary[0].at === monday + DAY - 1 && /soil \d+% → \d+%, watered once/.test(summary[0].detail ?? '') && /mostly /.test(summary[0].detail ?? ''),
+      summary.map((i) => i.detail).join(' | ')
+    );
+    const brightSaid = said.filter((u) => u.key === 'brightest_hour').map((u) => new Date(u.at).toDateString());
+    check('DI2d a moment the tree already spoke about that day is left out', kinds('moment').every((i) => i.moment !== 'brightest' || !brightSaid.includes(new Date(i.at).toDateString())));
+    check('DI2e a diary twice as rich as before on this day', diary.length >= 2 * (diary.length - kinds('said').length - kinds('moment').length - summary.length), `${diary.length} lines, ${diary.length - kinds('said').length - kinds('moment').length - summary.length} of the earlier kinds`);
+
+    // Today's moments only once settled: at 14:00 no warmest yet (after 18:00), the brightest hour 3 h past
+    const samples = b.collector.currentState()!.perception.recent;
+    const tuesday = monday + DAY;
+    const at14 = dayMoments(samples, ACTIVE_SPECIES, tuesday + 14 * HOUR, [], tuesday).map((i) => i.moment);
+    const at20 = dayMoments(samples, ACTIVE_SPECIES, tuesday + 20 * HOUR, [], tuesday).map((i) => i.moment);
+    check('DI4 today\'s moments appear only once settled (no warmest before 18:00)', !at14.includes('warmest') && at14.length <= at20.length, `14:00 ${at14.join(',')} · 20:00 ${at20.join(',')}`);
+  }
+
   console.log('\n— Restarts between steps (a Durable Object waking up) —');
   {
     // The same pushes to a collector that never stops and to one restarted before every push. On Cloudflare a
@@ -556,6 +613,7 @@ async function main() {
           events: b.db.eventsSince(0),
           episodes: b.episodes(),
           meta: ['health_memory', 'message_memory', 'mood_memory', 'watering_detection_suppressed_until'].map((k) => b.db.getMeta(k)),
+          said: b.db.utterancesSince(0).map((u) => [u.at, u.key, u.kind, u.text]),
         },
         (k, v) => (k === 'updatedAt' ? undefined : v)
       );
@@ -666,6 +724,7 @@ async function main() {
     const db = openDatabase(file);
     const d = db.getDevice('old-esp32');
     check('M6 v7 database: its device is linked to the new tree, nothing else changed', d?.treeId === db.tree().id && d.label === 'balcony' && db.getMeta<number>('schema_version') === SCHEMA_VERSION, JSON.stringify(d));
+    check('M7 an older database gains the utterances table, empty', db.utterancesSince(0).length === 0);
     db.close();
     for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
   }

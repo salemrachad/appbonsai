@@ -213,6 +213,8 @@ export default function App() {
     : null;
   const backendMode = snapshot?.status.backend?.mode;
   const changeKey = `${snapshot?.status.counts.episodes ?? 0}-${snapshot?.status.counts.events ?? 0}-${snapshot?.recentEpisodes[0]?.id ?? 0}`;
+  // The diaries (Home and History) also reload when the tree says something new (the real line, not a preview's)
+  const diaryKey = `${changeKey}-${snapshot?.expression?.message.spokenAt ?? 0}`;
 
   return (
     <div
@@ -278,6 +280,8 @@ export default function App() {
         air={perception?.air ?? null}
         hikePreview={!!previews.hike}
         onChooseHike={chooseHike}
+        diaryKey={diaryKey}
+        onOpenDiary={() => setPanel('history')}
         // Inside vs outside only with the real sensor (in weather mode the 'inside' values ARE the outside estimate)
         inside={perception?.source === 'esp32_sensor' ? { temperature: perception.readings.temperature, humidity: perception.readings.humidity } : { temperature: null, humidity: null }}
       />
@@ -304,7 +308,7 @@ export default function App() {
             </div>
             <Suspense fallback={panelLoading}>
             {panel === 'history' ? (
-              <History treeName={settings.treeName} changeKey={changeKey} onCareLogged={() => reload()} />
+              <History treeName={settings.treeName} changeKey={diaryKey} onCareLogged={() => reload()} />
             ) : panel === 'developer' ? (
               <Developer
                 snapshot={snapshot}

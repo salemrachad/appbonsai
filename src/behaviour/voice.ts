@@ -10,7 +10,7 @@ import { DAY, HOUR } from '../lib/time';
 //
 // Living Art: personality comes from real patterns, never filler. So
 // - the BUDGET (thoughts per day) follows the tree's energy: vitality × the growth phase of the season
-//   (a thriving summer day ≈ 6, a calm autumn day ≈ 3, a winter rest day ≈ 2). Only calm, awake states
+//   (a thriving summer day ≈ 10, a calm autumn day ≈ 6, a winter rest day ≈ 4). Only calm, awake states
 //   muse; a stressed tree keeps talking about its stress, an asleep one is silent;
 // - every CANDIDATE is grounded in today's measured data (soil and its trend, light, air inside vs out,
 //   the day length, the squirrel, the canopy). No data, no thought;
@@ -39,10 +39,10 @@ const r1 = (n: number) => Math.round(n * 10) / 10;
 export function evaluateVoice({ health, perception: p, species, intent, timeOfDay, season, relationship, habitat, canopy, now }: VoiceInput): VoiceState {
   const calm = MUSING_INTENTS.includes(intent) && timeOfDay !== 'night' && !health.modifiers.includes('sensor_uncertain');
   const f = Math.max(0, Math.min(1, (health.vitality - 50) / 50)) * SEASON_VOICE[season.growth];
-  const budget = calm ? Math.max(1, Math.min(6, Math.round(1 + 5 * f))) : 0;
-  // Spread over the useful daylight: roughly evenly, never closer than an hour
+  const budget = calm ? Math.max(1, Math.min(10, Math.round(1 + 9 * f))) : 0;
+  // Spread over the useful daylight: roughly evenly, never closer than 40 minutes
   const daylight = p.season.daylightHours ?? 12;
-  const gapMs = Math.round(Math.max(60, Math.min(180, (daylight * 60) / (budget + 1)))) * 60 * 1000;
+  const gapMs = Math.round(Math.max(40, Math.min(180, (daylight * 60) / (budget + 1)))) * 60 * 1000;
   if (!calm) return { budget, gapMs, musings: [], why: 'not musing: the tree has something more important to say, or is resting' };
 
   const out: Musing[] = [];
@@ -65,6 +65,9 @@ export function evaluateVoice({ health, perception: p, species, intent, timeOfDa
   if (lastWater !== null && r.soilMoisture !== null && r.soilMoisture >= soil.minOptimal) {
     const days = (now - lastWater) / DAY;
     if (days >= 2) add('days_since_water', { days: r0(days) }, 2);
+    // Settled after a drink: 3 to 24 hours after a watering, the soil back in its optimal range
+    const since = now - lastWater;
+    if (since >= 3 * HOUR && since <= DAY && r.soilMoisture <= soil.maxOptimal) add('settled_after_drink', { soil: r0(r.soilMoisture), hours: r0(since / HOUR) }, 2);
   }
 
   // ---- Light & the day ----
@@ -80,6 +83,10 @@ export function evaluateVoice({ health, perception: p, species, intent, timeOfDa
     add(change < 0 ? 'days_shorter' : 'days_longer', { minPerDay: Math.max(1, r0(Math.abs(change) / 7)), daylight: r1(daylight) }, 1);
   }
 
+  if (r.lightPercent !== null && timeOfDay !== 'evening' && r.lightPercent >= species.light.usefulMinPercent) {
+    add('light_now', { light: r0(r.lightPercent) }, 1);
+  }
+
   // ---- Air & the greenhouse ----
   if (timeOfDay === 'morning' && r.humidity !== null && r.humidity >= species.humidity.maxOptimal) {
     add('humid_morning', { rh: r0(r.humidity), fog: p.air?.glassMayFog ? 1 : 0 }, 2);
@@ -87,6 +94,26 @@ export function evaluateVoice({ health, perception: p, species, intent, timeOfDa
   if (r.temperature !== null && timeOfDay === 'day') {
     const today = p.recent.filter((s) => s.t >= now - 12 * HOUR && s.temp !== null).map((s) => s.temp!);
     if (today.length >= 30 && r.temperature >= Math.max(...today) - 0.2 && r.temperature >= species.temperature.minOptimal) add('warmest_hour', { temp: r1(r.temperature) }, 1);
+  }
+  // Evening: cooling down (at least 2 °C below two hours ago)
+  if (timeOfDay === 'evening' && r.temperature !== null) {
+    const then = p.recent.find((s) => s.t >= now - 2 * HOUR && s.temp !== null);
+    if (then && then.t <= now - 90 * 60 * 1000 && then.temp! - r.temperature >= 2) add('evening_cooling', { from: r1(then.temp!), to: r1(r.temperature) }, 2);
+  }
+  // A cool, still fine morning (within 2 °C above the optimal minimum)
+  if (timeOfDay === 'morning' && r.temperature !== null && r.temperature >= species.temperature.minOptimal && r.temperature <= species.temperature.minOptimal + 2) {
+    add('cool_morning', { temp: r1(r.temperature) }, 1);
+  }
+  // Gentle air: humidity in its optimal range for the last hour, and the VPD optimal now
+  const lastHour = p.recent.filter((s) => s.t >= now - HOUR && s.hum !== null);
+  if (
+    r.vpd !== null &&
+    r.vpd >= species.vpd.minOptimal &&
+    r.vpd <= species.vpd.maxOptimal &&
+    lastHour.length >= 20 &&
+    lastHour.every((s) => s.hum! >= species.humidity.minOptimal && s.hum! <= species.humidity.maxOptimal)
+  ) {
+    add('air_gentle', { rh: r0(r.humidity ?? lastHour[lastHour.length - 1].hum!), vpd: Math.round(r.vpd * 100) / 100 }, 1);
   }
   if (p.air && p.outside?.temperature != null && r.temperature !== null && r.temperature - p.outside.temperature >= 5) {
     add('warmer_than_outside', { inside: r0(r.temperature), outside: r0(p.outside.temperature) }, 2);

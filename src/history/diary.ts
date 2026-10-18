@@ -79,6 +79,21 @@ export function weatherSpells(observations: OutsideObservation[]): DiaryItem[] {
   return items;
 }
 
+// What the tree said, as diary lines in its own words (the utterances table, as stored)
+const SAID_ABOUT: Record<NonNullable<DiaryItem['said']>, string | undefined> = {
+  state: undefined,
+  musing: 'a thought of the day',
+  day_line: 'the time of day',
+  care_line: 'about the care',
+  observation: 'something it noticed',
+};
+export function saidItems(said: { at: number; kind: string; text: string }[]): DiaryItem[] {
+  return said.map((u) => {
+    const kind = (u.kind in SAID_ABOUT ? u.kind : 'state') as NonNullable<DiaryItem['said']>;
+    return { at: u.at, kind: 'said', title: u.text, detail: SAID_ABOUT[kind], said: kind };
+  });
+}
+
 // Episodes + care events (+ outside weather spells) → diary lines, newest first.
 export function buildDiary(episodes: BehaviourEpisode[], events: PlantEvent[], gapMs: number, outside: OutsideObservation[] = []): DiaryItem[] {
   const items: DiaryItem[] = [...weatherSpells(outside)];

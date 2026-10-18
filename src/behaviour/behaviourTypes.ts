@@ -277,7 +277,12 @@ export type MusingId =
   | 'sloth_came' // count, minutes
   | 'visitors_met' // pair (index in ENCOUNTER_PAIRS: 0 squirrel+sloth, 1 squirrel+dragonfly, 2 dragonfly+sloth)
   | 'new_tips' // fullness
-  | 'drey_growing';
+  | 'drey_growing'
+  | 'light_now' // light (%): useful light on the leaves right now
+  | 'evening_cooling' // from, to (°C): cooler than two hours ago
+  | 'cool_morning' // temp: a cool morning, still in range
+  | 'air_gentle' // rh, vpd: humidity and VPD in their optimal ranges
+  | 'settled_after_drink'; // soil, hours: back in range some hours after a watering
 export interface Musing {
   id: MusingId;
   facts: Record<string, number>;

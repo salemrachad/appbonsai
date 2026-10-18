@@ -24,10 +24,12 @@ interface HomeProps {
   air?: AirComparison | null; // inside vs outside by dew point
   hikePreview?: boolean; // the hike shown is a developer preview
   onChooseHike?: (day: string) => void; // a day chosen on the hike calendar
+  diaryKey?: string; // changes when the diary has something new (the Home diary reloads)
+  onOpenDiary?: () => void; // the full diary (History)
 }
 
 // The companion screen: shows what the engines concluded, never recalculates it.
-export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null, hikePreview = false, onChooseHike }) => {
+export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null, hikePreview = false, onChooseHike, diaryKey, onOpenDiary }) => {
   const msg = expression?.message;
 
   return (
@@ -36,8 +38,8 @@ export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, 
         <BonsaiAvatar className="w-full h-full max-h-[620px]" expression={expression} onPetSession={onPetSession} />
         {/* Outside weather in front of the tree (fog drifting across it, rain falling past it) */}
         <WeatherForeground weather={expression?.atmosphere.weather} />
-        {/* The tree's diary as quiet chat bubbles (today's lines, and the week's hike as it picked it) */}
-        <TreeDiary hike={expression?.hike?.plan ?? null} hikePreview={hikePreview} onChooseHike={onChooseHike} />
+        {/* The tree's diary as quiet chat bubbles (all of today's lines, and the week's hike as it picked it) */}
+        <TreeDiary hike={expression?.hike?.plan ?? null} hikePreview={hikePreview} onChooseHike={onChooseHike} reloadKey={diaryKey} onOpenDiary={onOpenDiary} />
       </div>
 
       <div className="flex flex-col gap-5">

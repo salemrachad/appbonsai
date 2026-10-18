@@ -1,7 +1,7 @@
 // SQLite schema for the local Appbonsai database (data/appbonsai.db).
 // All timestamps are INTEGER milliseconds since the Unix epoch (UTC).
 
-export const SCHEMA_VERSION = 8; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather, 7: devices, 8: trees + devices.tree_id
+export const SCHEMA_VERSION = 9; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather, 7: devices, 8: trees + devices.tree_id, 9: utterances
 
 export const SCHEMA_SQL = `
 -- Raw observations: the permanent truth. Health can be re-evaluated from these later.
@@ -113,6 +113,17 @@ CREATE TABLE IF NOT EXISTS devices (
   boot         TEXT,                          -- the device's current boot (random per start)
   last_seq     INTEGER                        -- highest reading seq accepted in that boot
 );
+
+-- What the tree said, as it said it (the diary keeps its words): one row per line spoken. Written by the live
+-- evaluation only (replays never speak). kind: state | day_line | care_line | musing | observation.
+CREATE TABLE IF NOT EXISTS utterances (
+  id    INTEGER PRIMARY KEY AUTOINCREMENT,
+  at    INTEGER NOT NULL,
+  key   TEXT    NOT NULL,                       -- catalog key or thought id, e.g. thirst:moderate, brightest_hour
+  kind  TEXT    NOT NULL,
+  text  TEXT    NOT NULL                        -- the words on screen (a later rewording doesn't rewrite them)
+);
+CREATE INDEX IF NOT EXISTS idx_utterances_at ON utterances(at);
 
 -- Small key/value store: schema version, collector settings.
 CREATE TABLE IF NOT EXISTS meta (

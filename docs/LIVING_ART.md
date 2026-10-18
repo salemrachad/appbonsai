@@ -296,20 +296,32 @@ A calm day is not one sentence long. The tree shares a few thoughts through the 
 back with today's data. Its personality comes from real patterns, never filler.
 
 - **How much it has to say follows its energy:** vitality × the growth phase of the season. A thriving
-  summer day has about 6 thoughts, a calm autumn day about 3, a winter rest day about 2
-  (`behaviour/voice.ts`).
+  summer day has about 10 thoughts, a calm autumn day about 6, a winter rest day about 4
+  (`behaviour/voice.ts`; doubled on 2026-10-18, when a calm day felt too quiet).
 - **What it says is grounded:**
   - soil still comfortable, with the estimate from its trend ("at this pace, thirsty in about 2 days");
   - days since the last drink;
   - the brightest hour, a good light day, the days getting shorter or longer;
   - a humid morning (and whether the glass may fog);
   - the warmest hour, warmer inside than outside;
-  - the squirrel's visit, new leaf tips while the canopy refills, the drey taking shape.
+  - the squirrel's visit, new leaf tips while the canopy refills, the drey taking shape;
+  - useful light on its leaves right now, the evening cooling, a cool but fine morning, gentle air, the soil
+    settled some hours after a drink.
   No data, no thought.
-- **When:** spread over the daylight (at least an hour apart), each at most once a day, shown for 15 min,
-  so a calm tree stays mostly silent. Never over something more important: a stress, a care reaction, a
-  reading being watched. At night it rests.
+- **When:** spread over the daylight (at least 40 minutes apart), each at most once a day, shown for 15 min,
+  so a calm tree is still quiet most of the time. Never over something more important: a stress, a care
+  reaction, a reading being watched. At night it rests.
 - Wording lives in `messages.ts` by id with facts, so it can be rewritten freely without changing behaviour.
+
+### The diary keeps its words [Implemented, V1]
+
+What the tree says is not lost when the next line replaces it: each line is stored as it was said
+(`utterances`), and the diary shows it in its own voice next to the record (state changes, care, weather,
+visitors). Around its words the diary adds **moments** found in the day's readings (the brightest hour, the
+first good light, the warmest and coolest moments, a humid morning, a quick change) and closes each finished
+day **in short** (soil, temperature, humidity, light, how the day went). All of it is either what the tree
+really said or a fact from stored readings: the diary invents nothing, and a moment the tree already spoke
+about is not repeated.
 
 ### Canopy: the last weeks [Implemented, V1]
 

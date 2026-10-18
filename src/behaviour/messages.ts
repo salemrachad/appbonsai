@@ -170,6 +170,11 @@ export const MUSING_LINES: Record<MusingId, Lines> = {
   visitors_met: ['The {pair} are sharing my branches. 🌿', 'Company in my branches: the {pair}. 🌿', 'The {pair}, both in my branches at once. 🌿'],
   new_tips: ['New leaf tips are coming in. 🌱', 'I am filling out again. 🌱', 'Fresh leaves, one by one. 🌱'],
   drey_growing: ['Someone is building a nest in my crown. 🪺', 'More twigs in my crown today. 🪺', 'A little home is taking shape up top. 🪺'],
+  light_now: ['Good light on my leaves right now. ☀️', 'I can feel the light working. ☀️', 'Bright and useful light, right now. ☀️'],
+  evening_cooling: ['The air is cooling down for the evening. 🌆', 'Cooler now than this afternoon. 🌆', 'The day is letting go of its warmth. 🌆'],
+  cool_morning: ['A cool morning. Fine by me. 🌤', 'Fresh and cool this morning. 🌤', 'Cool air to start the day. 🌤'],
+  air_gentle: ['The air feels gentle today. 🍃', 'Easy air: not too dry, not too damp. 🍃', 'Soft, comfortable air around my leaves. 🍃'],
+  settled_after_drink: ['My soil has settled after the drink. 💧', 'The water has spread through my pot. 💧', 'Still enjoying that last drink. 💧'],
 };
 const fmtHours = (h: number) => (h >= 36 ? `${Math.round(h / 24)} days` : h >= 2 ? `${Math.round(h)} hours` : 'a couple of hours');
 export const MUSING_TIPS: Record<MusingId, (f: Record<string, number>) => string> = {
@@ -193,6 +198,11 @@ export const MUSING_TIPS: Record<MusingId, (f: Record<string, number>) => string
     ][f.pair] ?? 'Two visitors in the tree at once.',
   new_tips: (f) => `The canopy is refilling (${f.fullness}% full) after a harder stretch.`,
   drey_growing: () => 'A squirrel has started a drey in the crown: weeks of a welcoming tree.',
+  light_now: (f) => `Light ${f.light}% (relative LDR): in the useful band for a ficus.`,
+  evening_cooling: (f) => `${f.from}°C two hours ago, ${f.to}°C now.`,
+  cool_morning: (f) => `${f.temp}°C: cool, but within the comfortable range.`,
+  air_gentle: (f) => `Humidity ${f.rh}% and VPD ${f.vpd} kPa: both in their comfortable ranges for the last hour.`,
+  settled_after_drink: (f) => `Watered about ${f.hours} h ago; the soil is at ${f.soil}%, back in its comfortable range.`,
 };
 
 // Seasonal care, added to the calm tips (ficus is evergreen; growth follows day length).

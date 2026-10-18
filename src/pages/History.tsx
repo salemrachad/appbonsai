@@ -5,7 +5,7 @@ import type { DailySummary, DiaryItem, PlantEventType } from '../history/history
 
 interface HistoryPageProps {
   treeName: string;
-  changeKey: string; // changes when new episodes/events exist, so the diary reloads
+  changeKey: string; // changes when the tree says something new or episodes/events change, so the diary reloads
   onCareLogged: (type: PlantEventType) => void;
 }
 
@@ -17,7 +17,7 @@ export const History: React.FC<HistoryPageProps> = ({ treeName, changeKey, onCar
 
   const load = useCallback(async () => {
     try {
-      const [d, di] = await Promise.all([api.daily(7), api.diary(3)]);
+      const [d, di] = await Promise.all([api.daily(7), api.diary(7)]);
       setDays(d);
       setDiary(di);
     } catch {
