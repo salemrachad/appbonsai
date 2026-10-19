@@ -105,10 +105,13 @@ export class TreeObject extends DurableObject<Env> {
 
   async alarm(): Promise<void> {
     await this.ready;
-    this.collector.wake();
-    await this.collector.settled();
-    if (Date.now() >= this.backupDueAt()) await this.backup();
-    await this.arm();
+    try {
+      this.collector.wake();
+      await this.collector.settled();
+      if (Date.now() >= this.backupDueAt()) await this.backup();
+    } finally {
+      await this.arm(); // even when a job threw (e.g. the read quota): the next alarm must still be set
+    }
   }
 
   private backupDueAt(): number {
@@ -135,12 +138,15 @@ export class TreeObject extends DurableObject<Env> {
   }
 
   // The alarm at the next due job, the collector's or the backup's (set only when it moves: each set is a
-  // storage write)
+  // storage write). A stored alarm already in the past is never trusted: one whose run failed until its retries
+  // ran out is still listed but never fires again (2026-10-18: weather, hike and backups stopped for a day).
   private async arm() {
     const at = Math.min(this.collector.nextWakeAt(), this.backupDueAt());
     if (!Number.isFinite(at)) return void (await this.ctx.storage.deleteAlarm());
+    const now = Date.now();
+    const target = Math.max(at, now + 1000);
     const current = await this.ctx.storage.getAlarm();
-    if (current !== at) await this.ctx.storage.setAlarm(Math.max(at, Date.now() + 1000));
+    if (current === null || current <= now || current !== target) await this.ctx.storage.setAlarm(target);
   }
 }
 
