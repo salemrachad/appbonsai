@@ -287,6 +287,8 @@ function Down({ p, chinOnPaws }: { p: Pose; chinOnPaws: boolean }) {
 function Sleeping({ p }: { p: Pose }) {
   return (
     <g>
+      {/* Her tail resting behind her (still: she's asleep) */}
+      <Tail x={-32} y={-8} rot={-10} wag={false} idle={false} />
       <Body p={p} breath="lucy-breathe-down">
         <Fluff cx={-12} cy={-13} rx={12} ry={10} n={11} seed={21} />
         <Fluff cx={0} cy={-10.5} rx={23} ry={10.5} n={16} seed={22} />
@@ -299,9 +301,6 @@ function Sleeping({ p }: { p: Pose }) {
       <g transform="translate(15 -11) rotate(-10) scale(0.95)">
         <Head f={p.face} />
       </g>
-      {/* The tail wrapped round to her nose */}
-      <Fluff cx={3} cy={-4.5} rx={12} ry={4.4} n={12} amp={0.5} seed={23} rot={-6} />
-      <Hairs d="M -6,-2.2 q -2,0.6 -3,2 M 12,-3 q 2,0.4 3,1.8" />
       <text x="22" y="-30" fontSize="8" fill={INK} className="drey-zzz" fontFamily="serif">
         z
       </text>
