@@ -40,10 +40,13 @@ export const SPOT: Record<LucyPresentation['spot'], { x: number; y: number }> = 
 };
 const FLOOR_Y = 457;
 const TREE = { x: 220, y: 150 }; // the crown she looks up at
-const SPEED = { walk: 70, sniff: 40, shuffle: 30, excited: 120 }; // px per second (sniffing moves in bursts; a shuffle is a few slow steps)
+const M = APP_CONFIG.habitat.lucy.motion; // how she moves on screen (speeds, easings, durations)
+const DUR = M.durations;
 const SIZE = 1.1;
 const LEAVE_MS = 6000; // she sets off this long before the visit ends
-const CIRCLE_MS = 1800; // turning around once before she lies down
+// Time-based easing: the share of the way covered in dt for a time constant tau (the same at any frame rate)
+const ease = (dt: number, tau: number) => 1 - Math.exp(-dt / Math.max(1, tau));
+const smooth = (x: number) => x * x * (3 - 2 * x); // smoothstep 0..1
 const OFFSTAGE_X = -70; // she comes in from (and leaves to) the left
 
 const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -102,7 +105,7 @@ const Head: React.FC<{ f: Face }> = ({ f }) => {
   const ear = (side: 1 | -1) => {
     const far = a > 0.25 && side === farSide;
     return (
-      <g key={side} className={f.earFlick && side === -farSide ? 'lucy-ear-twitch' : undefined} style={{ transformBox: 'fill-box', transformOrigin: '50% 10%' }}>
+      <g key={side} className={f.earFlick && side === -farSide ? 'lucy-ear-twitch' : undefined} style={{ transformBox: 'fill-box', transformOrigin: '50% 10%', animationDuration: `${DUR.ear}ms` }}>
         <Fluff cx={side * 12.4 + t * (far ? -3.5 : 2.2)} cy={f.earsDown ? 5.5 : 3.6} rx={5.4} ry={f.earsDown ? 10 : 12.2} n={12} amp={0.34} seed={side === 1 ? 7 : 9} rot={side * (f.earsDown ? -20 : -6) - t * 6} shade={DEEP} />
         <Hairs d={`M ${side * 10.5 + t * 2},12.5 q ${side * 0.6},2.2 ${side * -0.4},3.6 M ${side * 13.6 + t * 2},12 q ${side * 1},1.8 ${side * 0.6},3.4`} />
       </g>
@@ -175,8 +178,8 @@ const Head: React.FC<{ f: Face }> = ({ f }) => {
 };
 
 // A leg: a shaggy column with a paw at the ground
-const Leg: React.FC<{ x: number; top: number; far?: boolean; className?: string }> = ({ x, top, far, className }) => (
-  <g className={className} style={{ transformBox: 'fill-box', transformOrigin: '50% 0%' }}>
+const Leg: React.FC<{ x: number; top: number; far?: boolean; className?: string; cycleMs?: number }> = ({ x, top, far, className, cycleMs }) => (
+  <g className={className} style={{ transformBox: 'fill-box', transformOrigin: '50% 0%', animationDuration: cycleMs ? `${cycleMs}ms` : undefined }}>
     <Fluff cx={x} cy={top / 2} rx={4.6} ry={-top / 2 + 0.6} n={9} amp={0.3} seed={x} shade={far ? DEEP : SHADE} />
     <Fluff cx={x + 1.2} cy={-1.8} rx={4.6} ry={2.3} n={8} amp={0.16} seed={x + 2} shade={far ? DEEP : SHADE} />
     <Hairs d={`M ${x + 0.2},-0.6 v -1.6 M ${x + 2.4},-0.6 v -1.6`} />
@@ -214,13 +217,25 @@ interface Pose {
   shift: boolean; // standing: weight shifting from foot to foot
 }
 
-const bodyClass = (p: Pose, breath: string) => [p.breathe ? breath : '', p.bounce ? 'lucy-bounce' : '', p.sigh ? 'lucy-sigh' : '', p.shift ? 'lucy-shift' : ''].filter(Boolean).join(' ') || undefined;
+// The body in two layers: the breath on the outside, always running at its own tempo, and a sigh, a bounce
+// or a shift of weight inside it, so none of them restarts the breath (a jump)
+const Body: React.FC<{ p: Pose; breath: string; children: React.ReactNode }> = ({ p, breath, children }) => {
+  const box = { transformBox: 'fill-box' as const, transformOrigin: '50% 100%' };
+  const inner = [p.bounce ? 'lucy-bounce' : '', p.sigh ? 'lucy-sigh' : '', p.shift ? 'lucy-shift' : ''].filter(Boolean).join(' ') || undefined;
+  return (
+    <g className={p.breathe ? breath : undefined} style={{ ...box, animationDuration: `${p.breathMs}ms` }}>
+      <g className={inner} style={{ ...box, animationDuration: p.sigh ? `${DUR.sigh}ms` : undefined }}>
+        {children}
+      </g>
+    </g>
+  );
+};
 
-// The head on its neck: pitch eases (CSS transition), a tilt plays on top
+// The head on its neck: pitch eases (in the frame loop), a tilt plays on top
 const HeadOn: React.FC<{ x: number; y: number; p: Pose; extraRot?: number; className?: string }> = ({ x, y, p, extraRot = 0, className }) => (
   <g transform={`translate(${x} ${y})`}>
-    <g className="lucy-neck" style={{ transformBox: 'fill-box', transformOrigin: '50% 90%', transform: `rotate(${p.pitch + extraRot}deg)` }}>
-      <g className={className ?? (p.tilt ? 'lucy-tilt' : undefined)} style={{ transformBox: 'fill-box', transformOrigin: '50% 90%' }}>
+    <g style={{ transformBox: 'fill-box', transformOrigin: '50% 90%', transform: `rotate(${(p.pitch + extraRot).toFixed(2)}deg)` }}>
+      <g className={className ?? (p.tilt ? 'lucy-tilt' : undefined)} style={{ transformBox: 'fill-box', transformOrigin: '50% 90%', animationDuration: className ? undefined : `${DUR.tilt}ms` }}>
         <Head f={p.face} />
       </g>
     </g>
@@ -231,12 +246,12 @@ function Sitting({ p }: { p: Pose }) {
   return (
     <g>
       <Tail x={-16} y={-24} rot={-35} wag={p.wag} idle={p.tailIdle} />
-      <g className={bodyClass(p, 'lucy-breathe')} style={{ animationDuration: p.bounce || p.sigh ? undefined : `${p.breathMs}ms`, transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
+      <Body p={p} breath="lucy-breathe">
         <Fluff cx={-8} cy={-11} rx={13} ry={11} n={12} seed={3} />
         {!p.scratch && <Fluff cx={-1} cy={-2.2} rx={6.5} ry={2.6} n={7} amp={0.14} seed={5} />}
         <Fluff cx={3} cy={-22} rx={11} ry={15} n={13} seed={6} />
         <Hairs d="M -14,-6 q -2,1 -3,3 M 8,-28 q 2,1 3,3 M -2,-14 q 1,2 0,4" />
-      </g>
+      </Body>
       <Leg x={11.5} top={-17} far />
       <Leg x={5.5} top={-17} />
       {/* Scratching: the hind leg up behind the ear, going fast, her head leaning into it, eyes closed */}
@@ -257,11 +272,11 @@ function Down({ p, chinOnPaws }: { p: Pose; chinOnPaws: boolean }) {
   return (
     <g>
       <Tail x={-30} y={-9} rot={-15} wag={p.wag} idle={p.tailIdle} />
-      <g className={bodyClass(p, 'lucy-breathe-down')} style={{ animationDuration: p.bounce || p.sigh ? undefined : `${p.breathMs}ms`, transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
+      <Body p={p} breath="lucy-breathe-down">
         <Fluff cx={-19} cy={-10.5} rx={11} ry={9.5} n={11} seed={13} />
         <Fluff cx={-5} cy={-10} rx={22} ry={10} n={15} seed={14} />
         <Hairs d="M -18,-2 q -2,1 -3,2.5 M 2,-19 q 2,0 3,2 M -10,-17 q 1,-2 3,-2" />
-      </g>
+      </Body>
       <Paw x={14} far />
       <Paw x={19} />
       {chinOnPaws ? <HeadOn x={22} y={-15} p={{ ...p, pitch: Math.min(p.pitch, 0) }} extraRot={6} /> : <HeadOn x={15} y={-24} p={p} />}
@@ -272,13 +287,13 @@ function Down({ p, chinOnPaws }: { p: Pose; chinOnPaws: boolean }) {
 function Sleeping({ p }: { p: Pose }) {
   return (
     <g>
-      <g className={bodyClass(p, 'lucy-breathe-down')} style={{ animationDuration: p.sigh ? undefined : `${p.breathMs}ms`, transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
+      <Body p={p} breath="lucy-breathe-down">
         <Fluff cx={-12} cy={-13} rx={12} ry={10} n={11} seed={21} />
         <Fluff cx={0} cy={-10.5} rx={23} ry={10.5} n={16} seed={22} />
         <Hairs d="M -20,-6 q -2,1 -2.5,3 M -4,-20 q 2,-1 4,0 M 10,-18 q 2,0 3,2" />
-      </g>
+      </Body>
       {/* Dreaming: a front paw twitches */}
-      <g className={p.dream ? 'lucy-dream' : undefined} style={{ transformBox: 'fill-box', transformOrigin: '0% 50%' }}>
+      <g className={p.dream ? 'lucy-dream' : undefined} style={{ transformBox: 'fill-box', transformOrigin: '0% 50%', animationDuration: `${DUR.dream}ms` }}>
         <Fluff cx={19} cy={-3} rx={5} ry={2.4} n={7} amp={0.16} seed={24} />
       </g>
       <g transform="translate(15 -11) rotate(-10) scale(0.95)">
@@ -294,19 +309,20 @@ function Sleeping({ p }: { p: Pose }) {
   );
 }
 
-function Walking({ p, moving, sniff }: { p: Pose; moving: boolean; sniff: boolean }) {
+// cycleMs: one stride, from her speed (the legs keep pace with the floor)
+function Walking({ p, moving, sniff, cycleMs }: { p: Pose; moving: boolean; sniff: boolean; cycleMs: number }) {
   const leg = (a: boolean) => (moving ? (a ? 'lucy-leg-a' : 'lucy-leg-b') : undefined);
   return (
     <g>
       <Tail x={-19} y={-31} rot={-50} wag={p.wag || moving} idle={p.tailIdle} />
-      <Leg x={-12} top={-16} far className={leg(false)} />
-      <Leg x={13} top={-16} far className={leg(true)} />
-      <g className={bodyClass(p, 'lucy-breathe')} style={{ animationDuration: p.bounce ? undefined : `${p.breathMs}ms`, transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
+      <Leg x={-12} top={-16} far className={leg(false)} cycleMs={cycleMs} />
+      <Leg x={13} top={-16} far className={leg(true)} cycleMs={cycleMs} />
+      <Body p={p} breath="lucy-breathe">
         <Fluff cx={0} cy={-21} rx={19} ry={10} n={15} seed={31} />
         <Hairs d="M -12,-13 q -1,2 -1,4 M 6,-13 q 1,2 0,4 M -4,-30 q 2,-1 4,0" />
-      </g>
-      <Leg x={-7} top={-16} className={leg(true)} />
-      <Leg x={17} top={-16} className={leg(false)} />
+      </Body>
+      <Leg x={-7} top={-16} className={leg(true)} cycleMs={cycleMs} />
+      <Leg x={17} top={-16} className={leg(false)} cycleMs={cycleMs} />
       {/* Sniffing: the head low, nose to the floor ahead, bobbing; else up, looking */}
       {sniff ? <HeadOn x={25} y={-16} p={{ ...p, pitch: 26 }} className="lucy-sniff" /> : <HeadOn x={21} y={-33} p={p} />}
     </g>
@@ -338,17 +354,27 @@ function stopAt(lucy: LucyPresentation, now: number): Stop {
   return cur;
 }
 
-// Her body on the floor, moved on the clock toward where she should be: her route's spot, under a visitor
-// that makes her curious, or off to the left at the end. Speed by what she does (sniffing: slow bursts, a
-// pause to smell, on again). She turns around once before lying down.
+// Her body on the floor, moved frame by frame toward where she should be: her route's spot, under a visitor
+// that makes her curious, or off to the left at the end. She speeds up and slows down gently (no instant start
+// or stop), sniffing goes in slow surges, and she turns around rather than flipping. Before lying down she
+// turns once, slowly, as dogs do.
 function useLucyMotion(lucy: LucyPresentation | null, targets: LucyTargets, shuffle: { at: number; dx: number } | null) {
   const [, tick] = useState(0);
-  const st = useRef<{ id: string; x: number; y: number; facing: 1 | -1; t: number; act: Stop['act'] | null; circleAt: number } | null>(null);
+  const st = useRef<{ id: string; x: number; y: number; v: number; facing: 1 | -1; sx: number; t: number; act: Stop['act'] | null; circleAt: number } | null>(null);
   const id = lucy?.id ?? null;
+  // The frame loop (capped, and asleep while the page is hidden)
   useEffect(() => {
     if (!id || reducedMotion()) return;
-    const t = setInterval(() => tick((n) => n + 1), 100);
-    return () => clearInterval(t);
+    let raf = 0;
+    let last = 0;
+    const frame = (ts: number) => {
+      raf = requestAnimationFrame(frame);
+      if (document.hidden || ts - last < 1000 / M.fps) return;
+      last = ts;
+      tick((n) => n + 1);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
   }, [id]);
   if (!lucy) {
     st.current = null;
@@ -368,44 +394,55 @@ function useLucyMotion(lucy: LucyPresentation | null, targets: LucyTargets, shuf
   if (st.current?.id !== lucy.id) {
     // She walks in from the left if the page sees her arrive; otherwise she is already where she should be
     const entering = !still && now < lucy.startedAt + 90_000;
-    st.current = { id: lucy.id, x: entering ? OFFSTAGE_X : goal.x, y: entering ? FLOOR_Y : goal.y, facing: 1, t: now, act: entering ? null : stop.act, circleAt: 0 };
+    st.current = { id: lucy.id, x: entering ? OFFSTAGE_X : goal.x, y: entering ? FLOOR_Y : goal.y, v: 0, facing: 1, sx: 1, t: now, act: entering ? null : stop.act, circleAt: 0 };
   }
   const s = st.current;
-  const dt = Math.min(0.5, Math.max(0, (now - s.t) / 1000));
+  const dtMs = Math.min(250, Math.max(0, now - s.t));
+  const dt = dtMs / 1000;
   s.t = now;
   const dx = goal.x - s.x;
-  const moving = !still && Math.abs(dx) > 0.5;
+  const dist = Math.abs(dx);
+  // Her pace: excited quicker, sniffing in slow surges (on, on, a pause with the nose down), a few steps aside
+  // slowly, else an easy walk
+  const kind: keyof typeof M.speed = follow && it!.level === 'excited' ? 'excited' : stop.act === 'sniff' && !follow ? 'sniff' : dist < 30 && !follow && !leaving ? 'shuffle' : 'walk';
+  const surge = kind !== 'sniff' || Math.floor(now / 1400) % 3 !== 2;
   if (still) {
     s.x = goal.x;
     s.y = goal.y;
-  } else if (moving) {
-    // Sniffing goes in bursts: a few steps, a pause with the nose down, on again
-    const burst = Math.floor(now / 650) % 3 !== 2;
-    const speed = follow && it!.level === 'excited' ? SPEED.excited : stop.act === 'sniff' && !follow ? (burst ? SPEED.sniff : 0) : Math.abs(dx) < 30 && !follow && !leaving ? SPEED.shuffle : SPEED.walk;
-    s.x += Math.sign(dx) * Math.min(Math.abs(dx), speed * dt);
-    s.facing = dx > 0 ? 1 : -1;
+    s.v = 0;
+  } else {
+    // Never faster than covering the rest in ~0.6 s: she slows into her spot; and eases up to speed
+    const want = dist > 0.5 && surge ? Math.min(M.speed[kind], dist / 0.6 + 4) : 0;
+    s.v += (want - s.v) * ease(dtMs, M.accelTauMs);
+    s.x += Math.sign(dx) * Math.min(dist, s.v * dt);
   }
+  const moving = !still && dist > 0.5 && s.v > 3;
+  if (moving) s.facing = dx > 0 ? 1 : -1;
   // On the floor while walking; up onto the cushion once there
   const yGoal = moving ? FLOOR_Y : goal.y;
-  s.y += Math.sign(yGoal - s.y) * Math.min(Math.abs(yGoal - s.y), still ? 99 : 30 * dt);
+  s.y += Math.sign(yGoal - s.y) * Math.min(Math.abs(yGoal - s.y), still ? 99 : 20 * dt);
   // Lying down: a turn around first, as dogs do
   if (!moving && !still && s.act !== stop.act) {
     if ((stop.act === 'down' || stop.act === 'sleep') && s.act !== 'down' && s.act !== 'sleep' && s.act !== null) s.circleAt = now;
     s.act = stop.act;
   }
   if (moving && s.act === null) s.act = stop.act;
-  const circling = !moving && now - s.circleAt < CIRCLE_MS;
+  const circling = !moving && now - s.circleAt < M.circleMs;
   // A glance now and then; watching, curious and excited: her eyes stay on it
   const onVisitor = !!(it && target && awake && (it.level !== 'glance' || now % 14_000 < 3_500));
-  let facing = s.facing;
-  if (circling) facing = (Math.floor((now - s.circleAt) / (CIRCLE_MS / 3)) % 2 ? -s.facing : s.facing) as 1 | -1;
-  else if (!moving) {
+  if (!moving && !circling) {
     // Facing what she watches: a visitor she follows or watches, else the tree
     const toward = onVisitor ? target!.x : TREE.x;
     if (Math.abs(toward - s.x) > 4) s.facing = toward > s.x ? 1 : -1;
-    facing = s.facing;
   }
-  return { x: s.x, y: s.y, facing, moving, circling, stop, follow, onVisitor, target, gone: leaving && Math.abs(s.x - OFFSTAGE_X) < 1 };
+  // The turn: her body narrows through the turn instead of mirroring in one frame; circling, one slow full turn
+  if (still) s.sx = s.facing;
+  else if (circling) s.sx = s.facing * Math.cos(2 * Math.PI * ((now - s.circleAt) / M.circleMs));
+  else s.sx += Math.sign(s.facing - s.sx) * Math.min(Math.abs(s.facing - s.sx), (2 * dtMs) / M.turnMs);
+  const scaleX = (Math.sign(s.sx) || 1) * Math.max(0.15, Math.abs(s.sx));
+  // One stride per legPxPerCycle at her pace: the legs keep pace with the floor
+  const strideMs = Math.round((M.legPxPerCycle / M.speed[kind]) * 1000);
+  return { x: s.x, y: s.y, facing: s.facing, scaleX, moving, circling, stop, follow, onVisitor, target, strideMs, gone: leaving && Math.abs(s.x - OFFSTAGE_X) < 1 };
 }
 
 interface Life {
@@ -423,10 +460,10 @@ interface Life {
 const QUIET: Life = { gaze: null, blink: false, ear: false, tilt: false, sniffAir: false, yawn: false, scratch: false, sigh: false, dream: false, shuffle: null };
 type LifeMode = 'sitting' | 'standing' | 'down' | 'asleep' | 'moving';
 
-// Her small life between the big moves (UI only, random, never stored): one little thing every second or
-// two. Glances drift from what she watches to the tree, a visitor, you, the floor, across the room; blinks;
-// ear flicks; head tilts; sniffing the air; a yawn; now and then a scratch; a sigh lying down. Asleep: dream
-// twitches, an ear, a sigh.
+// Her small life between the big moves (UI only, random, never stored). Mostly stillness: one small thing every
+// several seconds, a look held for a while. Glances drift from what she watches to the tree, a visitor, you, the
+// floor, across the room; ear flicks; head tilts; sniffing the air; a yawn; now and then a scratch; a sigh lying
+// down. Asleep: dream twitches, an ear, a sigh. Each movement lasts exactly as long as its animation.
 function useLucyLife(id: string | null, mode: LifeMode, hasVisitor: boolean, stopAt: number): Life {
   const ctx = useRef({ mode, hasVisitor, stopAt });
   ctx.current = { mode, hasVisitor, stopAt };
@@ -434,9 +471,11 @@ function useLucyLife(id: string | null, mode: LifeMode, hasVisitor: boolean, sto
   useEffect(() => {
     setLife(QUIET);
     if (!id || reducedMotion()) return;
+    const L = M.life;
     let alive = true;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const later = (ms: number, f: () => void) => timers.push(setTimeout(() => alive && f(), ms));
+    const between = ([a, b]: readonly number[]) => a + Math.random() * (b - a);
     const pulse = (key: Exclude<keyof Life, 'gaze' | 'shuffle'>, ms: number) => {
       setLife((l) => ({ ...l, [key]: true }));
       later(ms, () => setLife((l) => ({ ...l, [key]: false })));
@@ -446,63 +485,63 @@ function useLucyLife(id: string | null, mode: LifeMode, hasVisitor: boolean, sto
       for (const [v, w] of opts) if ((r -= w) < 0) return v;
       return opts[0][0];
     };
-    // Blinks: every few seconds, sometimes twice
+    // Blinks: every several seconds, now and then twice
     const blink = () => {
       if (ctx.current.mode !== 'asleep') {
-        pulse('blink', 150);
-        if (Math.random() < 0.2) later(330, () => pulse('blink', 140));
+        pulse('blink', DUR.blink);
+        if (Math.random() < L.doubleBlink) later(DUR.blink + 220, () => pulse('blink', DUR.blink));
       }
-      later(2400 + Math.random() * 4200, blink);
+      later(between(L.blinkMs), blink);
     };
-    later(900 + Math.random() * 1500, blink);
-    // One small thing at a time
+    later(between([1500, 4000]), blink);
+    // One small thing at a time, with stillness in between
     const next = () => {
       const c = ctx.current;
       if (c.mode === 'asleep') {
-        const what = pick<'ear' | 'dream' | 'sigh' | 'none'>([['ear', 1], ['dream', 1.3], ['sigh', 1], ['none', 1.5]]);
-        if (what === 'ear') pulse('ear', 800);
-        else if (what === 'dream') pulse('dream', 1600);
-        else if (what === 'sigh') pulse('sigh', 2600);
-        later(3500 + Math.random() * 6000, next);
+        const what = pick<'ear' | 'dream' | 'sigh' | 'none'>([['ear', 1], ['dream', 1.2], ['sigh', 1], ['none', 3]]);
+        if (what === 'ear') pulse('ear', DUR.ear);
+        else if (what === 'dream') pulse('dream', DUR.dream);
+        else if (what === 'sigh') pulse('sigh', DUR.sigh);
+        later(between([6000, 14_000]), next);
         return;
       }
       if (c.mode === 'moving') {
-        later(1200, next);
+        later(1500, next);
         return;
       }
-      const what = pick<keyof Life | 'back'>([
-        ['gaze', 6],
-        ['back', 2.5],
-        ['ear', 1.3],
-        ['tilt', 0.9],
-        ['sniffAir', c.mode === 'down' ? 0.4 : 1.1],
-        ['yawn', 0.6],
-        ['scratch', c.mode === 'sitting' ? 1.2 : 0],
-        ['shuffle', c.mode === 'sitting' || c.mode === 'standing' ? 0.9 : 0],
-        ['sigh', c.mode === 'down' ? 0.9 : 0],
+      const what = pick<keyof Life | 'back' | 'none'>([
+        ['none', L.still],
+        ['gaze', 3],
+        ['back', 1.5],
+        ['ear', 0.8],
+        ['tilt', 0.5],
+        ['sniffAir', c.mode === 'down' ? 0.3 : 0.6],
+        ['yawn', 0.35],
+        ['scratch', c.mode === 'sitting' ? 0.35 : 0],
+        ['shuffle', c.mode === 'sitting' || c.mode === 'standing' ? 0.3 : 0],
+        ['sigh', c.mode === 'down' ? 0.6 : 0],
       ]);
-      let wait = 900 + Math.random() * 2200;
+      let wait = between(L.everyMs);
       if (what === 'gaze') {
-        const g = pick<Gaze>([['tree', 2.2], ['user', 1.6], ['around', 1.4], ['floor', c.mode === 'down' ? 1.4 : 0.9], ['away', 1.1], ['visitor', c.hasVisitor ? 3 : 0]]);
+        const g = pick<Gaze>([['tree', 2.2], ['user', 1.6], ['around', 1], ['floor', c.mode === 'down' ? 1.4 : 0.9], ['away', 1.1], ['visitor', c.hasVisitor ? 3 : 0]]);
         setLife((l) => ({ ...l, gaze: g }));
-        wait += g === 'around' ? 2500 : 1200; // a look lasts a moment
+        wait = Math.max(wait, between(L.glanceMs) + (g === 'around' ? M.aroundPeriodMs / 2 : 0)); // a look is held a while
       } else if (what === 'back') setLife((l) => ({ ...l, gaze: null }));
       else if (what === 'shuffle') {
-        const dx = (Math.random() < 0.5 ? -1 : 1) * (8 + Math.random() * 12);
-        setLife((l) => ({ ...l, shuffle: { at: c.stopAt, dx: clamp((l.shuffle?.at === c.stopAt ? l.shuffle.dx : 0) + dx, -28, 28) } }));
-        wait += 1500;
-      }
-      else if (what === 'scratch') {
+        const dx = (Math.random() < 0.5 ? -1 : 1) * (6 + Math.random() * 8);
+        setLife((l) => ({ ...l, shuffle: { at: c.stopAt, dx: clamp((l.shuffle?.at === c.stopAt ? l.shuffle.dx : 0) + dx, -24, 24) } }));
+      } else if (what === 'scratch') {
         setLife((l) => ({ ...l, gaze: null }));
-        pulse('scratch', 2600);
-        wait += 2600;
-      } else if (what === 'yawn') {
-        pulse('yawn', 1700);
-        wait += 1700;
-      } else pulse(what as Exclude<keyof Life, 'gaze' | 'shuffle'>, what === 'sigh' ? 2600 : what === 'tilt' ? 1500 : what === 'sniffAir' ? 1400 : 700);
+        pulse('scratch', DUR.scratch);
+        wait = Math.max(wait, DUR.scratch + 1500);
+      } else if (what !== 'none') {
+        const ms = DUR[what as 'ear' | 'tilt' | 'sniffAir' | 'yawn' | 'sigh'];
+        pulse(what as Exclude<keyof Life, 'gaze' | 'shuffle'>, ms);
+        wait = Math.max(wait, ms + 1000);
+      }
       later(wait, next);
     };
-    later(600 + Math.random() * 1200, next);
+    later(between([1500, 4000]), next);
     return () => {
       alive = false;
       timers.forEach(clearTimeout);
@@ -530,8 +569,9 @@ function aim(g: Gaze | 'ahead' | 'sniff', o: { x: number; facing: 1 | -1; target
       return { turn: s * 0.6, pitch: -22, look: { x: s * 1.4, y: -2 } };
     }
     case 'around': {
-      const sweep = Math.sin(o.now / 1100);
-      return { turn: sweep * 0.85, pitch: -4, look: { x: sweep * 1.6, y: -0.3 } };
+      // One slow sweep across the room
+      const sweep = Math.sin((2 * Math.PI * o.now) / M.aroundPeriodMs);
+      return { turn: sweep * 0.65, pitch: -4, look: { x: sweep * 1.3, y: -0.3 } };
     }
     case 'floor':
       return { turn: 0.55, pitch: 12, look: { x: 0.8, y: 1.8 } };
@@ -543,12 +583,18 @@ function aim(g: Gaze | 'ahead' | 'sniff', o: { x: number; facing: 1 | -1; target
   }
 }
 
+type PoseKind = 'walking' | 'sitting' | 'down' | 'sleeping';
+const POSE_RANK: Record<PoseKind, number> = { walking: 0, sitting: 1, down: 2, sleeping: 3 }; // higher: lower to the ground
+const SHADOW_RX: Record<PoseKind, number> = { walking: 27, sitting: 17, down: 27, sleeping: 27 };
+
 export const Lucy: React.FC<{ lucy: LucyPresentation | null; targets?: LucyTargets }> = ({ lucy, targets = {} }) => {
   const shuffle = useRef<Life['shuffle']>(null);
   const m = useLucyMotion(lucy, targets, shuffle.current);
   const [react, setReact] = useState<{ kind: 'tilt' | 'thump' | 'twitch'; at: number } | null>(null);
   const travel = useRef<{ x: number; y: number; d: number } | null>(null);
-  const head = useRef({ turn: 0, pitch: 0, lx: 0, ly: 0 });
+  const head = useRef({ turn: 0, pitch: 0, lx: 0, ly: 0, t: 0 });
+  // The pose she is changing from (it fades into the new one) and when
+  const fade = useRef<{ id: string | null; cur: PoseKind; prev: PoseKind | null; at: number }>({ id: null, cur: 'sitting', prev: null, at: 0 });
   useEffect(() => {
     if (!react) return;
     const t = setTimeout(() => setReact(null), 2400);
@@ -559,7 +605,7 @@ export const Lucy: React.FC<{ lucy: LucyPresentation | null; targets?: LucyTarge
   const stop = m?.stop;
   // What she is doing right now: walking while she moves (or turns around); sitting under a visitor she
   // follows; else her stop
-  const pose: 'walking' | 'sitting' | 'down' | 'sleeping' =
+  const pose: PoseKind =
     !m || !stop ? 'sitting' : m.moving || m.circling ? 'walking' : m.follow ? 'sitting' : stop.act === 'sit' ? 'sitting' : stop.act === 'down' ? 'down' : stop.act === 'sleep' ? 'sleeping' : 'walking';
   const mode: LifeMode = !m ? 'standing' : m.moving || m.circling ? 'moving' : pose === 'sleeping' ? 'asleep' : pose === 'down' ? 'down' : pose === 'sitting' ? 'sitting' : 'standing';
   const it = lucy?.interest ?? null;
@@ -567,9 +613,21 @@ export const Lucy: React.FC<{ lucy: LucyPresentation | null; targets?: LucyTarge
   shuffle.current = life.shuffle;
 
   if (!lucy || !m || !stop || m.gone) return null;
+  const now = Date.now();
   const asleep = pose === 'sleeping';
   const sniffing = pose === 'walking' && stop.act === 'sniff' && !m.follow && !m.circling;
   const still = reducedMotion();
+
+  // A change of pose: the old one stays for a moment, fading out under the new one
+  const f = fade.current;
+  if (f.id !== lucy.id) fade.current = { id: lucy.id, cur: pose, prev: null, at: 0 };
+  else if (f.cur !== pose) fade.current = { id: lucy.id, cur: pose, prev: f.cur, at: now };
+  const fd = fade.current;
+  const fp = still || !fd.prev ? 1 : clamp((now - fd.at) / M.poseFadeMs, 0, 1);
+  const k = smooth(fp);
+  const prevPose = fp < 1 ? fd.prev : null;
+  // Lying down she sinks into place; getting up she rises
+  const settle = prevPose ? (POSE_RANK[pose] > POSE_RANK[prevPose] ? -1 : 1) * M.settlePx * (1 - k) : 0;
 
   // Petting (UI only): a stroke across her, or a tap, gets one answer at a time
   const answer = () => {
@@ -605,14 +663,17 @@ export const Lucy: React.FC<{ lucy: LucyPresentation | null; targets?: LucyTarge
     : life.gaze === 'visitor' && !m.target
     ? base
     : life.gaze ?? (m.onVisitor ? 'visitor' : base);
-  const want = still ? aim(gaze === 'around' ? 'user' : gaze, { x: m.x, facing: m.facing, target: m.target, now: Date.now() }) : aim(gaze, { x: m.x, facing: m.facing, target: m.target, now: Date.now() });
-  // The head eases toward where she looks (no snapping), a little each frame
+  const want = aim(still && gaze === 'around' ? 'user' : gaze, { x: m.x, facing: m.facing, target: m.target, now });
+  // The head eases toward where she looks, in time (no snapping, the same at any frame rate)
   const h = head.current;
-  const k = still ? 1 : 0.28;
-  h.turn += (want.turn - h.turn) * k;
-  h.pitch += (want.pitch - h.pitch) * k;
-  h.lx += (want.look.x - h.lx) * k;
-  h.ly += (want.look.y - h.ly) * k;
+  const dt = h.t ? Math.min(250, now - h.t) : 0;
+  h.t = now;
+  const kh = still || !dt ? 1 : ease(dt, M.headTauMs);
+  const ke = still || !dt ? 1 : ease(dt, M.eyeTauMs);
+  h.turn += (want.turn - h.turn) * kh;
+  h.pitch += (want.pitch - h.pitch) * kh;
+  h.lx += (want.look.x - h.lx) * ke;
+  h.ly += (want.look.y - h.ly) * ke;
 
   const excited = m.onVisitor && it?.level === 'excited';
   const breath = pose === 'sleeping' ? lucy.breath.asleep : pose === 'down' ? lucy.breath.down : lucy.breath.up;
@@ -641,10 +702,22 @@ export const Lucy: React.FC<{ lucy: LucyPresentation | null; targets?: LucyTarge
     dream: life.dream && asleep,
     shift: pose === 'walking' && !m.moving && !m.circling && !sniffing && !still,
   };
+  const chinOnPaws = lucy.cue === 'concern' || lucy.cue === 'tired' || (lucy.night && lookingAtYou) || gaze === 'floor';
+  const draw = (kind: PoseKind, q: Pose, live: boolean) =>
+    kind === 'walking' ? (
+      <Walking p={q} moving={live && (m.moving || m.circling)} sniff={live && sniffing} cycleMs={m.strideMs} />
+    ) : kind === 'sitting' ? (
+      <Sitting p={q} />
+    ) : kind === 'down' ? (
+      <Down p={q} chinOnPaws={chinOnPaws} />
+    ) : (
+      <Sleeping p={{ ...q, face: { ...q.face, closed: 'sleep' } }} />
+    );
   const shaking = lucy.cue === 'shake_off' && !m.moving; // just in from the rain: a good shake now and then
+  const shadowRx = prevPose ? SHADOW_RX[prevPose] + (SHADOW_RX[pose] - SHADOW_RX[prevPose]) * k : SHADOW_RX[pose];
   return (
     <g
-      transform={`translate(${m.x.toFixed(1)} ${m.y.toFixed(1)}) scale(${SIZE * m.facing} ${SIZE})`}
+      transform={`translate(${m.x.toFixed(1)} ${m.y.toFixed(1)}) scale(${(SIZE * m.scaleX).toFixed(3)} ${SIZE})`}
       onPointerMove={onMove}
       onPointerLeave={() => (travel.current = null)}
       onPointerDown={(e) => e.stopPropagation()}
@@ -656,17 +729,16 @@ export const Lucy: React.FC<{ lucy: LucyPresentation | null; targets?: LucyTarge
       aria-label="Lucy"
     >
       <title>Lucy</title>
-      <ellipse cx="0" cy="0.5" rx={pose === 'sitting' ? 17 : 27} ry="2.6" fill="#000" opacity="0.09" />
+      <ellipse cx="0" cy="0.5" rx={shadowRx.toFixed(1)} ry="2.6" fill="#000" opacity="0.09" />
       <g key={lucy.id} className={`lucy-in${shaking ? ' lucy-shake' : ''}`} style={{ transformBox: 'fill-box', transformOrigin: '50% 100%' }}>
-        {pose === 'walking' ? (
-          <Walking p={p} moving={m.moving || m.circling} sniff={sniffing} />
-        ) : pose === 'sitting' ? (
-          <Sitting p={p} />
-        ) : pose === 'down' ? (
-          <Down p={p} chinOnPaws={lucy.cue === 'concern' || lucy.cue === 'tired' || (lucy.night && lookingAtYou) || gaze === 'floor'} />
-        ) : (
-          <Sleeping p={p} />
+        {prevPose && (
+          <g key={`from-${prevPose}`} opacity={(1 - k).toFixed(3)}>
+            {draw(prevPose, p, false)}
+          </g>
         )}
+        <g key={pose} opacity={prevPose ? k.toFixed(3) : undefined} transform={settle ? `translate(0 ${settle.toFixed(2)})` : undefined}>
+          {draw(pose, p, true)}
+        </g>
       </g>
     </g>
   );

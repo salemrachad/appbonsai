@@ -251,6 +251,32 @@ export const APP_CONFIG = {
       // Her breathing (ms per breath): ~6/min down or asleep is the calming pace; 5/min asleep at night
       breathMs: { sitting: 3200, walking: 2400, down: 10_000, sleeping: 10_000, night: 12_000, panting: 700 },
       petCooldownMs: 3500, // a stroke gets a tilt or a wag at most this often (UI only)
+      // How she moves on screen (avatar/Lucy.tsx, UI only): a calm dog, not a busy one. Every easing is in time
+      // (τ: the time to cover ~63 % of the way), so it looks the same at any frame rate.
+      motion: {
+        fps: 30,
+        headTauMs: 450, // her head turning and pitching toward where she looks
+        eyeTauMs: 250, // her pupils
+        speed: { walk: 45, sniff: 25, shuffle: 18, excited: 90 }, // px per second
+        accelTauMs: 500, // starting off and slowing to a stop (no instant start or stop)
+        legPxPerCycle: 24, // one stride per this many px: the legs keep pace with the floor (no sliding)
+        poseFadeMs: 450, // sitting, lying down, getting up: the old pose fades into the new one
+        settlePx: 3, // lying down she sinks this far into place; getting up she rises
+        turnMs: 420, // turning around (not a mirror flip)
+        circleMs: 1700, // the turn around before she lies down
+        aroundPeriodMs: 9000, // looking around the room: one slow sweep
+        // Her small life between moves: mostly stillness
+        life: {
+          everyMs: [4000, 9000], // one small thing every so often
+          glanceMs: [3000, 8000], // a look held this long
+          blinkMs: [4000, 10_000],
+          doubleBlink: 0.1,
+          still: 4, // weight of "nothing" among the small things (gaze 3, back 1.5, ear 0.8, tilt 0.5, sniff 0.6, yawn 0.35, scratch 0.35, shuffle 0.3, sigh 0.6)
+        },
+        // How long each small movement lasts: the CSS animation and the moment it ends are the same number,
+        // so nothing is cut off half-way (a part snapping back)
+        durations: { tilt: 2400, ear: 900, yawn: 1800, sniffAir: 1600, sigh: 2800, dream: 1600, scratch: 1600, blink: 160 },
+      },
     },
     // Encounters: two visitors in the tree at the same time (behaviour/encounters.ts). Art only.
     encounters: {

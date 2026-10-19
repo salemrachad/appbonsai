@@ -416,12 +416,12 @@
 @keyframes lucy-sniff { 0%, 100% { transform: rotate(0deg) translateY(0); } 30% { transform: rotate(3deg) translateY(1px); } 45% { transform: rotate(-2deg); } 60% { transform: rotate(3deg) translateY(1px); } }
 .lucy-sniff { animation: lucy-sniff 0.9s ease-in-out infinite; }
 /* Excited by a visitor: a little bounce on her haunches */
-@keyframes lucy-bounce { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-3px); } 60% { transform: translateY(-1px); } }
-.lucy-bounce { animation: lucy-bounce 0.7s ease-in-out infinite; }
+@keyframes lucy-bounce { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-2px); } 65% { transform: translateY(-0.6px); } }
+.lucy-bounce { animation: lucy-bounce 0.9s ease-in-out infinite; }
 /* Her small life between the big moves: a tail that never quite stops, a hind leg scratching behind the ear,
    a sigh, weight shifting from foot to foot, the nose working, a paw twitching in a dream; the neck eases */
 @keyframes lucy-tail-idle { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(6deg); } }
-.lucy-tail-idle { animation: lucy-tail-idle 3.2s ease-in-out infinite; }
+.lucy-tail-idle { animation: lucy-tail-idle 5s ease-in-out infinite; }
 @keyframes lucy-scratch { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(14deg); } }
 .lucy-scratch { animation: lucy-scratch 0.13s linear infinite; }
 @keyframes lucy-sigh { 0%, 100% { transform: scale(1, 1); } 40% { transform: scale(1.03, 1.1); } 70% { transform: scale(0.99, 0.97); } }
@@ -432,7 +432,6 @@
 .lucy-nose { animation: lucy-nose 0.5s ease-in-out infinite; }
 @keyframes lucy-dream { 0%, 100% { transform: rotate(0deg); } 15%, 45%, 75% { transform: rotate(-9deg); } 30%, 60% { transform: rotate(4deg); } }
 .lucy-dream { animation: lucy-dream 1.6s ease-in-out 1 both; }
-.lucy-neck { transition: transform 0.35s ease-out; }
 /* Lying awake at night looking at you: heavy lids that close slowly now and then */
 @keyframes lucy-slowblink { 0%, 82%, 100% { transform: scaleY(1); } 88%, 93% { transform: scaleY(2.1); } }
 .lucy-slowblink { animation: lucy-slowblink 7s ease-in-out infinite; }
