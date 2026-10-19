@@ -360,6 +360,12 @@ export const APP_CONFIG = {
     },
     // European AQI (Open-Meteo's CAMS model, so worldwide, no station needed): the upper bound of each band
     aqiBands: { good: 20, fair: 40, moderate: 60, poor: 80, very_poor: 100 },
+    // What the art reads, with hysteresis (outsideWeather.ts outsideLatches), replayed over the last hours
+    latches: {
+      replayMs: 6 * 60 * 60 * 1000,
+      weatherComing: { enterMin: 30, exitTrend: -2.0, exitMin: 45 }, // enter: falling fast (pressure.fallingFast) for 30 min
+      hazy: { enterAqi: 60, enterMin: 30, exitAqi: 50, exitMin: 60 }, // poor air for 30 min; clean again for an hour
+    },
   },
 
   // The weekly hike (behaviour/hike.ts): the tree picks the week's best forecast day for its people's hike.

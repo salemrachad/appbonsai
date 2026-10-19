@@ -8,6 +8,8 @@ import type { HikeDetail } from './hike';
 import { slotPlan } from './habitat';
 import { stableVariant } from './speech';
 import { addDays, civil, clockAt, DAY, dayKey, HOUR, MIN, startOfDay } from '../lib/time';
+import { off, step } from '../lib/latch';
+import { outsideLatches } from '../telemetry/outsideWeather';
 
 // Lucy: the household's Coton de Tuléar, a permanent companion by the pot. Evidence class "art + context".
 // She is not a wild visitor: she doesn't have to trust the place, she lives here. So she follows other rules:
@@ -43,26 +45,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const RAINY: OutsideSky[] = ['drizzle', 'rain', 'heavy_rain'];
 const FINE: OutsideSky[] = ['clear', 'partly_cloudy'];
 
-interface Latch {
-  on: boolean;
-  since: number | null; // when it switched on
-  pending: number | null; // a switch waiting for its duration
-}
-const off = (): Latch => ({ on: false, since: null, pending: null });
-
-// A Schmitt trigger with durations: a pending switch is only cancelled when the value goes back past the
-// other threshold, so readings hovering at a threshold neither flap nor block it.
-function step(l: Latch, t: number, enterNow: boolean, exitNow: boolean, enterMs: number, exitMs: number) {
-  if (!l.on) {
-    if (enterNow) l.pending ??= t;
-    else if (exitNow) l.pending = null;
-    if (l.pending !== null && t - l.pending >= enterMs) Object.assign(l, { on: true, since: l.pending, pending: null });
-  } else {
-    if (exitNow) l.pending ??= t;
-    else if (enterNow) l.pending = null;
-    if (l.pending !== null && t - l.pending >= exitMs) Object.assign(l, { on: false, since: null, pending: null });
-  }
-}
+// The latches are Schmitt triggers with durations (lib/latch.ts), replayed from the stored observations
 
 export type LucyWeatherState = LucyWeather & { stormSince: number | null };
 
@@ -173,6 +156,8 @@ export interface LucyInput {
   condition: HealthCondition;
   modifiers: HealthModifier[];
   hike?: { today: boolean; detail?: HikeDetail | null } | null;
+  // The barometer falling fast outside for a while (perception's latch): she feels a storm coming
+  weatherComing?: { since: number } | null;
   now: number;
 }
 
@@ -341,6 +326,10 @@ export function evaluateLucy(input: LucyInput): LucyState {
     // A storm brings her to the pot for as long as it lasts (open-ended: it ends with the latch)
     found = { id: `lucy:storm:${w.stormSince}`, kind: 'storm', startedAt: w.stormSince, endsAt: now + HOUR };
   }
+  // Before it: a fast-falling barometer makes her restless, and she comes to the pot early (art: dogs seem to
+  // feel a storm coming). The storm itself, once it comes, takes over
+  const coming = !found && !away && !w.storm && input.weatherComing ? input.weatherComing : null;
+  if (coming) found = { id: `lucy:coming:${coming.since}`, kind: 'storm', startedAt: coming.since, endsAt: now + HOUR };
   if (!found && !away && close) {
     const p = slotPlan('lucy:check', now, c.stress.checkSlotMinutes, c.stress.checkChance, c.stress.checkMinutes);
     if (p && now >= p.startedAt && now < p.endsAt) found = { id: `lucy:check:${p.id}`, kind: 'check', startedAt: p.startedAt, endsAt: p.endsAt };
@@ -383,7 +372,8 @@ export function evaluateLucy(input: LucyInput): LucyState {
     cue: cueFor(found.kind, pose, found.startedAt, weather, close, input.rainEndedAt, now < found.startedAt + c.walkInMin * MIN), // arriving: a shake after rain
     settle,
   };
-  return { presence: pose, visit, weather, visitsToday, why: `${visitWords[found.kind]}: ${pose} ${SPOT_WORDS[visit.spot]}${visit.cue ? ` (${visit.cue.replace('_', ' ')})` : ''}` };
+  const doing = coming ? 'restless: the air feels like a storm coming' : visitWords[found.kind];
+  return { presence: pose, visit, weather, visitsToday, why: `${doing}: ${pose} ${SPOT_WORDS[visit.spot]}${visit.cue ? ` (${visit.cue.replace('_', ' ')})` : ''}` };
 }
 
 // ---- The diary ----
@@ -418,6 +408,17 @@ export function lucyDiary(obs: OutsideObservation[], now: number, days: number):
       }
     }
     if (stormAt !== null && stormAt >= since) items.push({ at: stormAt, kind: 'habitat', habitat: 'lucy', title: 'Lucy stayed close through the storm', detail: 'by the pot, ears down, calm' });
+    // Before a storm: the barometer falling fast (the first time its latch came on that day)
+    const recent = APP_CONFIG.outside.latches.replayMs;
+    let comingAt: number | null = null;
+    for (const o of dayObs) {
+      const l = outsideLatches(obs.filter((x) => x.at >= o.at - recent && x.at <= o.at), o.at);
+      if (l.weatherComing) {
+        comingAt = l.weatherComing.since;
+        break;
+      }
+    }
+    if (comingAt !== null && comingAt >= since && comingAt >= day) items.push({ at: comingAt, kind: 'habitat', habitat: 'lucy', title: 'Lucy sensed the weather coming', detail: 'by the pot, restless, before the storm' });
   }
   return items;
 }

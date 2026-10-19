@@ -419,10 +419,19 @@ in a greenhouse.
   - a diary spell ("Hazy air outside, 10:00–18:30").
 - **Facts on the Outside panel:** pressure with its tendency (`1009 hPa ↓↓ falling fast`) and the air band with
   its AQI (PM2.5 and PM10 on hover).
-- **Never:** health, vitality, latches or mood. Scenario O1b runs a 6 hPa fall with very poor air against a flat,
-  clean day and requires an identical tree. PA1–PA7 cover the rest. Preview: `#weather=hazy`.
-- **Open:** whether bad air should nudge a calm tree's mood (Paul's "more aggressive"); Lucy feeling a storm
-  coming; the barometer as a slow musical "mode" for a future sound layer.
+- **With hysteresis:** the art reads latches, not raw thresholds (`outsideLatches()`, `APP_CONFIG.outside.latches`).
+  They are replayed from the last 6 h of stored observations, so a restart gives the same answer.
+  - **weather coming:** a fast fall (≤ −3.5 hPa / 3 h) for 30 min; it lets go when the fall has eased (> −2.0) for
+    45 min.
+  - **hazy:** AQI above 60 for 30 min; it lets go under 50 for an hour.
+  - A value hovering at a threshold never flickers. While hazy, the veil never drops below its "poor" strength.
+- **Lucy feels it too** (art). With the weather coming and no storm yet, she comes to the pot between her visits:
+  awake, restless, ears down. Diary: "Lucy sensed the weather coming". The storm, once it comes, takes over.
+- **Never:** health, vitality, the tree's own latches, or mood. Scenario O1b runs a 6 hPa fall with very poor air
+  against a flat, clean day and requires an identical tree. PA1–PA10 and LU14 cover the rest. Preview:
+  `#weather=hazy`.
+- **Open:** whether bad air should nudge a calm tree's mood (Paul's "more aggressive"); the barometer as a slow
+  musical "mode" for a future sound layer.
 
 ### The weekly hike [Implemented, V1]
 

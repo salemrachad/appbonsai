@@ -349,7 +349,8 @@ export function weatherLook(o: PerceptionState['outside'] | undefined): WeatherL
   if (!o) return null;
   const temp = o.temperature !== null ? ` · ${Math.round(o.temperature)}°C` : '';
   const look: WeatherLook = { sky: o.sky, windy: o.windy, intensity: SKY_INTENSITY[o.sky], label: `${SKY_LABEL[o.sky]}${o.windy ? ', windy' : ''}${temp}` };
-  const haze = o.air ? HAZE[o.air.band] : undefined;
+  // While the air has been poor for a while (the latch): never weaker than "poor", so it doesn't fade at the edge
+  const haze = o.hazy ? Math.max(HAZE.poor!, (o.air && HAZE[o.air.band]) || 0) : undefined;
   if (haze) {
     look.haze = haze;
     look.label = `${SKY_LABEL[o.sky]}, hazy${o.windy ? ', windy' : ''}${temp}`;

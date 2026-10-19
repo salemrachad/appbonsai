@@ -435,7 +435,7 @@ export class LivingCollector {
   // The database doesn't change during a replay: today's skies and the soil breaks are read once, not per row
   private replayRows(rows: TelemetryRecord[], events: PlantEvent[]) {
     if (!rows.length) return;
-    const context: PerceiveContext = { skies: this.db.outsideWeatherSince(Math.min(dayStartOf(rows[0].timestamp) - HOUR, rows[0].timestamp - APP_CONFIG.outside.pressure.windowMs - 15 * MIN)), soilBreaks: this.soilBreaks() };
+    const context: PerceiveContext = { skies: this.db.outsideWeatherSince(Math.min(dayStartOf(rows[0].timestamp) - HOUR, rows[0].timestamp - APP_CONFIG.outside.latches.replayMs - 15 * MIN)), soilBreaks: this.soilBreaks() };
     for (const row of rows) {
       const t = fromRecord(row, this.calibration, false);
       if (!t) continue;
@@ -452,7 +452,7 @@ export class LivingCollector {
   private perceiveAt(now: number, events: PlantEvent[], deviceError: string | null = null, outside: OutsideObservation | null = null, context?: PerceiveContext): PerceptionState {
     setTreeTimeZone(this.settings.timezone); // every evaluation on the tree's clock (several benches may share a process)
     const since = dayStartOf(now) - HOUR;
-    const recentSince = now - APP_CONFIG.outside.pressure.windowMs - 15 * MIN; // the barometer's last 3 h (also just after midnight)
+    const recentSince = now - APP_CONFIG.outside.latches.replayMs - 15 * MIN; // the barometer and the air over the last hours (their latches; also just after midnight)
     const from = Math.min(since, recentSince);
     const skies = context ? context.skies.filter((o) => o.at >= from) : recentWeather(this.db, from); // from memory after the first read
     return perceive({

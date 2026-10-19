@@ -246,8 +246,8 @@ function outsideLine(p: PerceptionState): DayLine | null {
   if (o.sky === 'snow') return 'weather_snow';
   if (o.sky === 'fog') return 'weather_fog';
   // Beyond the sky: bad air, then a fast-falling barometer (weather on its way, not here yet)
-  if (o.air && ['poor', 'very_poor', 'extremely_poor'].includes(o.air.band)) return 'weather_hazy';
-  if (o.pressureTendency === 'falling_fast') return 'weather_pressure_falling';
+  if (o.hazy) return 'weather_hazy';
+  if (o.weatherComing) return 'weather_pressure_falling';
   const inside = p.readings.temperature;
   if (o.temperature !== null && inside !== null && o.temperature < COLD_OUTSIDE_C && inside >= WARM_INSIDE_C) return 'weather_cold_outside';
   return null;
@@ -382,7 +382,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     isDay: perception.sun.isDay,
     season: { id: season.id, energy: season.energy },
     now,
-    outside: perception.outside ? { sky: perception.outside.sky, rainEndedAt: perception.outside.rainEndedAt ?? null, pressureTendency: perception.outside.pressureTendency ?? null } : null,
+    outside: perception.outside ? { sky: perception.outside.sky, rainEndedAt: perception.outside.rainEndedAt ?? null, weatherComing: !!perception.outside.weatherComing } : null,
     reaction: reaction ? { kind: reaction.kind, eventId: reaction.eventId, at: reaction.at, seasonal: reaction.seasonal } : null,
     location,
     seasonAt: seasonEnergyAt(location?.latitude ?? null, species),
@@ -426,6 +426,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     condition,
     modifiers: health.modifiers,
     hike: hike ? { today: hike.today, detail: hike.detail ?? null } : null,
+    weatherComing: perception.outside?.weatherComing ?? null,
     now,
   });
   if (habitat.lucy.presence !== 'none') reasons.push(`Lucy: ${habitat.lucy.why}`);

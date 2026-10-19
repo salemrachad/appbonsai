@@ -429,13 +429,61 @@ async function main() {
       `${coming.behaviour.dayLine}`
     );
     const hazes = (['moderate', 'poor', 'very_poor', 'extremely_poor'] as const).map(
-      (band) => weatherLook({ at: 0, ageMs: 0, sky: 'clear', code: 0, temperature: 10, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true, windy: false, rainEndedAt: null, air: { aqi: 0, pm25: null, pm10: null, band } })?.haze ?? 0
+      (band) => weatherLook({ at: 0, ageMs: 0, sky: 'clear', code: 0, temperature: 10, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true, windy: false, rainEndedAt: null, air: { aqi: 0, pm25: null, pm10: null, band }, ...(band !== 'moderate' && { hazy: { since: 0 } }) })?.haze ?? 0
     );
     check(
       'PA5 the haze grows with bad air (none up to moderate), and the weather look carries it',
       hazes[0] === 0 && hazes[1] > 0 && hazes[1] < hazes[2] && hazes[2] < hazes[3] && hazes[3] === 1 && (coming.expression.atmosphere.weather?.haze ?? 0) > 0 && calmAir.expression.atmosphere.weather?.haze === undefined,
       hazes.join(' < ')
     );
+    {
+      // Hysteresis: what the art reads is latched (enter/exit thresholds and durations), so nothing flickers
+      const { outsideLatches } = await import('../src/telemetry/outsideWeather');
+      const Q = 15 * MIN;
+      const t0 = at(20, 6);
+      const obs = (n: number, f: (i: number) => { aqi?: number; pressure?: number }) =>
+        Array.from({ length: n }, (_, i) => ({ at: t0 + i * Q, sky: 'clear' as const, code: 0, temperature: 18, humidity: 60, precipitation: 0, cloudCover: 0, wind: 5, gusts: 8, isDay: true, ...f(i) }));
+      const hazyAt = (list: ReturnType<typeof obs>) => list.map((o) => (outsideLatches(list, o.at).hazy ? 'H' : '.')).join('');
+      const hover = hazyAt(obs(16, (i) => ({ aqi: i % 2 ? 62 : 58 })));
+      const moderate = hazyAt(obs(16, (i) => ({ aqi: i % 2 ? 58 : 52 })));
+      const spell = hazyAt(obs(16, (i) => ({ aqi: i < 4 ? 70 : i < 9 ? 55 : 45 })));
+      const switches = (x: string) => x.split('').filter((c, i) => i > 0 && c !== x[i - 1]).length;
+      check(
+        'PA8 the haze has hysteresis: AQI hovering at 58/62 switches at most once (no flicker), moderate air never turns it on; 30 min of poor air does, it holds at 55, and goes after an hour clean (< 50)',
+        switches(hover) <= 1 && !moderate.includes('H') && /^\.\.H+\.+$/.test(spell) && spell.indexOf('.', 2) >= 13,
+        `hovering ${hover} · moderate ${moderate} · a spell ${spell}`
+      );
+      // The barometer: 3 h flat, then a fast fall; then a wobble back above −3.5 (still falling); then it eases
+      const p = (i: number) => (i < 12 ? 1015 : i < 26 ? 1015 - (i - 11) * 0.5 : i < 30 ? 1008 + (i % 2) * 0.4 : 1008);
+      const series = obs(44, (i) => ({ pressure: p(i) }));
+      const comingAt = series.map((o) => (outsideLatches(series, o.at).weatherComing ? 'W' : '.')).join('');
+      const blip = obs(20, (i) => ({ pressure: i === 14 ? 1010 : 1015 }));
+      check(
+        'PA9 "weather coming" has hysteresis: a sustained fast fall latches it, a brief dip does not, it holds through a wobble and lets go only once the fall has eased',
+        comingAt.includes('W') && /^\.+W+\.+$/.test(comingAt) && !blip.some((o) => outsideLatches(blip, o.at).weatherComing),
+        comingAt
+      );
+      const bench = new Bench();
+      bench.weather = { code: 1, temp: 18, pressure: 1016, aqi: 95, pm25: 40 };
+      await bench.boot();
+      await bench.run(30, () => day());
+      for (let k = 0; k < 13; k++) {
+        bench.weather = { ...bench.weather!, pressure: 1016 - k * 0.5 };
+        await bench.collector.pollWeather();
+        await bench.run(15, () => day());
+      }
+      const live = bench.state().perception.outside;
+      const again = new Bench(bench.db);
+      again.clock = bench.clock;
+      again.weather = null;
+      await again.boot();
+      const back = again.state().perception.outside;
+      check(
+        'PA10 the latches replay from the stored observations: a restart gives the same (weather coming, hazy, since when)',
+        !!live?.weatherComing && !!live.hazy && JSON.stringify([back?.weatherComing, back?.hazy]) === JSON.stringify([live.weatherComing, live.hazy]),
+        JSON.stringify({ coming: live?.weatherComing, hazy: live?.hazy })
+      );
+    }
 
     // A calm day with rain outside: one word about it, once a day, never during stress
     const b = new Bench();
@@ -1241,10 +1289,10 @@ async function main() {
       check('V17 rain outside: it shelters in the leaves; the habitat value and drey are identical', dry.presence === 'visiting' && wet.presence === 'hiding' && wet.value === dry.value && wet.welcoming === dry.welcoming && JSON.stringify(wet.drey) === JSON.stringify(dry.drey), wet.why);
       const after = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'overcast', rainEndedAt: at - 10 * MIN } });
       check('V17b just after the rain: out again, shaking off', after.presence === 'visiting' && after.visit?.action === 'shake_off', after.why);
-      const coming = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'clear', rainEndedAt: null, pressureTendency: 'falling_fast' } });
-      const steady = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'clear', rainEndedAt: null, pressureTendency: 'falling' } });
+      const coming = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'clear', rainEndedAt: null, weatherComing: true } });
+      const steady = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'clear', rainEndedAt: null, weatherComing: false } });
       check(
-        'PA3 a fast-falling barometer under a clear sky: it tucks into the leaves before the weather; a slow fall changes nothing; the habitat value is identical',
+        'PA3 the weather coming (the barometer falling fast for a while) under a clear sky: it tucks into the leaves before the weather; without it nothing changes; the habitat value is identical',
         coming.presence === 'hiding' && steady.presence === 'visiting' && coming.value === dry.value && coming.welcoming === dry.welcoming,
         `${coming.why} / ${steady.presence}`
       );
@@ -1716,6 +1764,23 @@ async function main() {
       for (let k = 0; k < 60; k++) if (lucyRoute({ ...v, id: `lucy:h:${k}` }, { settle: 0.2, rest: 'pillow', awake: false, close: false, avoid: ['floor_right'] }).some((x) => x.spot === 'floor_right')) offRight = false;
       const ordered = r1.every((x, j) => j === 0 || x.at > r1[j - 1].at);
       check('LU13 a lively visit: sniffing, sitting in different places, looking at you and at the tree; deterministic; off the boots on hike day', spots.size >= 3 && acts.has('sniff') && acts.has('sit') && acts.has('down') && looks.has('user') && looks.has('tree') && JSON.stringify(r1) === JSON.stringify(r2) && offRight && ordered, `${r1.length} stops · spots ${[...spots].join(',')} · acts ${[...acts].join(',')}`);
+    }
+
+    {
+      // LU14: the weather coming (the barometer falling fast for a while): between her visits she comes to the
+      // pot, awake and restless, ears down; without it, nobody; the storm itself, once it comes, takes over
+      const plan = lucyDay(at(22, 12)).visits.filter((v) => v.kind === 'day');
+      const gap = plan.findIndex((v, i) => i > 0 && v.startedAt - plan[i - 1].endsAt > 40 * MIN);
+      const t = plan[gap - 1].endsAt + 20 * MIN;
+      const since = t - 10 * MIN;
+      const usual = ev(t);
+      const uneasy = ev(t, { weatherComing: { since } });
+      const stormy = ev(t, { weatherComing: { since }, outsideToday: wx(t - 2 * 60 * MIN, 9, 'thunderstorm') });
+      check(
+        'LU14 the weather coming: between her visits she comes to the pot, awake, ears down (restless); without it she is elsewhere; a real storm takes over',
+        usual.visit === null && uneasy.visit?.spot === 'by_pot' && uneasy.visit.pose !== 'sleeping' && uneasy.visit.cue === 'storm' && /storm coming/.test(uneasy.why) && /^lucy:storm:/.test(stormy.visit?.id ?? ''),
+        `${uneasy.why} · then ${stormy.why}`
+      );
     }
 
     check('LU9d diary: her company per day and her nights by the pot', diary.filter((d) => d.title === 'Lucy kept me company').length === 2 && diary.every((d) => d.habitat === 'lucy'), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));

@@ -1,4 +1,5 @@
 import { APP_CONFIG } from '../config/appConfig';
+import { off, step } from '../lib/latch';
 import type { TreeSettings } from '../settings/settings';
 
 // Outside weather (Open-Meteo, at the tree's location). The tree lives in a greenhouse: the ESP32 measures
@@ -47,6 +48,31 @@ export interface OutsideWeather extends OutsideObservation {
   pressureTrend?: number; // hPa per 3 h
   pressureTendency?: PressureTendency;
   air?: OutsideAir;
+  // The same with persistence (Schmitt latches with durations over the last hours): what the art reads, so a
+  // value hovering at a threshold never flickers. Present only while on.
+  weatherComing?: { since: number }; // the barometer falling fast for a while
+  hazy?: { since: number }; // poor air for a while
+}
+
+// The barometer and the air with hysteresis, at time t, replayed over the observations given (the last
+// hours). Each observation's pressure trend is the one known then; a gap of more than 45 min restarts the
+// pending switches (nothing is learned from time not observed).
+export function outsideLatches(observations: OutsideObservation[], t: number): { weatherComing: { since: number } | null; hazy: { since: number } | null } {
+  const L = APP_CONFIG.outside.latches;
+  const P = APP_CONFIG.outside.pressure;
+  const obs = observations.filter((o) => o.at <= t).sort((a, b) => a.at - b.at);
+  const coming = off();
+  const hazy = off();
+  let last: number | null = null;
+  for (let i = 0; i < obs.length; i++) {
+    const o = obs[i];
+    if (last !== null && o.at - last > 45 * 60 * 1000) coming.pending = hazy.pending = null;
+    last = o.at;
+    const trend = pressureTrend(obs.slice(0, i + 1), o.at);
+    if (trend !== null) step(coming, o.at, trend <= P.fallingFast, trend > L.weatherComing.exitTrend, L.weatherComing.enterMin * 60_000, L.weatherComing.exitMin * 60_000);
+    if (typeof o.aqi === 'number') step(hazy, o.at, o.aqi > L.hazy.enterAqi, o.aqi < L.hazy.exitAqi, L.hazy.enterMin * 60_000, L.hazy.exitMin * 60_000);
+  }
+  return { weatherComing: coming.on ? { since: coming.since! } : null, hazy: hazy.on ? { since: hazy.since! } : null };
 }
 
 // The barometer's change, as hPa per 3 h: a least-squares slope over the observations of the last 3 h.
@@ -126,6 +152,9 @@ export function outsideNow(o: OutsideObservation | null, now: number, today: Out
     w.pressureTendency = pressureTendency(trend)!;
   }
   if (typeof o.aqi === 'number') w.air = { aqi: o.aqi, pm25: o.pm25 ?? null, pm10: o.pm10 ?? null, band: airBand(o.aqi) };
+  const latched = outsideLatches(recent, now);
+  if (latched.weatherComing) w.weatherComing = latched.weatherComing;
+  if (latched.hazy) w.hazy = latched.hazy;
   return w;
 }
 
