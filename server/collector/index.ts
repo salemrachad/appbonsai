@@ -2,6 +2,9 @@ import type { CollectorStatus, LivingSnapshot } from '../../src/api/types';
 import { evaluateBehaviour } from '../../src/behaviour/BehaviourEngine';
 import type { PlantBehaviourState, SlothMemory } from '../../src/behaviour/behaviourTypes';
 import { slothLife } from '../../src/behaviour/sloth';
+import { DRAGONFLY } from '../../src/behaviour/dragonfly';
+import { airDays } from '../../src/behaviour/wanderer';
+import type { Window } from '../../src/behaviour/familiarity';
 import { decideSpeech, INITIAL_MESSAGE_MEMORY, MessageMemory } from '../../src/behaviour/speech';
 import { APP_CONFIG } from '../../src/config/appConfig';
 import { expressBehaviour } from '../../src/expression/ExpressionEngine';
@@ -280,23 +283,35 @@ export class LivingCollector {
     return { latitude: this.settings.latitude ?? null, longitude: this.settings.longitude ?? null };
   }
 
-  // The sloth's loyalty (art): derived from the stored readings of its last days, as of today's start. Kept
-  // in memory for the day (a new day, source, location or calibration derives it again); never stored.
-  private slothCache: { key: string; memory: SlothMemory } | null = null;
-  private slothMemory(now: number, cadenceMs: number): SlothMemory {
+  // The air visitors' memory (art): derived from the stored readings of their last days, as of today's start:
+  // the sloth's loyalty, and both their past visit windows (how used to each other the visitors are). Kept
+  // for the day (a new day, source, location or calibration derives it again), with the runtime, so a
+  // restart reads no readings for it; never in its own table.
+  private slothCache: { key: string; memory: SlothMemory; history?: { sloth: Window[]; dragonfly: Window[] } } | null = null;
+  private wanderersMemory(now: number, cadenceMs: number): { sloth: SlothMemory; history: { sloth: Window[]; dragonfly: Window[] } } {
     const today = startOfDay(now);
     const loc = this.location();
     const key = JSON.stringify([today, this.source(), loc, this.calibration]);
-    if (this.slothCache?.key === key) return this.slothCache.memory;
+    if (this.slothCache?.key === key && this.slothCache.history) return { sloth: this.slothCache.memory, history: this.slothCache.history };
     const days = APP_CONFIG.habitat.sloth.loyalty.days;
     const from = today - days * DAY;
     const samples = this.db.telemetrySince(this.source(), from - 6 * HOUR, today).flatMap((r) => {
       const t = fromRecord(r, this.calibration, false);
       return t ? [toSample(t, ACTIVE_SPECIES, loc)] : [];
     });
-    const { memory } = slothLife(samples, recentWeather(this.db, from - 6 * HOUR), this.db.episodesSince(from), ACTIVE_SPECIES, cadenceMs, today, days);
-    this.slothCache = { key, memory };
-    return memory;
+    const weather = recentWeather(this.db, from - 6 * HOUR);
+    const episodes = this.db.episodesSince(from);
+    const { memory, days: slothDays } = slothLife(samples, weather, episodes, ACTIVE_SPECIES, cadenceMs, today, days);
+    const dragonflyDays = airDays(DRAGONFLY, samples, weather, episodes, ACTIVE_SPECIES, cadenceMs, today, days);
+    const history = { sloth: slothDays.flatMap((d) => d.windows), dragonfly: dragonflyDays.flatMap((d) => d.windows) };
+    this.slothCache = { key, memory, history };
+    return { sloth: memory, history };
+  }
+
+  // The air visitors' past visit windows as the live view used them today (the diary reads the same), or
+  // null before the first evaluation of the day
+  airHistory(): { sloth: Window[]; dragonfly: Window[] } | null {
+    return this.slothCache?.history ?? null;
   }
 
   // ---- continuity across restarts ----
@@ -645,7 +660,7 @@ export class LivingCollector {
       species: ACTIVE_SPECIES,
       now,
       location: this.location(),
-      wanderers: { sloth: this.slothMemory(now, perception.history.cadenceMs) },
+      wanderers: this.wanderersMemory(now, perception.history.cadenceMs),
       moodMemory: this.meta.get('mood_memory'),
       hike: hike.plan,
     });

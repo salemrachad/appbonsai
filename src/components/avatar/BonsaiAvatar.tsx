@@ -7,7 +7,7 @@ import { PetSession, usePetting } from './usePetting';
 import { Dragonfly, dragonflyAt, useDragonflyFlight } from './Dragonfly';
 import { Sloth, slothAt, slothRiderAt } from './Sloth';
 import { HikingBoots } from './HikingBoots';
-import { Lucy, LucyPillow } from './Lucy';
+import { Lucy, LucyPillow, SPOT as LUCY_SPOT } from './Lucy';
 import { Drey, SquirrelTraces, useVisitorPlay, Visitor, visitorAt } from './Visitor';
 
 interface BonsaiAvatarProps {
@@ -200,6 +200,8 @@ const BonsaiAvatarView: React.FC<BonsaiAvatarProps> = ({ expression, onClick, on
       ? dragonflyAt(flight, riderSpot)
       : visitor?.lookAt === 'sloth' && slothGrip
       ? { x: slothGrip.x, y: slothGrip.y + 30 }
+      : visitor?.lookAt === 'lucy' && expression?.lucy
+      ? { x: LUCY_SPOT[expression.lucy.spot].x, y: LUCY_SPOT[expression.lucy.spot].y - 30 } // down at her, where she is
       : null;
 
   // Petting's acknowledgement is nonverbal: a soft or slow eye-close, nothing said

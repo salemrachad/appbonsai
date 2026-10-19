@@ -26,7 +26,8 @@ import { evaluateMood } from './mood';
 import { evaluateCanopy } from './canopy';
 import { evaluateDragonfly } from './dragonfly';
 import { evaluateSloth } from './sloth';
-import { evaluateLucy } from './lucy';
+import { evaluateLucy, lucyDayVisits } from './lucy';
+import type { Window } from './familiarity';
 import { applyEncounters } from './encounters';
 import { evaluateVoice } from './voice';
 import { evaluateHabitat, seasonEnergyAt } from './habitat';
@@ -51,7 +52,9 @@ export interface BehaviourInput {
   // The visitors' memory (art): the tree's location (day and night of past squirrel visits), and the
   // sloth's loyalty from the last days of readings (the collector derives it; perception has only 24 h)
   location?: { latitude: number | null; longitude: number | null };
-  wanderers?: { sloth?: SlothMemory };
+  // The air visitors' memory, derived once a day by the collector from stored readings: the sloth's loyalty,
+  // and both their past visit windows (familiarity between the visitors)
+  wanderers?: { sloth?: SlothMemory; history?: { sloth: Window[]; dragonfly: Window[] } };
   moodMemory?: MoodMemory | null; // where the mood was (persisted by the collector): it drifts from there
   hike?: HikePlan | null; // the week's hike pick (the collector plans it from the forecast): a day line, the boots
 }
@@ -384,6 +387,10 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     location,
     seasonAt: seasonEnergyAt(location?.latitude ?? null, species),
     interactions,
+    // The squirrel learns Lucy from her day plans (the household clock), and knows the air visitors from
+    // their past visits
+    lucyVisitsOn: lucyDayVisits,
+    airHistory: wanderers?.history ?? null,
   });
   // ---- The dragonfly: the same habitat mechanism, reading the air of the last hours ----
   habitat.dragonfly = evaluateDragonfly({

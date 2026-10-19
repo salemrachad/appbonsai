@@ -255,6 +255,30 @@ export const APP_CONFIG = {
     // Encounters: two visitors in the tree at the same time (behaviour/encounters.ts). Art only.
     encounters: {
       dragonflyOnSlothChance: 0.5, // share of perched dragonfly visits spent resting on a sloth that is there
+      // Familiarity (encounters.ts familiarity()): pairs that meet often get used to each other. Meetings are
+      // past overlaps of their visits (≥ 1 min together), recency-weighted; familiarity = w / (w + k). Unknown
+      // history (previews, a fresh tree) is 0.5: the encounters as they always were.
+      familiarity: {
+        recencyDays: 7, // a meeting's weight halves in about 5 days
+        k: 2, // two recent meetings: halfway; meeting once a day makes old friends in about two weeks
+        strangers: 0.3, // below: wary of each other (the squirrel only peeks at the sloth)
+        friends: 0.75, // above: at ease (sharing a branch, no more staring, Lucy calmer)
+        dragonflyOnSloth: { strangers: 0.25, friends: 0.8 }, // its resting chance from strangers to old friends (0.5 at 0.5)
+      },
+    },
+    // The squirrel learns Lucy (habitat.ts squirrelLife): each visit of hers that found it out on a branch and
+    // got her curious or excited is a lesson; wariness = recency-weighted lessons / (lessons + k). Wary, it comes
+    // less in her hours (so its usual hour drifts away from them) and ducks into the leaves when she is below.
+    lucyLessons: {
+      recencyDays: 10,
+      k: 4,
+      maxAvoid: 0.7, // at full wariness, a slot during one of her visits keeps 30 % of its chance
+      waryAt: 0.4, // from here it hides when she is awake below (else it watches her)
+      waitedAfterMin: 20, // a visit starting this soon after she left: "waited until Lucy had gone"
+      // They meet several times a day (she comes ten times): their familiarity grows on a slower scale, so the
+      // wary weeks come first and peace (if ever) over months
+      familiarityK: 40,
+      familiarityRecencyDays: 30,
     },
     // Petting while the squirrel visits: it plays around the tree (UI only, never stored). How playful comes
     // from the tree's state (ExpressionEngine visitorPlay); these are the tunings per kind.

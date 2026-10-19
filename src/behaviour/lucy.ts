@@ -158,6 +158,13 @@ export function lucyDay(t: number, hike?: Pick<HikeDetail, 'from' | 'to'> | null
   return { dayKey: key, visits, away };
 }
 
+// Her interest in a visitor lives with familiarity (behaviour/familiarity.ts): the habitat reads it too
+export { lucyInterest, LUCY_INTEREST, type LucyInterestLevel } from './familiarity';
+
+// Her day visits (not the night by the pot, not the hike: the squirrel learns her ordinary days) as plain
+// windows, for the squirrel's memory of her (habitat.ts)
+export const lucyDayVisits = (t: number) => lucyDay(t).visits.filter((v) => v.kind === 'day').map((v) => ({ id: v.id, from: v.startedAt, to: v.endsAt }));
+
 // ---- Right now ----
 
 export interface LucyInput {

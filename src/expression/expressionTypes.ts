@@ -213,7 +213,7 @@ export interface VisitorPresentation {
   play: VisitorPlay; // how it answers petting, decided from the tree's state
   // Encounters: who it watches (its head follows them), and the spots its play never hops to (the sloth's
   // branch, the branch the dragonfly rests by)
-  lookAt?: 'sloth' | 'dragonfly' | null;
+  lookAt?: 'sloth' | 'dragonfly' | 'lucy' | null;
   avoid?: VisitorPresentation['spot'][];
 }
 
@@ -295,7 +295,7 @@ export interface ExpressionState {
   dragonfly: DragonflyPresentation | null;
   sloth: SlothPresentation | null;
   lucy?: LucyPresentation | null; // optional: a page left open across a deploy may read an older server
-  encounters: ('squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth')[]; // visitors meeting right now (art)
+  encounters: ('squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth' | 'lucy_squirrel')[]; // visitors meeting right now (art)
   drey: DreyLook;
   // The week's hike (from behaviour.hike): the plan Home announces, and on the day two pairs of hiking
   // boots by the pot (theirs). Absent without a forecast.

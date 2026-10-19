@@ -3,7 +3,7 @@ import { APP_CONFIG } from '../../src/config/appConfig';
 import { STRESS_CONDITIONS } from '../../src/health/statePriority';
 import { dragonflyDiary } from '../../src/behaviour/dragonfly';
 import { slothDiary } from '../../src/behaviour/sloth';
-import { lucyDiary } from '../../src/behaviour/lucy';
+import { lucyDayVisits, lucyDiary } from '../../src/behaviour/lucy';
 import { recentTelemetry, recentWeather } from '../rowCache';
 import { encounterDiary, type Window } from '../../src/behaviour/encounters';
 import { habitatDiary, seasonEnergyAt } from '../../src/behaviour/habitat';
@@ -45,7 +45,17 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const weatherSince = (t: number) => recentWeather(db, t);
   // The squirrel's story, derived from the same episodes the habitat replays (nothing stored)
   const windows: { squirrel: Window[]; dragonfly: Window[]; sloth: Window[] } = { squirrel: [], dragonfly: [], sloth: [] };
-  const visitors = habitatDiary({ episodes: episodesSince(now - APP_CONFIG.habitat.replayDays * DAY), now, days, location, seasonAt: seasonEnergyAt(location.latitude, ACTIVE_SPECIES), windowsOut: windows.squirrel });
+  const visitors = habitatDiary({
+    episodes: episodesSince(now - APP_CONFIG.habitat.replayDays * DAY),
+    now,
+    days,
+    location,
+    seasonAt: seasonEnergyAt(location.latitude, ACTIVE_SPECIES),
+    windowsOut: windows.squirrel,
+    // the same others as the live view: what it learns of Lucy, who it knows
+    lucyVisitsOn: lucyDayVisits,
+    airHistory: collector.airHistory(),
+  });
   // The dragonfly's days: the stored readings as samples, through the same replay as the live view
   const cal = collector.getCalibration();
   const toSamples = (rows: ReturnType<typeof db.telemetrySince>) =>

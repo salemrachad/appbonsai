@@ -249,7 +249,7 @@ export interface LucyState {
 
 // Two visitors in the tree at the same time (art): the squirrel peeks at the sloth, the squirrel watches the
 // dragonfly, the dragonfly rests on the sloth
-export type HabitatEncounter = 'squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth';
+export type HabitatEncounter = 'squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth' | 'lucy_squirrel';
 
 // Mood as its own slow layer (behaviour/mood.ts, art): anchored by health, nudged by the environment,
 // petting and care, the visitors and the outside weather, drifting with inertia
@@ -288,7 +288,10 @@ export interface SquirrelMemory {
   favouriteSpot: VisitSpot | null;
   boldness: number; // 0-1, from trust and play: only how it plays
   pastVisits: number; // visits it remembers (the last weeks)
+  wariness?: number; // 0-1: what it learned of Lucy (habitat.ts squirrelLife); absent without her plan
 }
+// Pairs that know each other (behaviour/familiarity.ts): 0 strangers … 1 old friends, 0.5 unknown
+export type FamiliarityPair = 'squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth' | 'lucy_squirrel';
 
 export interface HabitatState {
   value: number; // 0-1: how welcoming the tree has been (slow to rise, quick to fall)
@@ -304,6 +307,7 @@ export interface HabitatState {
   sloth?: SlothState; // the third wanderer
   lucy?: LucyState; // the household dog by the pot (not a wanderer: she lives here)
   encounters?: HabitatEncounter[]; // visitors in the tree together right now (behaviour/encounters.ts)
+  familiarity?: Partial<Record<FamiliarityPair, number>>; // how used to each other the pairs are (from their past visits)
   calmHours14d: number; // observed hours that raised it
   stressHours14d: number; // observed hours that lowered it
   lastChangeAt: number | null; // when the latch last flipped

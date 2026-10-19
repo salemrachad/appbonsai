@@ -105,6 +105,7 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
         squirrel: v ? { id: v.id, spot: v.spot, mode: v.mode === 'peek' ? 'hiding' : v.mode, fixed: !!v.action } : null,
         dragonfly: x.dragonfly ? { id: x.dragonfly.id, perch: x.dragonfly.perch === 'on_sloth' ? 'left_tip' : x.dragonfly.perch, perched: x.dragonfly.presence === 'perched' } : null,
         sloth: x.sloth ? { id: x.sloth.id, branch: x.sloth.branch, asleep: x.sloth.pose === 'sleeping' } : null,
+        lucy: x.lucy ? { id: x.lucy.id, awake: x.lucy.pose !== 'sleeping' } : null, // previews know no history: it only watches her
       });
       const cast = encounterCues(
         {

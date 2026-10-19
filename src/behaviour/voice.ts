@@ -129,7 +129,7 @@ export function evaluateVoice({ health, perception: p, species, intent, timeOfDa
   const lu = habitat.lucy;
   if (lu?.visit && (lu.presence === 'down' || lu.presence === 'sleeping') && lu.visit.kind !== 'night') add('lucy_here', { count: Math.max(1, lu.visitsToday.count) }, 2);
   // Two visitors sharing the tree right now (rare: only while it happens, once a day)
-  const met = habitat.encounters?.[0];
+  const met = habitat.encounters?.find((e) => ENCOUNTER_PAIRS.includes(e)); // Lucy is the household, not a visitor
   if (met) add('visitors_met', { pair: ENCOUNTER_PAIRS.indexOf(met) }, 3);
   if (canopy.trend === 'refilling' && canopy.refilling > 0.1) add('new_tips', { fullness: r0(canopy.fullness * 100) }, 2);
   if (habitat.drey.stage === 'started') add('drey_growing', {}, 1);

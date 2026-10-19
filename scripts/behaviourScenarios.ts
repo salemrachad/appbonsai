@@ -726,6 +726,101 @@ async function main() {
       lines.length === 1 && lines[0].title.includes('squirrel and the sloth') && /2 times/.test(lines[0].detail) && noLines.length === 0,
       lines.map((l) => `${l.title} · ${l.detail}`).join(' | ')
     );
+
+    // ---- From choreography to relationships (familiarity, and the squirrel learning Lucy) ----
+    const unknown = { squirrel_sloth: 0.5, squirrel_dragonfly: 0.5, dragonfly_sloth: 0.5, lucy_squirrel: 0.5 };
+    const same = (f: (fam?: any) => unknown) => JSON.stringify(f()) === JSON.stringify(f(unknown));
+    check(
+      'EN8 unknown familiarity meets exactly as before (no history: previews, a fresh tree); the "visitors met" thought ignores Lucy',
+      same((fam) => n.map((i) => meet({ squirrel: sq(i), dragonfly: null, sloth: sl(i), familiarity: fam }))) &&
+        same((fam) => watch.map((_, k) => meet({ squirrel: sq(k % 20, spots[k % 5]), dragonfly: df(k % 20, perches[k % 4]), sloth: null, familiarity: fam }))) &&
+        same((fam) => n.map((i) => meet({ squirrel: null, dragonfly: df(i), sloth: sl(i, 'right_branch'), familiarity: fam }))) &&
+        !voiceWith(['lucy_squirrel']).musings.some((m) => m.id === 'visitors_met')
+    );
+    const lucyAwake = { id: 'lucy:x', awake: true };
+    const wary = meet({ squirrel: sq(1, 'crown'), dragonfly: null, sloth: null, lucy: lucyAwake, wariness: 0.6 });
+    const calm = meet({ squirrel: sq(1, 'crown'), dragonfly: null, sloth: null, lucy: lucyAwake, wariness: 0.1 });
+    const asleep = meet({ squirrel: sq(1, 'crown'), dragonfly: null, sloth: null, lucy: { ...lucyAwake, awake: false }, wariness: 0.9 });
+    const peace = meet({ squirrel: sq(1, 'crown'), dragonfly: null, sloth: null, lucy: lucyAwake, wariness: 0.9, familiarity: { lucy_squirrel: 0.9 } });
+    const watched = encounterCues({ visitor: v, dragonfly: d, sloth: null }, calm.encounters.concat(['squirrel_dragonfly']));
+    check(
+      'EN10 Lucy awake below: a wary squirrel ducks into the leaves, an unwary one watches her (before the dragonfly); asleep, she meets nobody; at peace with her, it stays out',
+      wary.squirrelShows === 'hiding' && calm.squirrelShows === null && calm.encounters.includes('lucy_squirrel') && watched.visitor!.lookAt === 'lucy' &&
+        asleep.encounters.length === 0 && peace.squirrelShows === null,
+      `wary ${wary.squirrelShows} · calm ${calm.squirrelShows} (looks at ${watched.visitor!.lookAt})`
+    );
+    {
+      const { familiarity, familiarityStage } = await import('../src/behaviour/familiarity');
+      const day = (k: number, h: number, len: number) => ({ from: at(10, h) + k * 24 * 60 * MIN, to: at(10, h) + k * 24 * 60 * MIN + len * MIN });
+      const a = Array.from({ length: 18 }, (_, k) => day(k, 10, 20));
+      const b = Array.from({ length: 18 }, (_, k) => day(k, 10, 30));
+      const elsewhere = Array.from({ length: 10 }, (_, k) => day(k, 15, 30));
+      const fNow = familiarity(a, b, at(10, 0) + 18 * 24 * 60 * MIN);
+      const fLater = familiarity(a, b, at(10, 0) + 48 * 24 * 60 * MIN);
+      const fNever = familiarity(a, elsewhere, at(10, 0) + 10 * 24 * 60 * MIN);
+      const shy = meet({ squirrel: sq(1, 'crown'), dragonfly: null, sloth: sl(1), familiarity: { squirrel_sloth: 0.1 } });
+      const friends = encounterCues({ visitor: v, dragonfly: null, sloth: s }, ['squirrel_sloth'], { squirrel_sloth: 0.9 });
+      check(
+        'EN11 familiarity grows with meetings and fades without them; strangers only peek at the sloth, old friends stop staring (and its play may hop onto the sloth\'s branch)',
+        familiarityStage(fNow) === 'friends' && fLater < 0.3 && fNever === 0 && shy.squirrelShows === 'peek' && friends.visitor!.lookAt === null && friends.sloth!.lookAt === null && !friends.visitor!.avoid!.includes('left_branch'),
+        `18 days together ${fNow} · a month later ${fLater} · never together ${fNever}`
+      );
+      const rideAt = (f: number) => n.filter((i) => meet({ squirrel: null, dragonfly: df(i), sloth: sl(i, 'right_branch'), familiarity: { dragonfly_sloth: f } }).dragonflyPerch === 'on_sloth').length / n.length;
+      const [r0, r5, r1] = [rideAt(0), rideAt(0.5), rideAt(1)];
+      check('EN12 the dragonfly rests on the sloth more the better they know each other (about 25 % → 50 % → 80 %)', r0 < r5 && r5 < r1 && r0 < 0.38 && r1 > 0.68, `${Math.round(r0 * 100)}% · ${Math.round(r5 * 100)}% · ${Math.round(r1 * 100)}%`);
+    }
+  }
+
+  console.log('\n— The squirrel learns Lucy (wariness, its hours) —');
+  {
+    const { squirrelLife, replayHabitat, evaluateHabitat, habitatDiary } = await import('../src/behaviour/habitat');
+    const { lucyDayVisits } = await import('../src/behaviour/lucy');
+    type Ep = import('../src/history/historyTypes').BehaviourEpisode;
+    const HOUR = 60 * MIN;
+    let id = 0;
+    const ep = (condition: Ep['condition'], startedAt: number, hours: number, open = false): Ep => ({
+      id: ++id, startedAt, endedAt: open ? null : startedAt + hours * HOUR, lastSeenAt: startedAt + hours * HOUR, unobservedMs: 0, condition, modifiers: [], peakSeverity: 'none', engineVersion: 't',
+    });
+    const day0 = new Date(2026, 5, 1).getTime();
+    const now = day0 + 30 * 24 * HOUR + 12 * HOUR;
+    const episodes: Ep[] = [];
+    for (let t = day0; t < now; t += 24 * HOUR) episodes.push(ep('sleeping', t, 7), ep('comfortable', t + 7 * HOUR, 14), ep('sleeping', t + 21 * HOUR, 3));
+    const isDay = (t: number) => { const h = new Date(t).getHours(); return h >= 7 && h < 21; };
+    const season = () => ({ id: 'summer', energy: 1 });
+    const r = replayHabitat(episodes, now, true);
+    const without = squirrelLife(episodes, now, r, isDay, season);
+    const withLucy = squirrelLife(episodes, now, r, isDay, season, lucyDayVisits);
+    const inHerHours = (life: typeof without, from: number) => {
+      const vs = life.visits.filter((x) => x.presence === 'visiting' && x.startedAt >= from);
+      const hit = vs.filter((x) => lucyDayVisits(x.startedAt).some((w) => w.from < x.endsAt && w.to > x.startedAt)).length;
+      return { share: vs.length ? hit / vs.length : 0, n: vs.length };
+    };
+    const late = now - 10 * 24 * HOUR;
+    const a = inHerHours(without, late);
+    const b = inHerHours(withLucy, late);
+    const lessons = withLucy.lucy!.days.reduce((k, d) => k + d.lessons.length, 0);
+    check(
+      'EN9 weeks of Lucy getting curious or excited about it: it grows wary, and comes less in her hours (they drift away from hers by themselves)',
+      without.lucy === null && withLucy.lucy!.wariness > 0.3 && lessons > 0 && b.share < a.share,
+      `wariness ${withLucy.lucy!.wariness} after ${lessons} lessons · visits in her hours ${Math.round(a.share * 100)}% → ${Math.round(b.share * 100)}% (${a.n} / ${b.n} visits in 10 days) · usual hour ${without.habits.usualHour} → ${withLucy.habits.usualHour}`
+    );
+    const plain = evaluateHabitat({ episodes, condition: 'comfortable', modifiers: [], isDay: true, season: season(), now });
+    const learned = evaluateHabitat({ episodes, condition: 'comfortable', modifiers: [], isDay: true, season: season(), now, lucyVisitsOn: lucyDayVisits, airHistory: { sloth: [], dragonfly: [] } });
+    check(
+      'EN14 what it learns of the others never changes the habitat itself (value, welcoming, trust, the drey): only who shows where',
+      plain.value === learned.value && plain.welcoming === learned.welcoming && plain.memory.trust === learned.memory.trust && JSON.stringify(plain.drey) === JSON.stringify(learned.drey) && plain.familiarity === undefined && learned.familiarity?.lucy_squirrel !== undefined,
+      JSON.stringify(learned.familiarity)
+    );
+    // The diary names what happened: Lucy noticing it, waiting for her to go, a pair at ease
+    const sloth = Array.from({ length: 30 }, (_, k) => ({ from: day0 + k * 24 * HOUR + 7 * HOUR, to: day0 + k * 24 * HOUR + 20 * HOUR }));
+    const diary = habitatDiary({ episodes, now, days: 30, location: { latitude: null, longitude: null }, seasonAt: season, lucyVisitsOn: lucyDayVisits, airHistory: { sloth, dragonfly: [] } });
+    const titles = diary.map((i) => i.title);
+    const once = (t: string) => titles.filter((x) => x === t).length;
+    check(
+      'EN13 diary: Lucy spotted the squirrel, it waited until she had gone, and the squirrel and the sloth got used to each other (once)',
+      titles.includes('Lucy spotted the squirrel') && titles.includes('The squirrel waited until Lucy had gone') && once('The squirrel and the sloth are used to each other now') === 1,
+      [...new Set(titles.filter((t) => /Lucy|used to|friends|peace|new hour|minds/.test(t)))].join(' | ')
+    );
   }
 
   console.log('\n— The dragonfly flies around (its route through a visit) —');

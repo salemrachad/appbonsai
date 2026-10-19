@@ -7,7 +7,8 @@ import type { Season } from '../perception/season';
 import { spotByPerch } from '../behaviour/encounters';
 import { GRIP_WORDS } from '../behaviour/sloth';
 import { weekdayName } from '../behaviour/hike';
-import type { HabitatEncounter } from '../behaviour/behaviourTypes';
+import { familiarityStage, lucyInterest, UNKNOWN_FAMILIARITY } from '../behaviour/familiarity';
+import type { FamiliarityPair, HabitatEncounter } from '../behaviour/behaviourTypes';
 import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gaze, Gesture, SceneId, TouchKind, TouchResponse, DragonflyPresentation, DreyLook, LucyPresentation, SlothPresentation, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
 import { APP_CONFIG } from '../config/appConfig';
 import type { AirBand, OutsideSky } from '../telemetry/outsideWeather';
@@ -260,22 +261,28 @@ function touchResponse(condition: HealthCondition, modifiers: HealthModifier[], 
 // Encounter cues on the presentations (the live view after behaviour arranged the spots, and the browser
 // previews): the squirrel watches the dragonfly (else the sloth), the sloth turns toward the squirrel unless
 // asleep, a dragonfly resting on the sloth makes it blink slowly, and the squirrel's play keeps off the
-// sloth's branch and the leaves the dragonfly rests by.
+// sloth's branch and the leaves the dragonfly rests by. Lucy below comes first: the squirrel watches her.
+// Old friends (familiarity) are at ease: no more staring, and the play may hop onto the other's spot.
 export function encounterCues(
   c: { visitor: VisitorPresentation | null; dragonfly: DragonflyPresentation | null; sloth: SlothPresentation | null },
-  encounters: HabitatEncounter[]
+  encounters: HabitatEncounter[],
+  familiarity: Partial<Record<FamiliarityPair, number>> = {}
 ) {
   const has = (e: HabitatEncounter) => encounters.includes(e);
+  const easy = (p: FamiliarityPair) => familiarityStage(familiarity[p] ?? UNKNOWN_FAMILIARITY) === 'friends';
   let { visitor, dragonfly, sloth } = c;
-  if (visitor && (has('squirrel_sloth') || has('squirrel_dragonfly'))) {
+  const watchSloth = has('squirrel_sloth') && !easy('squirrel_sloth');
+  const watchDragonfly = has('squirrel_dragonfly') && !easy('squirrel_dragonfly');
+  if (visitor && (has('squirrel_sloth') || has('squirrel_dragonfly') || has('lucy_squirrel'))) {
     const avoid: VisitorPresentation['spot'][] = [];
-    if (sloth && has('squirrel_sloth')) avoid.push(sloth.branch);
+    if (sloth && watchSloth) avoid.push(sloth.branch);
     const by = dragonfly ? spotByPerch(dragonfly.perch) : null;
-    if (by && has('squirrel_dragonfly') && !avoid.includes(by)) avoid.push(by);
-    visitor = { ...visitor, lookAt: visitor.mode === 'sleeping' ? null : has('squirrel_dragonfly') ? 'dragonfly' : 'sloth', avoid };
+    if (by && watchDragonfly && !avoid.includes(by)) avoid.push(by);
+    const lookAt = visitor.mode === 'sleeping' ? null : has('lucy_squirrel') && visitor.mode === 'visiting' ? 'lucy' : watchDragonfly ? 'dragonfly' : watchSloth ? 'sloth' : null;
+    visitor = { ...visitor, lookAt, avoid };
   }
   if (sloth && (has('squirrel_sloth') || has('dragonfly_sloth'))) {
-    sloth = { ...sloth, lookAt: has('squirrel_sloth') && sloth.pose !== 'sleeping' ? 'squirrel' : null, rider: has('dragonfly_sloth') };
+    sloth = { ...sloth, lookAt: watchSloth && sloth.pose !== 'sleeping' ? 'squirrel' : null, rider: has('dragonfly_sloth') };
   }
   const route = dragonfly?.route ?? [];
   if (dragonfly && !sloth && (dragonfly.perch === 'on_sloth' || route.some((x) => x.perch === 'on_sloth')))
@@ -558,7 +565,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
   const lu = h?.lucy?.visit ?? null;
   const lucy: LucyPresentation | null = lu ? lucyPresentation(lu) : null;
   // Encounters (arranged by behaviour): who looks at whom, where the squirrel's play never hops
-  const met = encounterCues({ visitor, dragonfly, sloth }, h?.encounters ?? []);
+  const met = encounterCues({ visitor, dragonfly, sloth }, h?.encounters ?? [], h?.familiarity ?? {});
   return {
     avatar,
     leafDroop,
@@ -569,7 +576,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     squirrelTraces: h?.traces ?? null,
     dragonfly: met.dragonfly,
     sloth: met.sloth,
-    lucy: withLucyInterest(lucy, met.visitor, met.dragonfly, met.sloth),
+    lucy: withLucyInterest(lucy, met.visitor, met.dragonfly, met.sloth, h?.familiarity?.lucy_squirrel),
     encounters: h?.encounters ?? [],
     drey,
     ...(b.hike ? { hike: { boots: b.hike.today, plan: b.hike } } : {}),
@@ -671,19 +678,15 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
 // A visitor in the tree, and how much it interests Lucy (stable per pair of visits): the squirrel out on a
 // branch first, else a dragonfly, else an awake sloth. Watching over a struggling tree or in a storm she only
 // glances. Art only; nothing reads it back.
-const INTEREST = ['glance', 'watch', 'curious', 'excited'] as const;
-export function withLucyInterest(lucy: LucyPresentation | null, v: VisitorPresentation | null, df: DragonflyPresentation | null, sl: SlothPresentation | null): LucyPresentation | null {
+// squirrelFamiliarity: how used to each other she and the squirrel are (0.5 unknown): familiar, she cools.
+export function withLucyInterest(lucy: LucyPresentation | null, v: VisitorPresentation | null, df: DragonflyPresentation | null, sl: SlothPresentation | null, squirrelFamiliarity = 0.5): LucyPresentation | null {
   if (!lucy) return lucy;
   const who = v && (v.mode === 'visiting' || v.mode === 'peek') ? { who: 'squirrel' as const, id: v.id } : df ? { who: 'dragonfly' as const, id: df.id } : sl && sl.pose !== 'sleeping' ? { who: 'sloth' as const, id: sl.id } : null;
   if (!who) {
     const { interest, ...rest } = lucy;
     return interest ? rest : lucy;
   }
-  const shares = APP_CONFIG.habitat.lucy.interest[who.who];
-  const x = stableVariant(`${lucy.id}:${who.id}:interest`, 997) / 997;
-  let i = 0;
-  for (let acc = shares[0]; i < shares.length - 1 && x >= acc; acc += shares[++i]);
-  const level = lucy.cue === 'concern' || lucy.cue === 'storm' ? 'glance' : INTEREST[i];
+  const level = lucy.cue === 'concern' || lucy.cue === 'storm' ? 'glance' : lucyInterest(lucy.id, who.id, who.who, who.who === 'squirrel' ? squirrelFamiliarity : 0.5);
   return { ...lucy, interest: { who: who.who, level } };
 }
 

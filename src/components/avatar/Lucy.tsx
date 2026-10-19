@@ -30,7 +30,7 @@ const INK = '#4A5470'; // soft navy ink, never black
 const DARK = '#191A20'; // eyes and nose
 
 // Where she is drawn for each spot (avatar coordinates of the ground under her), and how large
-const SPOT: Record<LucyPresentation['spot'], { x: number; y: number }> = {
+export const SPOT: Record<LucyPresentation['spot'], { x: number; y: number }> = {
   pillow: { x: 46, y: 446 }, // on her cushion, left of the stand
   floor_left: { x: 84, y: 456 }, // the cool floor beside her pillow
   by_pot: { x: 140, y: 457 }, // by the stand's left leg, close to the tree

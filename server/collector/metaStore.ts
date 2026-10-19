@@ -33,7 +33,7 @@ export interface SavedRuntime {
   previous: PlantTelemetry | null;
   due:{ poll: number | null; weather: number | null; hike: number | null }; // when each timer is next due (null: not scheduled)
   watering: SavedWatering;
-  sloth: { key: string; memory: SlothMemory } | null;
+  sloth: { key: string; memory: SlothMemory; history?: { sloth: { from: number; to: number }[]; dragonfly: { from: number; to: number }[] } } | null; // the air visitors' day memory
 }
 
 // The last evaluation, as the API shows it (perception without its 24 h of samples and today's skies)

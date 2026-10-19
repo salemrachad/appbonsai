@@ -9,6 +9,7 @@ import { sunState } from '../perception/sun';
 import type { OutsideSky, PressureTendency } from '../telemetry/outsideWeather';
 import type { DreyState, HabitatState, HabitatVisit, ReactionKind, SquirrelMemory, SquirrelStage, SquirrelTraces, VisitSpot } from './behaviourTypes';
 import { stableVariant } from './speech';
+import { becameFriends, familiarity, familiarityFrom, LUCY_SCALE, lucyInterest, meetings, type Window } from './familiarity';
 import { dayKey, DAY, HOUR, hourFraction, hourOf as hourOfDay, MIN, hhmm, startOfDay } from '../lib/time';
 
 // Habitat: how welcoming the tree has been as a place to be, and whether a visitor (the squirrel) is
@@ -75,6 +76,10 @@ export interface HabitatInput {
   location?: { latitude: number | null; longitude: number | null };
   seasonAt?: (t: number) => { id: string; energy: number };
   interactions?: Interaction[];
+  // The others in its life: Lucy's day plan (it learns her), and the air visitors' past visit windows (the
+  // collector's daily derivation from stored readings). Without them: nothing learned, familiarity unknown.
+  lucyVisitsOn?: LucyVisitsOn;
+  airHistory?: { sloth: Window[]; dragonfly: Window[] } | null;
 }
 
 // The blended seasonal energy at any time (the behaviour engine's, for past slots and the diary)
@@ -263,7 +268,12 @@ const chanceScaleAt = (now: number, seasonEnergy: number) => {
 // The visit planned for the slot covering `t` (wherever `t` falls in it). A pure function of the day, the
 // slot, the habitat value, its stage, its habits and its trust. Without habits, at the visiting stage, it is
 // exactly the plain slot visit.
-function squirrelPlan(t: number, value: number, stage: SquirrelStage, habits: SquirrelHabits, trust: number, season: { id: string; energy: number }): HabitatVisit | null {
+// What it has learned of Lucy for a day: her visits that day and how wary of her it is (see squirrelLife)
+export interface LucyLesson {
+  windows: { from: number; to: number }[];
+  wariness: number;
+}
+function squirrelPlan(t: number, value: number, stage: SquirrelStage, habits: SquirrelHabits, trust: number, season: { id: string; energy: number }, lucy?: LucyLesson): HabitatVisit | null {
   const cfg = APP_CONFIG.habitat;
   const H = cfg.habits;
   const slotMs = cfg.slotMinutes * MIN;
@@ -272,7 +282,10 @@ function squirrelPlan(t: number, value: number, stage: SquirrelStage, habits: Sq
   // Its usual hour: visits gather around it
   const mid = hourOf(slotStart) + cfg.slotMinutes / 120;
   const habit = habits.usualHour === null ? 1 : Math.abs(mid - habits.usualHour) <= 1 ? H.nearHour : H.otherHours;
-  const chance = (cfg.visitChance.min + (cfg.visitChance.max - cfg.visitChance.min) * f) * chanceScaleAt(slotStart, season.energy) * habit;
+  // Wary of Lucy, it comes less while she is around (so its hours drift away from hers)
+  const dogHere = !!lucy && lucy.wariness > 0 && lucy.windows.some((w) => w.from < slotStart + slotMs && w.to > slotStart);
+  const shy = dogHere ? 1 - lucy!.wariness * cfg.lucyLessons.maxAvoid : 1;
+  const chance = (cfg.visitChance.min + (cfg.visitChance.max - cfg.visitChance.min) * f) * chanceScaleAt(slotStart, season.energy) * habit * shy;
   const len = stage === 'peeking' ? cfg.trust.peekLength : stage === 'settled' ? cfg.trust.settledLength : 1;
   const w = slotPlan('habitat', t, cfg.slotMinutes, chance, { min: Math.max(2, Math.round(cfg.visitMinutes.min * len)), max: Math.round(cfg.visitMinutes.max * len) });
   if (!w) return null;
@@ -292,8 +305,8 @@ function squirrelPlan(t: number, value: number, stage: SquirrelStage, habits: Sq
     action: null,
   };
 }
-function squirrelVisitAt(now: number, value: number, stage: SquirrelStage, habits: SquirrelHabits, trust: number, season: { id: string; energy: number }) {
-  const v = squirrelPlan(now, value, stage, habits, trust, season);
+function squirrelVisitAt(now: number, value: number, stage: SquirrelStage, habits: SquirrelHabits, trust: number, season: { id: string; energy: number }, lucy?: LucyLesson) {
+  const v = squirrelPlan(now, value, stage, habits, trust, season, lucy);
   return v && now >= v.startedAt && now < v.endsAt ? v : null;
 }
 
@@ -318,12 +331,27 @@ export interface PastVisit {
   stage: SquirrelStage;
   presence: 'visiting' | 'hiding';
 }
+// Lucy's day visits for the day containing t (her plan on the household clock; injected so the habitat
+// needs no import of her module). Without it, the squirrel knows nothing of her.
+export type LucyVisitsOn = (t: number) => { id: string; from: number; to: number }[];
+// One day of what it learned of her: the lessons (visits of hers that got her curious or excited about it out
+// on a branch), the times they met at all, how wary of her it was that day and how familiar they were
+export interface LucyDayLesson {
+  day: number;
+  wariness: number;
+  familiarity: number;
+  usualHour: number | null; // its usual hour that day (to see it move away from hers)
+  lessons: number[];
+  meetings: number[];
+}
+
 export function squirrelLife(
   episodes: BehaviourEpisode[],
   now: number,
   r: ReturnType<typeof replayHabitat>,
   isDayAt: (t: number) => boolean,
-  seasonAt: (t: number) => { id: string; energy: number }
+  seasonAt: (t: number) => { id: string; energy: number },
+  lucyVisitsOn?: LucyVisitsOn
 ) {
   const cfg = APP_CONFIG.habitat;
   const slotMs = cfg.slotMinutes * MIN;
@@ -342,12 +370,34 @@ export function squirrelLife(
   };
   const base: { startedAt: number; spot: VisitSpot }[] = []; // habit-free: what its habits are made of
   const visits: PastVisit[] = [];
+  // What it learned of Lucy, each day from the days before (like its habits)
+  const L = cfg.lucyLessons;
+  const lessons: number[] = [];
+  const met: number[] = [];
+  const lucyDays: LucyDayLesson[] = [];
+  const weigh = (ts: number[], at: number, days: number) => ts.reduce((w, x) => (x < at ? w + Math.exp(-(at - x) / (days * DAY)) : w), 0);
+  const learnedBy = (at: number) => {
+    const w = weigh(lessons, at, L.recencyDays);
+    return { wariness: round2(w / (w + L.k)), familiarity: familiarityFrom(met, at, LUCY_SCALE) };
+  };
+  let lesson: LucyLesson | undefined;
+  let today: LucyDayLesson | null = null;
+  let lucyWindows: { id: string; from: number; to: number }[] = [];
+  const windowsByDay = new Map<number, { id: string; from: number; to: number }[]>();
   let day = -1;
   let habits = NO_HABITS;
   for (let t = Math.ceil((now - cfg.replayDays * DAY) / slotMs) * slotMs; t <= now; t += slotMs) {
     if (startOfDay(t) !== day) {
       day = startOfDay(t);
       habits = habitsFrom(base, day); // a day's habits come from the days before it
+      if (lucyVisitsOn) {
+        lucyWindows = lucyVisitsOn(day);
+        windowsByDay.set(day, lucyWindows);
+        const k = learnedBy(day);
+        lesson = { windows: lucyWindows, wariness: k.wariness };
+        today = { day, ...k, usualHour: habits.usualHour, lessons: [], meetings: [] };
+        lucyDays.push(today);
+      }
     }
     const s = stateAt(t);
     const ep = episodeAt(t);
@@ -355,12 +405,34 @@ export function squirrelLife(
     const p = basePresence(true, s.value, ep.condition, [], isDayAt(t)).presence;
     if (p === 'none' || p === 'night') continue;
     const season = seasonAt(t);
-    const b = squirrelPlan(t, s.value, 'visiting', NO_HABITS, 0, season);
+    // Its hours shy away from Lucy's in what its habits are made of too: wariness isn't a habit, it shapes them
+    const b = squirrelPlan(t, s.value, 'visiting', NO_HABITS, 0, season, lesson);
     if (b && b.startedAt <= now) base.push({ startedAt: b.startedAt, spot: b.spot });
-    const v = squirrelPlan(t, s.value, s.stage, habits, s.trust, season);
-    if (v && v.startedAt <= now) visits.push({ startedAt: v.startedAt, endsAt: v.endsAt, spot: v.spot, stage: s.stage, presence: p });
+    const v = squirrelPlan(t, s.value, s.stage, habits, s.trust, season, lesson);
+    if (!v || v.startedAt > now) continue;
+    visits.push({ startedAt: v.startedAt, endsAt: v.endsAt, spot: v.spot, stage: s.stage, presence: p });
+    // Out on a branch while she was there: they met. Wary, it ducks into the leaves (she never sees it);
+    // otherwise her curiosity or excitement about it is a lesson
+    if (!today || p !== 'visiting' || s.stage === 'peeking' || today.wariness >= L.waryAt) continue;
+    for (const w of lucyWindows) {
+      const from = Math.max(w.from, v.startedAt);
+      if (Math.min(w.to, v.endsAt, now) - from < MIN) continue;
+      met.push(from);
+      today.meetings.push(from);
+      const level = lucyInterest(w.id, v.id, 'squirrel', today.familiarity);
+      if (level === 'curious' || level === 'excited') {
+        lessons.push(from);
+        today.lessons.push(from);
+      }
+    }
   }
-  return { visits, habits: day === startOfDay(now) ? habits : habitsFrom(base, startOfDay(now)) };
+  const learned = lucyVisitsOn ? learnedBy(startOfDay(now)) : null;
+  return {
+    visits,
+    habits: day === startOfDay(now) ? habits : habitsFrom(base, startOfDay(now)),
+    // as of today's start, like its habits: the live view meets her with these
+    lucy: learned && { ...learned, windows: lucyWindows, days: lucyDays, windowsByDay },
+  };
 }
 
 // Boldness: trust, and play (petting sessions during its visits, recency-weighted). Only how it plays.
@@ -374,10 +446,10 @@ function boldnessOf(trust: number, visits: PastVisit[], interactions: Interactio
   return round2(clamp(0.5 * trust + (0.5 * play) / (play + H.playSessions), 0, 1));
 }
 
-export function evaluateHabitat({ episodes, condition, modifiers, isDay, season, now, outside = null, reaction = null, location, seasonAt, interactions = [] }: HabitatInput): HabitatState {
+export function evaluateHabitat({ episodes, condition, modifiers, isDay, season, now, outside = null, reaction = null, location, seasonAt, interactions = [], lucyVisitsOn, airHistory = null }: HabitatInput): HabitatState {
   const cfg = APP_CONFIG.habitat;
   const r = replayHabitat(episodes, now, true);
-  const life = squirrelLife(episodes, now, r, dayTester(location), seasonAt ?? (() => season));
+  const life = squirrelLife(episodes, now, r, dayTester(location), seasonAt ?? (() => season), lucyVisitsOn);
   const memory: SquirrelMemory = {
     trust: r.trust,
     stage: r.stage,
@@ -386,7 +458,9 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
     favouriteSpot: life.habits.favouriteSpot,
     boldness: boldnessOf(r.trust, life.visits, interactions, now),
     pastVisits: life.habits.count,
+    ...(life.lucy && { wariness: life.lucy.wariness }),
   };
+  const lucyLesson: LucyLesson | undefined = life.lucy ? { windows: life.lucy.windows, wariness: life.lucy.wariness } : undefined;
   const base = basePresence(r.welcoming, r.value, condition, modifiers, isDay);
   let presence: HabitatState['presence'] = 'none';
   let visit: HabitatVisit | null = null;
@@ -431,7 +505,7 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
       };
       why = drinking ? 'came down to drink after the watering' : 'came to inspect the pruning';
     } else {
-      visit = squirrelVisitAt(now, r.value, r.stage, life.habits, r.trust, season);
+      visit = squirrelVisitAt(now, r.value, r.stage, life.habits, r.trust, season, lucyLesson);
       if (visit && presence === 'visiting' && peeking) {
         presence = 'peeking';
         why = r.brokenAt !== null ? 'back, but warily: only peeking from the leaves' : 'new here: only peeking from the leaves';
@@ -457,6 +531,7 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
   if (traces) why = `not here yet, but signs of it: ${traces.replace(/_/g, ' ')}`;
 
   const today = life.visits.filter((v) => v.presence === 'visiting' && v.startedAt >= startOfDay(now) && v.endsAt <= now);
+  const known = familiarityOf(life, airHistory, now);
   return {
     value: r.value,
     welcoming: r.welcoming,
@@ -470,7 +545,23 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
     stressHours14d: r.stressHours,
     lastChangeAt: r.lastChangeAt,
     why,
+    ...(known && { familiarity: known }),
   };
+}
+
+// How used to each other the pairs are, as of today's start (from the days before, like its habits): the
+// squirrel's own visits out on a branch, the air visitors' windows, and what it learned of Lucy
+function familiarityOf(life: ReturnType<typeof squirrelLife>, air: HabitatInput['airHistory'], now: number): HabitatState['familiarity'] | null {
+  const at = startOfDay(now);
+  const out: NonNullable<HabitatState['familiarity']> = {};
+  if (life.lucy) out.lucy_squirrel = life.lucy.familiarity;
+  if (air) {
+    const squirrel = life.visits.filter((v) => v.presence === 'visiting' && v.stage !== 'peeking').map((v) => ({ from: v.startedAt, to: v.endsAt }));
+    out.squirrel_sloth = familiarity(squirrel, air.sloth, at);
+    out.squirrel_dragonfly = familiarity(squirrel, air.dragonfly, at);
+    out.dragonfly_sloth = familiarity(air.dragonfly, air.sloth, at);
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 // ---- Diary: what the visitors did, derived from history (nothing stored) ----
@@ -482,19 +573,22 @@ export interface HabitatDiaryInput {
   location: { latitude: number | null; longitude: number | null };
   seasonAt: (t: number) => { id: string; energy: number }; // the same blended season the behaviour uses
   windowsOut?: { from: number; to: number }[]; // filled with the visit windows (for the encounter diary)
+  // The same others as the live view (BehaviourEngine): what it learns of Lucy, who it knows
+  lucyVisitsOn?: LucyVisitsOn;
+  airHistory?: { sloth: Window[]; dragonfly: Window[] } | null;
 }
 
 const ABSENCE_DAYS = 7;
 const TRACE_WORDS: Record<SquirrelTraces, string> = { nibbled_leaf: 'a nibbled leaf', tail_at_pot: 'a tail by the pot' };
 
-export function habitatDiary({ episodes, now, days, location, seasonAt, windowsOut }: HabitatDiaryInput): DiaryItem[] {
+export function habitatDiary({ episodes, now, days, location, seasonAt, windowsOut, lucyVisitsOn, airHistory = null }: HabitatDiaryInput): DiaryItem[] {
   const r = replayHabitat(episodes, now, true);
   const since = now - days * DAY;
   const sorted = [...episodes].sort((a, b) => a.startedAt - b.startedAt);
   const episodeAt = (t: number) => sorted.find((e) => e.startedAt <= t && t < (e.endedAt ?? now)) ?? null;
 
   // Visits per day: the same life the live view replays (stages and habits included)
-  const life = squirrelLife(episodes, now, r, dayTester(location), seasonAt);
+  const life = squirrelLife(episodes, now, r, dayTester(location), seasonAt, lucyVisitsOn);
   const visitsByDay = new Map<string, { first: number; count: number; peeks: boolean }>();
   for (const v of life.visits) {
     windowsOut?.push({ from: v.startedAt, to: v.endsAt });
@@ -516,6 +610,7 @@ export function habitatDiary({ episodes, now, days, location, seasonAt, windowsO
     }
     lastVisitDay = dayStart;
   }
+  items.push(...relationshipDiary(life, airHistory, since, now));
   for (const c of r.changes) {
     if (c.at < since) continue;
     if (c.kind === 'left') {
@@ -534,3 +629,45 @@ export function habitatDiary({ episodes, now, days, location, seasonAt, windowsO
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// ---- Diary: the squirrel and the others (what it learned of Lucy, who it got used to) ----
+const PAIR_NAMES: Record<'squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth' | 'lucy_squirrel', string> = {
+  squirrel_sloth: 'The squirrel and the sloth are used to each other now',
+  squirrel_dragonfly: 'The squirrel no longer minds the dragonfly',
+  dragonfly_sloth: 'The dragonfly and the sloth are old friends now',
+  lucy_squirrel: 'Lucy and the squirrel have made their peace',
+};
+function relationshipDiary(life: ReturnType<typeof squirrelLife>, air: HabitatDiaryInput['airHistory'], since: number, now: number): DiaryItem[] {
+  const L = APP_CONFIG.habitat.lucyLessons;
+  const items: DiaryItem[] = [];
+  const days = life.lucy?.days ?? [];
+  let prevHour: number | null = null;
+  for (const d of days) {
+    const inRange = d.day + DAY > since && d.day <= now;
+    // Lucy noticed it out on a branch (once a day, with how often)
+    if (inRange && d.meetings.length && d.meetings[0] >= since)
+      items.push({ at: d.meetings[0], kind: 'habitat', habitat: 'encounter', title: 'Lucy spotted the squirrel', detail: `${d.meetings.length > 1 ? `${d.meetings.length} times` : 'once'} · first at ${hhmm(d.meetings[0])}` });
+    if (d.wariness >= L.waryAt) {
+      // Wary: it came just after she left (once a day)
+      const windows = lucyWindowsOf(life, d.day);
+      const waited = life.visits.find((v) => v.presence === 'visiting' && v.startedAt >= Math.max(since, d.day) && v.startedAt < d.day + DAY && windows.some((w) => v.startedAt >= w.to && v.startedAt - w.to <= L.waitedAfterMin * MIN));
+      if (waited) {
+        const left = Math.max(...windows.filter((w) => w.to <= waited.startedAt).map((w) => w.to));
+        items.push({ at: waited.startedAt, kind: 'habitat', habitat: 'wary', title: 'The squirrel waited until Lucy had gone', detail: `came at ${hhmm(waited.startedAt)}, ${Math.round((waited.startedAt - left) / MIN)} min after she left` });
+      }
+      // Its hours moved away from hers
+      if (inRange && d.usualHour !== null && prevHour !== null && Math.abs(d.usualHour - prevHour) >= 2)
+        items.push({ at: d.day + 6 * HOUR, kind: 'habitat', habitat: 'wary', title: 'The squirrel comes at a new hour now', detail: `around ${String(d.usualHour).padStart(2, '0')}:00, away from Lucy's rounds` });
+    }
+    if (d.usualHour !== null) prevHour = d.usualHour;
+  }
+  // Pairs that became old friends
+  const lucyMet = days.flatMap((d) => d.meetings);
+  const squirrel = life.visits.filter((v) => v.presence === 'visiting' && v.stage !== 'peeking').map((v) => ({ from: v.startedAt, to: v.endsAt }));
+  const pairs: [keyof typeof PAIR_NAMES, number[]][] = [['lucy_squirrel', lucyMet]];
+  if (air) pairs.push(['squirrel_sloth', meetings(squirrel, air.sloth, now)], ['squirrel_dragonfly', meetings(squirrel, air.dragonfly, now)], ['dragonfly_sloth', meetings(air.dragonfly, air.sloth, now)]);
+  for (const [pair, met] of pairs)
+    for (const at of becameFriends(met, pair === 'lucy_squirrel' ? LUCY_SCALE : undefined)) if (at >= since && at <= now) items.push({ at, kind: 'habitat', habitat: 'encounter', title: PAIR_NAMES[pair], detail: `after ${met.filter((t) => t <= at).length} meetings` });
+  return items;
+}
+const lucyWindowsOf = (life: ReturnType<typeof squirrelLife>, day: number) => (life.lucy?.windowsByDay.get(day) ?? []);
