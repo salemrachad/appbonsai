@@ -121,4 +121,4 @@ export interface DiaryItem {
 export type MomentKind = 'brightest' | 'warmest' | 'coolest_night' | 'humid_morning' | 'first_light' | 'quick_change';
 
 // A notable stretch of outside weather (the tree is in a greenhouse: context, never the tree's state).
-export type WeatherSpellKind = 'rain' | 'storm' | 'snow' | 'fog' | 'frost';
+export type WeatherSpellKind = 'rain' | 'storm' | 'snow' | 'fog' | 'frost' | 'haze';

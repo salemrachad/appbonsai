@@ -19,6 +19,7 @@ const WEATHER_PREVIEWS: { id: WeatherPreview; label: string }[] = [
   { id: 'snow', label: '🌨️ Snow' },
   { id: 'overcast', label: '☁️ Overcast' },
   { id: 'windy', label: '💨 Windy' },
+  { id: 'hazy', label: '🌫️ Hazy air' },
 ];
 
 const HIKE_PREVIEWS: { id: HikePreview | null; label: string }[] = [

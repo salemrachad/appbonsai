@@ -297,6 +297,21 @@ export const APP_CONFIG = {
     weather: { rain: [0.03, -0.05], thunderstorm: [-0.05, 0.08], snow: [0.02, -0.04], clear: [0, 0.03], fog: [0, -0.03], windy: [0, 0.04] },
   },
 
+  // Outside air beyond the sky (telemetry/outsideWeather.ts): the barometer and air quality. CONTEXT only, never
+  // health (the tree is in a greenhouse). From the conversation with Paul (2026-10): his weather guitar lets
+  // pressure choose its mode and pollution its overdrive.
+  outside: {
+    pressure: {
+      windowMs: 3 * 60 * 60 * 1000, // the tendency is the change over 3 h, as meteorology reads it (hPa per 3 h)
+      minSpanMs: 2 * 60 * 60 * 1000, // fewer hours of observations: no tendency
+      fallingFast: -3.5, // hPa per 3 h: weather on its way (science; the squirrel "feels" it: art)
+      falling: -1.5,
+      rising: 1.5,
+    },
+    // European AQI (Open-Meteo's CAMS model, so worldwide, no station needed): the upper bound of each band
+    aqiBands: { good: 20, fair: 40, moderate: 60, poor: 80, very_poor: 100 },
+  },
+
   // The weekly hike (behaviour/hike.ts): the tree picks the week's best forecast day for its people's hike.
   // About the people, never the tree. Weeks run Monday to Sunday; the pick locks once its day arrives.
   hike: {

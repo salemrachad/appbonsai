@@ -1,6 +1,6 @@
 import { CONDITION_LABELS } from '../health/labels';
 import type { HealthCondition } from '../health/healthTypes';
-import type { OutsideObservation } from '../telemetry/outsideWeather';
+import { airBand, type OutsideObservation } from '../telemetry/outsideWeather';
 import type { BehaviourEpisode, DiaryItem, PlantEvent, WeatherSpellKind } from './historyTypes';
 import { hhmm } from '../lib/time';
 
@@ -43,6 +43,7 @@ const SPELL_TITLE: Record<WeatherSpellKind, string> = {
   snow: 'Snow outside',
   fog: 'Fog outside',
   frost: 'Frost outside',
+  haze: 'Hazy air outside',
 };
 const SPELL_JOIN_MS = 45 * 60 * 1000; // observations further apart than this start a new spell
 
@@ -52,6 +53,8 @@ function spellKind(o: OutsideObservation): WeatherSpellKind | null {
   if (o.sky === 'snow') return 'snow';
   if (o.temperature !== null && o.temperature <= 0) return 'frost';
   if (o.sky === 'fog') return 'fog';
+  // Bad air (European AQI poor or worse), when nothing else is going on
+  if (typeof o.aqi === 'number' && ['poor', 'very_poor', 'extremely_poor'].includes(airBand(o.aqi))) return 'haze';
   return null;
 }
 

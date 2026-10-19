@@ -86,7 +86,7 @@ export function previewsFromHash(hash: string): DevPreviews {
     // #weather=rain: the outside weather layer
     weather: (() => {
       const r = m(/weather=([a-z_]+)/);
-      return r && (r[1] === 'windy' || (OUTSIDE_SKIES as string[]).includes(r[1])) ? (r[1] as WeatherPreview) : null;
+      return r && (r[1] === 'windy' || r[1] === 'hazy' || (OUTSIDE_SKIES as string[]).includes(r[1])) ? (r[1] as WeatherPreview) : null;
     })(),
     // #hike=today (the boots by the pot), #hike=announced or #hike=moved
     hike: (() => {

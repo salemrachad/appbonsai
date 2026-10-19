@@ -40,7 +40,7 @@ export class Bench {
   online = true;
   payload: Record<string, unknown> = {};
   // Fake outside weather (WMO code, °C). null = Open-Meteo unreachable. Never the real network in tests.
-  weather: { code: number; temp?: number; gusts?: number } | null = null;
+  weather: { code: number; temp?: number; gusts?: number; pressure?: number; aqi?: number; pm25?: number } | null = null;
   // Fake daily forecast for the hike pick (empty: none). Never the real network in tests.
   hikeDays: DayForecast[] = [];
   collector!: LivingCollector;
@@ -67,6 +67,8 @@ export class Bench {
     const w = this.weather;
     const observation: OutsideObservation = {
       at: now, sky: skyFromCode(w.code), code: w.code, temperature: w.temp ?? 15, humidity: 80, precipitation: 0, cloudCover: 50, wind: 10, gusts: w.gusts ?? 15, isDay: true,
+      ...(w.pressure !== undefined && { pressure: w.pressure }),
+      ...(w.aqi !== undefined && { aqi: w.aqi, pm25: w.pm25 ?? null, pm10: null }),
     };
     return { observation, raw: w };
   };

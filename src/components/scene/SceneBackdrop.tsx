@@ -212,6 +212,8 @@ const SceneBackdropView: React.FC<SceneBackdropProps> = ({ scene, season, intens
       ))}
       <TwilightSky twilight={twilight} />
       {weather && (weather.sky !== 'clear' || weather.windy) && <WeatherLayer key={`${weather.sky}-${weather.windy}`} weather={weather} />}
+      {/* Bad air outside: a warm-grey veil over any sky */}
+      {weather?.haze ? <div className="weather-haze" style={{ '--haze': weather.haze } as React.CSSProperties} /> : null}
     </div>
   );
 };

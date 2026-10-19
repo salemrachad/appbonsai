@@ -392,6 +392,51 @@ async function main() {
     check('O3 every sky has a look and a label', looks.every((l) => l && l.label.length > 0 && l.intensity >= 0 && l.intensity <= 1), looks.map((l) => l?.label).join(' | '));
     check('O3b WMO codes map sensibly', skyFromCode(0) === 'clear' && skyFromCode(45) === 'fog' && skyFromCode(61) === 'rain' && skyFromCode(65) === 'heavy_rain' && skyFromCode(73) === 'snow' && skyFromCode(95) === 'thunderstorm');
 
+    // Beyond the sky (from the conversation with Paul): the barometer and the air. Context, never the tree.
+    // Three hours of observations every 15 min: the pressure falls (fast or not at all), the air is bad or clean.
+    const sky = async (opts: { fall: number; aqi?: number; code?: number }) => {
+      const b = new Bench();
+      b.weather = { code: opts.code ?? 1, temp: 18, pressure: 1016, ...(opts.aqi !== undefined && { aqi: opts.aqi, pm25: 40 }) };
+      await b.boot();
+      await b.run(60, () => day());
+      for (let k = 0; k < 13; k++) {
+        b.weather = { ...b.weather!, pressure: 1016 - (opts.fall * k) / 12 };
+        await b.collector.pollWeather();
+        await b.run(15, () => day());
+      }
+      await b.collector.pollWeather();
+      return b.state();
+    };
+    const calmAir = await sky({ fall: 0 });
+    const coming = await sky({ fall: 6, aqi: 95 });
+    check('O1b a falling barometer and bad air leave the tree identical (health, mood, look, scene)', strip(calmAir) === strip(coming), `${calmAir.health.condition} vs ${coming.health.condition}`);
+    const pc = coming.perception.outside;
+    check(
+      'PA1 three hours of a 6 hPa fall: tendency falling fast (hPa per 3 h); a flat barometer is steady',
+      pc?.pressureTendency === 'falling_fast' && Math.abs((pc.pressureTrend ?? 0) + 6) < 0.6 && calmAir.perception.outside?.pressureTendency === 'steady',
+      `${pc?.pressureTrend} ${pc?.pressureTendency} / ${calmAir.perception.outside?.pressureTrend} ${calmAir.perception.outside?.pressureTendency}`
+    );
+    {
+      const { airBand, pressureTrend } = await import('../src/telemetry/outsideWeather');
+      const bands = [10, 30, 50, 70, 90, 140].map(airBand).join(',');
+      check('PA2 European AQI bands', bands === 'good,fair,moderate,poor,very_poor,extremely_poor', bands);
+      const short = [0, 1, 2, 3].map((k) => ({ at: k * 15 * MIN, sky: 'clear' as const, code: 0, temperature: 10, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true, pressure: 1010 - k }));
+      check('PA1b under 2 h of observations: no tendency', pressureTrend(short, 45 * MIN) === null);
+    }
+    check(
+      'PA4 bad air outside is worth a word; a fast fall without it is too; rain outranks both',
+      coming.behaviour.dayLine === 'weather_hazy' && (await sky({ fall: 6 })).behaviour.dayLine === 'weather_pressure_falling' && (await sky({ fall: 6, aqi: 95, code: 61 })).behaviour.dayLine === 'weather_rain',
+      `${coming.behaviour.dayLine}`
+    );
+    const hazes = (['moderate', 'poor', 'very_poor', 'extremely_poor'] as const).map(
+      (band) => weatherLook({ at: 0, ageMs: 0, sky: 'clear', code: 0, temperature: 10, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: true, windy: false, rainEndedAt: null, air: { aqi: 0, pm25: null, pm10: null, band } })?.haze ?? 0
+    );
+    check(
+      'PA5 the haze grows with bad air (none up to moderate), and the weather look carries it',
+      hazes[0] === 0 && hazes[1] > 0 && hazes[1] < hazes[2] && hazes[2] < hazes[3] && hazes[3] === 1 && (coming.expression.atmosphere.weather?.haze ?? 0) > 0 && calmAir.expression.atmosphere.weather?.haze === undefined,
+      hazes.join(' < ')
+    );
+
     // A calm day with rain outside: one word about it, once a day, never during stress
     const b = new Bench();
     b.weather = { code: 61, temp: 12 };
@@ -1101,6 +1146,13 @@ async function main() {
       check('V17 rain outside: it shelters in the leaves; the habitat value and drey are identical', dry.presence === 'visiting' && wet.presence === 'hiding' && wet.value === dry.value && wet.welcoming === dry.welcoming && JSON.stringify(wet.drey) === JSON.stringify(dry.drey), wet.why);
       const after = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'overcast', rainEndedAt: at - 10 * MIN } });
       check('V17b just after the rain: out again, shaking off', after.presence === 'visiting' && after.visit?.action === 'shake_off', after.why);
+      const coming = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'clear', rainEndedAt: null, pressureTendency: 'falling_fast' } });
+      const steady = evaluateHabitat({ episodes: life(at), condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: at, outside: { sky: 'clear', rainEndedAt: null, pressureTendency: 'falling' } });
+      check(
+        'PA3 a fast-falling barometer under a clear sky: it tucks into the leaves before the weather; a slow fall changes nothing; the habitat value is identical',
+        coming.presence === 'hiding' && steady.presence === 'visiting' && coming.value === dry.value && coming.welcoming === dry.welcoming,
+        `${coming.why} / ${steady.presence}`
+      );
     }
 
     // ---- Answers to care ----

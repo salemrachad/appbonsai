@@ -6,7 +6,7 @@ import type { BehaviourEpisode, DiaryItem, Interaction } from '../history/histor
 import { seasonState } from '../perception/season';
 import type { SpeciesProfile } from '../species';
 import { sunState } from '../perception/sun';
-import type { OutsideSky } from '../telemetry/outsideWeather';
+import type { OutsideSky, PressureTendency } from '../telemetry/outsideWeather';
 import type { DreyState, HabitatState, HabitatVisit, ReactionKind, SquirrelMemory, SquirrelStage, SquirrelTraces, VisitSpot } from './behaviourTypes';
 import { stableVariant } from './speech';
 import { dayKey, DAY, HOUR, hourFraction, hourOf as hourOfDay, MIN, hhmm, startOfDay } from '../lib/time';
@@ -68,7 +68,7 @@ export interface HabitatInput {
   isDay: boolean; // sun up: squirrels are diurnal
   season: { id: string; energy: number }; // blended seasonal energy: fewer visits at winter rest
   now: number;
-  outside?: { sky: OutsideSky; rainEndedAt: number | null } | null; // outside weather (context: shelter only)
+  outside?: { sky: OutsideSky; rainEndedAt: number | null; pressureTendency?: PressureTendency | null } | null; // outside weather (context: shelter only)
   reaction?: { kind: ReactionKind; eventId: number; at: number; seasonal: string | null } | null; // recent care
   // Its memory of past visits: the tree's location (day and night of past slots; clock window without),
   // the season through the last weeks, and the petting sessions (play during its visits → boldness only)
@@ -438,9 +438,12 @@ export function evaluateHabitat({ episodes, condition, modifiers, isDay, season,
       } else if (visit && presence === 'visiting' && r.stage === 'settled') why = 'at home in the tree';
       if (!visit) why += ' (none right now)';
     }
-    // Shelter: rain, a storm or snow outside sends it into the leaves (the habitat value never sees weather)
-    if (visit && outside && SHELTER_SKIES.includes(outside.sky)) {
-      if (presence === 'visiting' || presence === 'peeking') why = `sheltering from the ${outside.sky === 'snow' ? 'snow' : outside.sky === 'thunderstorm' ? 'storm' : 'rain'} outside`;
+    // Shelter: rain, a storm or snow outside sends it into the leaves (the habitat value never sees weather).
+    // A fast-falling barometer too, before the weather arrives (art: animals seem to feel it)
+    const wet = !!outside && SHELTER_SKIES.includes(outside.sky);
+    if (visit && outside && (wet || outside.pressureTendency === 'falling_fast')) {
+      if (presence === 'visiting' || presence === 'peeking')
+        why = wet ? `sheltering from the ${outside.sky === 'snow' ? 'snow' : outside.sky === 'thunderstorm' ? 'storm' : 'rain'} outside` : 'tucked into the leaves: the air feels like weather coming';
       presence = 'hiding';
       visit = { ...visit, action: null };
     } else if (visit && presence === 'visiting' && !visit.action && outside?.rainEndedAt != null && now - outside.rainEndedAt < cfg.shakeOffAfterRainMs) {

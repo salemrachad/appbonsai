@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Squirrel, Home, Sparkles, PawPrint, Dog, Users, MessageCircle, Sunrise, Droplets, Activity, CalendarCheck } from 'lucide-react';
+import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Haze, Squirrel, Home, Sparkles, PawPrint, Dog, Users, MessageCircle, Sunrise, Droplets, Activity, CalendarCheck } from 'lucide-react';
 import type { HealthCondition } from '../health/healthTypes';
 import type { DailySummary, DiaryItem, MomentKind, PlantEventType, WeatherSpellKind } from '../history/historyTypes';
 import { hhmm } from '../lib/time';
@@ -45,7 +45,7 @@ const MOMENT_ICON: Record<MomentKind, { Icon: typeof Droplet; color: string }> =
 const CALM: HealthCondition[] = ['thriving', 'comfortable', 'recovering', 'very_bright'];
 
 // Outside weather lines: muted blue-grey, they are the world around the tree, not the tree
-const WEATHER_ICON: Record<WeatherSpellKind, typeof Droplet> = { rain: CloudRain, storm: CloudLightning, snow: CloudSnow, fog: CloudFog, frost: Snowflake };
+const WEATHER_ICON: Record<WeatherSpellKind, typeof Droplet> = { rain: CloudRain, storm: CloudLightning, snow: CloudSnow, fog: CloudFog, frost: Snowflake, haze: Haze };
 
 function conditionIcon(c: HealthCondition | undefined) {
   if (c === 'sleeping') return { Icon: Moon, color: '#6B7A8F' };

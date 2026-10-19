@@ -39,7 +39,7 @@ export type LucyPreview = { pose: LucyPresentation['pose']; spot: LucyPresentati
 // Visitors previewed together (or with live ones) meet, arranged by the same encounter rules as the server.
 export type DragonflyPreview = { presence: 'hovering' | 'perched'; perch: 'left_tip' | 'right_tip' | 'crown_tip' | 'left_top' };
 // A weather preview swaps only the outside weather layer (a sky, or 'windy' for a clear windy day).
-export type WeatherPreview = OutsideSky | 'windy';
+export type WeatherPreview = OutsideSky | 'windy' | 'hazy';
 // A hike preview runs the real planner on a sample forecast: a day picked later this week, a pick the
 // forecast moved, or today as hike day (the boots by the pot). Behaviour responds too (the announcement).
 export type HikePreview = 'announced' | 'moved' | 'today';
@@ -139,9 +139,10 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
       const weather = weatherLook({
         at: Date.now(), ageMs: 0, code: 0, humidity: null, precipitation: null, cloudCover: null, wind: null, gusts: null, isDay: null,
         temperature: real?.temperature ?? null,
-        sky: previewWeather === 'windy' ? 'clear' : previewWeather,
+        sky: previewWeather === 'windy' || previewWeather === 'hazy' ? 'clear' : previewWeather,
         windy: previewWeather === 'windy',
         rainEndedAt: null,
+        ...(previewWeather === 'hazy' && { air: { aqi: 90, pm25: 55, pm10: 120, band: 'very_poor' as const } }),
       });
       const muted = ['overcast', 'fog', 'drizzle', 'rain', 'heavy_rain', 'thunderstorm', 'snow'].includes(previewWeather);
       const twilight = { ...r.expression.atmosphere.twilight, muted };

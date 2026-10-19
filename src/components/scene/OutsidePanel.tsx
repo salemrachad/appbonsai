@@ -1,5 +1,5 @@
 import React from 'react';
-import { CloudRain, Droplets, Thermometer, Wind } from 'lucide-react';
+import { CloudRain, Droplets, Gauge, Thermometer, Wind } from 'lucide-react';
 import type { WeatherLook } from '../../expression/expressionTypes';
 import type { AirComparison } from '../../perception/perceptionTypes';
 import type { OutsideWeather } from '../../telemetry/outsideWeather';
@@ -11,6 +11,17 @@ interface OutsidePanelProps {
   inside: { temperature: number | null; humidity: number | null }; // the greenhouse sensors (null without the ESP32: no inside to compare)
   air?: AirComparison | null; // inside vs outside by dew point (perception.air)
 }
+
+// The barometer's tendency over 3 h, and the European AQI bands, in plain words
+const TENDENCY: Record<NonNullable<OutsideWeather['pressureTendency']>, { arrow: string; words: string }> = {
+  falling_fast: { arrow: '↓↓', words: 'falling fast: weather coming' },
+  falling: { arrow: '↓', words: 'falling' },
+  steady: { arrow: '→', words: 'steady' },
+  rising: { arrow: '↑', words: 'rising' },
+};
+const AIR_WORDS: Record<NonNullable<OutsideWeather['air']>['band'], string> = {
+  good: 'good', fair: 'fair', moderate: 'moderate', poor: 'poor', very_poor: 'very poor', extremely_poor: 'extremely poor',
+};
 
 const ago = (ms: number) => {
   const m = Math.round(ms / 60000);
@@ -103,6 +114,34 @@ export const OutsidePanel: React.FC<OutsidePanelProps> = ({ weather, outside, in
           )}
         </div>
       </div>
+      {/* Beyond the sky: the barometer and the air (each only when known) */}
+      {(outside?.pressure != null || outside?.air) && (
+        <div className="mt-2 pt-1.5 border-t border-[var(--ink)]/5 flex flex-wrap items-center gap-x-4 gap-y-0.5 sans text-[11px] text-[var(--ink)]/60 tabular-nums">
+          {outside?.pressure != null && (
+            <span
+              className="flex items-center gap-1"
+              title={outside.pressureTrend != null ? `Air pressure at sea level. ${outside.pressureTrend > 0 ? '+' : ''}${outside.pressureTrend} hPa over the last 3 hours.` : 'Air pressure at sea level.'}
+            >
+              <Gauge className="w-3 h-3 text-[#6B7A8F]" />
+              {Math.round(outside.pressure)} hPa
+              {outside.pressureTendency && (
+                <span className={outside.pressureTendency === 'falling_fast' ? 'text-[#356077] font-semibold' : ''}>
+                  {' '}
+                  {TENDENCY[outside.pressureTendency].arrow} {TENDENCY[outside.pressureTendency].words}
+                </span>
+              )}
+            </span>
+          )}
+          {outside?.air && (
+            <span
+              className={`flex items-center gap-1 ${['poor', 'very_poor', 'extremely_poor'].includes(outside.air.band) ? 'text-[#9E6B2E] font-semibold' : ''}`}
+              title={`European air quality index (modelled by Copernicus CAMS).${outside.air.pm25 != null ? ` PM2.5 ${Math.round(outside.air.pm25)} µg/m³` : ''}${outside.air.pm10 != null ? ` · PM10 ${Math.round(outside.air.pm10)} µg/m³` : ''}`}
+            >
+              Air: {AIR_WORDS[outside.air.band]} · {Math.round(outside.air.aqi)}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 };

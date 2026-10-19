@@ -373,6 +373,28 @@
 .night .weather-layer .p-rain,
 .night .weather-front .p-drop { filter: brightness(2) saturate(0.7); }
 
+/* Bad air outside (weather.haze 0-1): a warm, dusty veil over any sky, behind the tree and faintly in front */
+.weather-haze {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(200, 178, 140, 0.42), rgba(180, 162, 132, 0.22) 60%, rgba(170, 150, 120, 0.34));
+  opacity: calc(0.25 + 0.75 * var(--haze, 0.5));
+  animation: weather-in 2s ease both;
+}
+.night .weather-haze { background: linear-gradient(180deg, rgba(95, 85, 72, 0.3), rgba(80, 72, 62, 0.16) 60%, rgba(75, 66, 56, 0.24)); }
+.wf-haze {
+  position: absolute;
+  inset: -4% -8%;
+  pointer-events: none;
+  z-index: 2;
+  background: radial-gradient(ellipse 60% 55% at 50% 55%, rgba(205, 185, 150, 0.06), rgba(195, 175, 140, 0.24));
+  opacity: calc(0.3 + 0.7 * var(--haze, 0.5));
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%);
+  mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%);
+  animation: weather-in 2s ease both;
+}
+.night .wf-haze { background: radial-gradient(ellipse 60% 55% at 50% 55%, rgba(110, 98, 82, 0.04), rgba(100, 90, 76, 0.16)); }
+
 /* ---- In front of the tree: the weather passes over it (never takes the pointer) ---- */
 .weather-front {
   position: absolute;
@@ -494,6 +516,8 @@
   .scene-bloom,
   .weather-layer,
   .weather-front,
+  .weather-haze,
+  .wf-haze,
   .wf-bank {
     animation: none !important;
   }

@@ -13,6 +13,7 @@ import { SCHEMA_VERSION } from '../server/schema';
 import { APP_CONFIG } from '../src/config/appConfig';
 import { Bench, check, cond, epList, finish, HOUR, MIN, START } from './bench';
 import { DAY } from '../src/lib/time';
+import { DEFAULT_SETTINGS } from '../src/settings/settings';
 
 async function main() {
   console.log('— Watering detection —');
@@ -728,6 +729,21 @@ async function main() {
     db.close();
     for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
   }
+  {
+    // A v9 database: its outside_weather gains the pressure and air columns; old rows read without them
+    const file = path.join(os.tmpdir(), `appbonsai-migrate-v9-${Date.now()}.db`);
+    const old = new DatabaseSync(file);
+    old.exec(`CREATE TABLE outside_weather (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER NOT NULL, sky TEXT NOT NULL, code INTEGER NOT NULL, temperature REAL, humidity REAL,
+      precipitation REAL, cloud_cover REAL, wind REAL, gusts REAL, is_day INTEGER, sunrise_at INTEGER, sunset_at INTEGER, raw_json TEXT);
+      CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL); INSERT INTO meta VALUES ('schema_version', '9');
+      INSERT INTO outside_weather (timestamp, sky, code, temperature) VALUES (1, 'clear', 0, 20);`);
+    old.close();
+    const db = openDatabase(file);
+    const o = db.latestOutsideWeather();
+    check('M8 v9 database: outside_weather gains pressure and air; the old row reads without them', db.getMeta<number>('schema_version') === SCHEMA_VERSION && o?.sky === 'clear' && !('pressure' in o), JSON.stringify(o));
+    db.close();
+    for (const f of [file, `${file}-wal`, `${file}-shm`]) fs.rmSync(f, { force: true });
+  }
 
   console.log('\n— Health memory migration (derived metrics) —');
   {
@@ -853,6 +869,55 @@ async function main() {
     restarted.weather = null;
     await restarted.boot();
     check('OW5 a restart within the hour shows the stored weather (offline is fine)', restarted.state().perception.outside === null || restarted.state().perception.outside?.sky === 'heavy_rain');
+  }
+  {
+    // Beyond the sky: the barometer and the air are stored with the observation and read back after a restart
+    const b = new Bench();
+    b.weather = { code: 1, temp: 18, pressure: 1012.4, aqi: 72, pm25: 31 };
+    await b.boot();
+    await b.run(2, () => ({ soil: 60 }));
+    const row = b.db.latestOutsideWeather();
+    const again = new Bench(b.db);
+    again.clock = b.clock;
+    again.weather = null;
+    await again.boot();
+    const back = again.state().perception.outside;
+    check(
+      'PA6 pressure and air quality stored, and read back after a restart (band from the AQI)',
+      row?.pressure === 1012.4 && row.aqi === 72 && row.pm25 === 31 && back?.pressure === 1012.4 && back.air?.band === 'poor',
+      JSON.stringify({ pressure: back?.pressure, air: back?.air })
+    );
+    const plain = new Bench();
+    plain.weather = { code: 1, temp: 18 };
+    await plain.boot();
+    const none = plain.db.latestOutsideWeather();
+    check('PA6b without them, an observation has no pressure or air at all (not nulls)', !!none && !('pressure' in none) && !('aqi' in none), JSON.stringify(none));
+  }
+  {
+    // Open-Meteo itself, faked: the air-quality API failing leaves the weather as it is
+    const { fetchOutsideWeather } = await import('../src/telemetry/outsideWeather');
+    const realFetch = globalThis.fetch;
+    const weather = { current: { weather_code: 3, temperature_2m: 14, relative_humidity_2m: 70, precipitation: 0, cloud_cover: 90, wind_speed_10m: 8, wind_gusts_10m: 15, is_day: 1, pressure_msl: 1008.6 } };
+    const fake = (air: 'ok' | 'down') =>
+      (async (url: string | URL | Request) =>
+        String(url).includes('air-quality')
+          ? air === 'ok'
+            ? new Response(JSON.stringify({ current: { european_aqi: 45, pm2_5: 12, pm10: 30 } }))
+            : new Response('busy', { status: 503 })
+          : new Response(JSON.stringify(weather))) as typeof fetch;
+    try {
+      globalThis.fetch = fake('ok');
+      const ok = (await fetchOutsideWeather({ ...DEFAULT_SETTINGS, latitude: 33.97, longitude: 35.73 }, 1)).observation;
+      globalThis.fetch = fake('down');
+      const down = (await fetchOutsideWeather({ ...DEFAULT_SETTINGS, latitude: 33.97, longitude: 35.73 }, 1)).observation;
+      check(
+        'PA7 Open-Meteo parsed: pressure from the forecast API, the air from its own; the air API down still gives the weather',
+        ok.pressure === 1008.6 && ok.aqi === 45 && ok.pm25 === 12 && down.sky === 'overcast' && down.pressure === 1008.6 && !('aqi' in down),
+        JSON.stringify({ ok: [ok.pressure, ok.aqi], down: [down.sky, down.pressure, down.aqi] })
+      );
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   }
 
   console.log('\n— Rows read (a Durable Object bills them: 5 M a day on the free tier) —');

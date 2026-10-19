@@ -10,7 +10,7 @@ import { weekdayName } from '../behaviour/hike';
 import type { HabitatEncounter } from '../behaviour/behaviourTypes';
 import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gaze, Gesture, SceneId, TouchKind, TouchResponse, DragonflyPresentation, DreyLook, LucyPresentation, SlothPresentation, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
 import { APP_CONFIG } from '../config/appConfig';
-import type { OutsideSky } from '../telemetry/outsideWeather';
+import type { AirBand, OutsideSky } from '../telemetry/outsideWeather';
 
 type Look = Omit<AvatarPresentation, 'effects'> & { effects?: AvatarEffect[] };
 
@@ -336,10 +336,18 @@ const SKY_INTENSITY: Record<OutsideSky, number> = {
 const SKY_LABEL: Record<OutsideSky, string> = {
   clear: 'Clear', partly_cloudy: 'Some clouds', overcast: 'Overcast', fog: 'Fog', drizzle: 'Drizzle', rain: 'Rain', heavy_rain: 'Heavy rain', snow: 'Snow', thunderstorm: 'Storm',
 };
+// Bad air outside as a veil around the tree (art); moderate or better shows nothing
+const HAZE: Partial<Record<AirBand, number>> = { poor: 0.35, very_poor: 0.65, extremely_poor: 1 };
 export function weatherLook(o: PerceptionState['outside'] | undefined): WeatherLook | null {
   if (!o) return null;
   const temp = o.temperature !== null ? ` · ${Math.round(o.temperature)}°C` : '';
-  return { sky: o.sky, windy: o.windy, intensity: SKY_INTENSITY[o.sky], label: `${SKY_LABEL[o.sky]}${o.windy ? ', windy' : ''}${temp}` };
+  const look: WeatherLook = { sky: o.sky, windy: o.windy, intensity: SKY_INTENSITY[o.sky], label: `${SKY_LABEL[o.sky]}${o.windy ? ', windy' : ''}${temp}` };
+  const haze = o.air ? HAZE[o.air.band] : undefined;
+  if (haze) {
+    look.haze = haze;
+    look.label = `${SKY_LABEL[o.sky]}, hazy${o.windy ? ', windy' : ''}${temp}`;
+  }
+  return look;
 }
 
 const RAIN_SECONDS = 60;

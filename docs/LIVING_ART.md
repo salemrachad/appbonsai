@@ -393,6 +393,37 @@ tree's world, but **not its condition**: the ESP32 inside says how the tree is. 
   real sensor), and notes when the glass may fog. These are facts, never health.
 - **Open:** tuning `skyFactor` against this LDR on real grey days; outside forecasts ("rain tonight").
 
+#### Beyond the sky: the barometer and the air [Implemented, V1]
+
+From a conversation with Paul (2026-10), whose weather-driven guitar lets atmospheric pressure choose its
+musical mode and air pollution its overdrive. Here the same readings stay **context, never health**: the tree is
+in a greenhouse.
+
+- **Source:** with each outside observation, Open-Meteo's sea-level pressure (`pressure_msl`) and, from its
+  separate air-quality API, the European AQI, PM2.5 and PM10. These come from the Copernicus CAMS model, so they
+  exist everywhere, with no station needed. If the air request fails, the weather is still stored without them.
+  Stored on `outside_weather` (schema v10); old rows simply have none.
+- **Perception (facts):**
+  - `outside.pressureTrend` is hPa per 3 h, a least-squares slope over the last 3 h of observations, needing
+    ≥ 2 h of them.
+  - `pressureTendency` uses the bands falling fast ≤ −3.5, falling ≤ −1.5, rising ≥ +1.5, steady between
+    (meteorological convention, evidence class *science*).
+  - `outside.air` holds the AQI and its band (good / fair / moderate / poor / very poor / extremely poor).
+  - The numbers are in `APP_CONFIG.outside`.
+- **A falling barometer means weather on its way.** A fast fall sends a visiting squirrel into the leaves before
+  the rain arrives (*art*: animals seem to feel it), exactly like the shelter from rain. The habitat value never
+  sees it. A calm tree says it once a day ("The air is changing outside. Weather is on its way.").
+- **Bad air is a haze.** Poor or worse air puts a warm, dusty veil over the scene behind the tree and faintly in
+  front of it (`WeatherLook.haze`). The tree art never changes for it. Other effects:
+  - a once-a-day line when calm ("Dusty, hazy air outside today.");
+  - a diary spell ("Hazy air outside, 10:00–18:30").
+- **Facts on the Outside panel:** pressure with its tendency (`1009 hPa ↓↓ falling fast`) and the air band with
+  its AQI (PM2.5 and PM10 on hover).
+- **Never:** health, vitality, latches or mood. Scenario O1b runs a 6 hPa fall with very poor air against a flat,
+  clean day and requires an identical tree. PA1–PA7 cover the rest. Preview: `#weather=hazy`.
+- **Open:** whether bad air should nudge a calm tree's mood (Paul's "more aggressive"); Lucy feeling a storm
+  coming; the barometer as a slow musical "mode" for a future sound layer.
+
 ### The weekly hike [Implemented, V1]
 
 The tree looks out for its people too: once a week it picks the day with the best forecast for their hike.

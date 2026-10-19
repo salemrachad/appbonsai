@@ -31,7 +31,7 @@ import { MetaStore, type SavedRuntime } from './metaStore';
 import { fromRecord, stamp, toLive } from './records';
 import { SettingsStore } from './settings';
 import { WateringDetection } from './watering';
-import { DAY, HOUR, setTreeTimeZone, startOfDay } from '../../src/lib/time';
+import { DAY, HOUR, MIN, setTreeTimeZone, startOfDay } from '../../src/lib/time';
 
 // The collector, one job per file:
 //   index.ts        the living loop (below): poll → store → perception → health → episodes → behaviour → expression,
@@ -389,7 +389,7 @@ export class LivingCollector {
   // The database doesn't change during a replay: today's skies and the soil breaks are read once, not per row
   private replayRows(rows: TelemetryRecord[], events: PlantEvent[]) {
     if (!rows.length) return;
-    const context: PerceiveContext = { skies: this.db.outsideWeatherSince(dayStartOf(rows[0].timestamp) - HOUR), soilBreaks: this.soilBreaks() };
+    const context: PerceiveContext = { skies: this.db.outsideWeatherSince(Math.min(dayStartOf(rows[0].timestamp) - HOUR, rows[0].timestamp - APP_CONFIG.outside.pressure.windowMs - 15 * MIN)), soilBreaks: this.soilBreaks() };
     for (const row of rows) {
       const t = fromRecord(row, this.calibration, false);
       if (!t) continue;
@@ -406,12 +406,15 @@ export class LivingCollector {
   private perceiveAt(now: number, events: PlantEvent[], deviceError: string | null = null, outside: OutsideObservation | null = null, context?: PerceiveContext): PerceptionState {
     setTreeTimeZone(this.settings.timezone); // every evaluation on the tree's clock (several benches may share a process)
     const since = dayStartOf(now) - HOUR;
-    const skies = context ? context.skies.filter((o) => o.at >= since) : recentWeather(this.db, since); // today's observations, from memory after the first read
+    const recentSince = now - APP_CONFIG.outside.pressure.windowMs - 15 * MIN; // the barometer's last 3 h (also just after midnight)
+    const from = Math.min(since, recentSince);
+    const skies = context ? context.skies.filter((o) => o.at >= from) : recentWeather(this.db, from); // from memory after the first read
     return perceive({
       outside,
       soilBreaks: context?.soilBreaks ?? this.soilBreaks(),
       // Today's skies: a grey day explains dim light (also on replay, from the stored observations)
-      outsideToday: skies.filter((o) => o.at <= now + 15 * 60_000),
+      outsideToday: skies.filter((o) => o.at >= since && o.at <= now + 15 * 60_000),
+      outsideRecent: skies.filter((o) => o.at >= recentSince && o.at <= now),
       latest: this.latest,
       previous: this.previous,
       recent: this.recent,

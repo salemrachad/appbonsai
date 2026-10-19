@@ -160,6 +160,7 @@ export interface WeatherLook {
   windy: boolean;
   intensity: number; // 0-1: how much of it the layer shows (drizzle light, a downpour heavy)
   label: string; // short header chip text, e.g. "Rain · 9°C"
+  haze?: number; // 0-1: a veil of bad air outside (absent when the air is moderate or better, or unknown)
 }
 
 export interface ExpressionMessage {

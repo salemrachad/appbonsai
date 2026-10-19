@@ -113,6 +113,9 @@ export const DAY_LINES: Record<DayLine, Lines> = {
   weather_fog: ['Foggy outside this morning.', 'The world is grey with fog out there.', 'Fog outside. Soft light today.'],
   weather_snow: ['Snow outside!', 'It is snowing out there.', 'Snow falling outside. Warm enough in here.'],
   weather_cold_outside: ['Cold out there. Sheltered in here.', 'It is cold outside today.', 'Freezing out there. Glad to be inside.'],
+  // Beyond the sky: facts about the air outside, never a claim about the tree's own air or health
+  weather_hazy: ['Dusty, hazy air outside today.', 'The air outside is thick today.', 'A hazy day out there.'],
+  weather_pressure_falling: ['The air is changing outside. Weather is on its way.', 'The barometer is falling. Something is coming.', 'The air feels like rain is coming.'],
   // The week's hike ({day}: "Saturday", or "next Saturday" once this week's hike is behind us; {days}: the
   // two days on offer, "Saturday or Thursday")
   hike_picked: ['Good days for a hike: {days}. Pick one on the calendar. 🥾', "For your hike I'd say {days}. Your choice. 🥾", 'The forecast likes {days} for a hike. Tap one to choose. 🥾'],

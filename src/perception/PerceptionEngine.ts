@@ -36,6 +36,7 @@ export interface PerceptionInput {
   now: number;
   outside?: OutsideObservation | null; // latest outside weather (context; health never reads it directly)
   outsideToday?: OutsideObservation[]; // today's outside observations: a grey sky explains dim light
+  outsideRecent?: OutsideObservation[]; // the last 3 h of outside observations: the barometer's tendency
   soilBreaks?: number[]; // calibration changes / detection pauses: a dry-down segment never bridges them
 }
 
@@ -188,7 +189,7 @@ export function perceive(input: PerceptionInput): PerceptionState {
     quality,
     drying: dryingCoupling(dryDown, recent, species, now),
     exposure: { temperature: temperatureExposure(recent, species, cadenceMs, now) },
-    outside: outsideNow(input.outside ?? null, now, input.outsideToday ?? []),
+    outside: outsideNow(input.outside ?? null, now, input.outsideToday ?? [], input.outsideRecent ?? []),
     outsideToday: input.outsideToday ?? [],
     air: compareAir(readings, latest?.source ?? null, outsideNow(input.outside ?? null, now)),
   };

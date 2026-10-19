@@ -72,7 +72,7 @@ const json = <T>(s: string | null | undefined, fallback: T): T => {
 // Everything but raw_json (stored for re-evaluation, never read back here): decoding it was a large share of each query
 const TELEMETRY_COLUMNS =
   'id, timestamp, source, device_id, soil_moisture, api_soil_moisture, soil_raw, temperature, humidity, light_percent, light_raw, radiation, wifi_rssi, data_quality';
-const OUTSIDE_COLUMNS = 'timestamp, sky, code, temperature, humidity, precipitation, cloud_cover, wind, gusts, is_day, sunrise_at, sunset_at';
+const OUTSIDE_COLUMNS = 'timestamp, sky, code, temperature, humidity, precipitation, cloud_cover, wind, gusts, is_day, sunrise_at, sunset_at, pressure, aqi, pm25, pm10';
 
 const toTelemetry = (r: Row): TelemetryRecord => ({
   id: r.id,
@@ -121,6 +121,9 @@ const toOutside = (r: Row): OutsideObservation => ({
   isDay: r.is_day === null ? null : r.is_day === 1,
   sunrise: r.sunrise_at ?? null,
   sunset: r.sunset_at ?? null,
+  // Beyond the sky: only when known (older rows have none)
+  ...(r.pressure != null && { pressure: r.pressure }),
+  ...(r.aqi != null && { aqi: r.aqi, pm25: r.pm25 ?? null, pm10: r.pm10 ?? null }),
 });
 
 const toEpisode = (r: Row): BehaviourEpisode => ({
@@ -493,8 +496,9 @@ export class AppDatabase {
   // ---- outside weather (context only) ----
   insertOutsideWeather(o: OutsideObservation, raw: unknown) {
     this.all(
-      'INSERT INTO outside_weather (timestamp, sky, code, temperature, humidity, precipitation, cloud_cover, wind, gusts, is_day, sunrise_at, sunset_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      o.at, o.sky, o.code, o.temperature, o.humidity, o.precipitation, o.cloudCover, o.wind, o.gusts, o.isDay === null ? null : o.isDay ? 1 : 0, o.sunrise ?? null, o.sunset ?? null, raw === undefined ? null : JSON.stringify(raw)
+      'INSERT INTO outside_weather (timestamp, sky, code, temperature, humidity, precipitation, cloud_cover, wind, gusts, is_day, sunrise_at, sunset_at, pressure, aqi, pm25, pm10, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      o.at, o.sky, o.code, o.temperature, o.humidity, o.precipitation, o.cloudCover, o.wind, o.gusts, o.isDay === null ? null : o.isDay ? 1 : 0, o.sunrise ?? null, o.sunset ?? null,
+      o.pressure ?? null, o.aqi ?? null, o.pm25 ?? null, o.pm10 ?? null, raw === undefined ? null : JSON.stringify(raw)
     );
   }
   latestOutsideWeather(): OutsideObservation | null {

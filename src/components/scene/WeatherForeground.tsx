@@ -6,7 +6,8 @@ import { Particles, type ParticleSpec } from './SceneBackdrop';
 // The outside weather in FRONT of the tree, so it feels like being in it: fog banks drift across the plant,
 // big raindrops fall past it and splash by the pot, flakes pass in front. It draws over the avatar without
 // touching it (the tree's art never changes for the weather) and never takes the pointer, so petting works.
-// From atmosphere.weather only. The SceneBackdrop weather layer does the same behind the tree.
+// From atmosphere.weather only. The SceneBackdrop weather layer does the same behind the tree. Bad air outside
+// (weather.haze) adds a faint veil in front as well.
 
 const FRONT: Record<OutsideSky, ParticleSpec[]> = {
   clear: [],
@@ -34,31 +35,36 @@ const FRONT: Record<OutsideSky, ParticleSpec[]> = {
 const FRONT_WIND: ParticleSpec = { kind: 'streak', count: 5, dur: [2, 3.4], size: [120, 220], left: [-35, -15], top: [10, 85], colors: ['rgba(140,145,155,0.55)'] };
 
 export const WeatherForeground: React.FC<{ weather: WeatherLook | null | undefined }> = ({ weather }) => {
-  if (!weather || (weather.sky === 'clear' && !weather.windy)) return null;
+  if (!weather) return null;
+  const haze = weather.haze ? <div className="wf-haze" style={{ '--haze': weather.haze } as React.CSSProperties} aria-hidden="true" /> : null;
+  if (weather.sky === 'clear' && !weather.windy) return haze;
   const specs = [...FRONT[weather.sky], ...(weather.windy ? [FRONT_WIND] : [])];
   const foggy = weather.sky === 'fog';
   return (
-    <div
-      key={`${weather.sky}-${weather.windy}`}
-      className={`weather-front weather-front-${weather.sky}`}
-      style={{ '--weather-intensity': weather.intensity } as React.CSSProperties}
-      aria-hidden="true"
-    >
-      {foggy && (
-        <>
-          <div className="wf-veil" />
-          {[
-            { top: '12%', dur: 38, delay: 0, h: 26 },
-            { top: '40%', dur: 52, delay: -18, h: 30 },
-            { top: '66%', dur: 44, delay: -31, h: 24 },
-          ].map((b, i) => (
-            <div key={i} className="wf-bank" style={{ top: b.top, height: `${b.h}%`, animationDuration: `${b.dur}s`, animationDelay: `${b.delay}s` }} />
-          ))}
-        </>
-      )}
-      {specs.map((s, i) => (
-        <Particles key={`${weather.sky}-${i}`} spec={s} seed={weather.sky.length * 613 + i * 47 + 5} />
-      ))}
-    </div>
+    <>
+      {haze}
+      <div
+        key={`${weather.sky}-${weather.windy}`}
+        className={`weather-front weather-front-${weather.sky}`}
+        style={{ '--weather-intensity': weather.intensity } as React.CSSProperties}
+        aria-hidden="true"
+      >
+        {foggy && (
+          <>
+            <div className="wf-veil" />
+            {[
+              { top: '12%', dur: 38, delay: 0, h: 26 },
+              { top: '40%', dur: 52, delay: -18, h: 30 },
+              { top: '66%', dur: 44, delay: -31, h: 24 },
+            ].map((b, i) => (
+              <div key={i} className="wf-bank" style={{ top: b.top, height: `${b.h}%`, animationDuration: `${b.dur}s`, animationDelay: `${b.delay}s` }} />
+            ))}
+          </>
+        )}
+        {specs.map((s, i) => (
+          <Particles key={`${weather.sky}-${i}`} spec={s} seed={weather.sky.length * 613 + i * 47 + 5} />
+        ))}
+      </div>
+    </>
   );
 };

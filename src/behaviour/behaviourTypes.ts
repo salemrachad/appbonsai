@@ -84,6 +84,8 @@ export type DayLine =
   | 'weather_fog'
   | 'weather_snow'
   | 'weather_cold_outside'
+  | 'weather_hazy'
+  | 'weather_pressure_falling'
   // The sun's real moments (perception.sun times): once a day each, when calm
   | 'sunrise_greeting'
   | 'sunset_line'
