@@ -1,7 +1,7 @@
 import { CONDITION_LABELS } from '../health/labels';
 import type { HealthModifier, StressSummary } from '../health/healthTypes';
 import type { Season } from '../perception/season';
-import type { CareLine, Concern, DayLine, IntensityTier, MessageIntent, MusingId, ObservationId, RecoveryStage, SeasonalCare } from './behaviourTypes';
+import type { CareLine, Concern, DayLine, DreamMotif, IntensityTier, MessageIntent, MusingId, ObservationId, RecoveryStage, SeasonalCare } from './behaviourTypes';
 import { hhmm } from '../lib/time';
 import type { HikeDetail, HikePlan, HikeQuality } from './hike';
 
@@ -122,7 +122,37 @@ export const DAY_LINES: Record<DayLine, Lines> = {
   hike_chosen: ['{day} it is! 🥾', "Hike on {day}, noted. I'll have the boots ready. 🥾", "You chose {day}. I'll keep an eye on its forecast. 🥾"],
   hike_moved: ['The forecast changed: the hike moves to {day}. 🥾', 'New plan: {day} looks better for the hike now. 🥾', 'Change of plans, the hike is on {day}. 🥾'],
   hike_today: ['Today is hike day! Your boots are ready. 🥾', 'Hike day. Enjoy the trail, both of you. 🥾', 'A good day for the hills. Have a lovely hike. 🥾'],
+  // Last night's dream ({dream}: its words, DREAM_WORDS), told once on waking; _again: it came back
+  morning_dream: ['I dreamt of {dream}.', 'Good morning. I dreamt of {dream} last night.', 'A night of dreams: {dream}.'],
+  morning_dream_again: ['I dreamt of {dream} again.', '{Dream} again, in my dreams.', 'Good morning. {Dream} came back in my dreams.'],
 };
+
+// What a dream was made of, in words (the morning line and the diary). Images, not claims: a greenhouse
+// tree dreams of rain it only heard
+export const DREAM_WORDS: Record<DreamMotif, string> = {
+  rain: 'rain',
+  dry_wind: 'a dry wind',
+  sun: 'long sunlight',
+  glare: 'a white glare',
+  frost: 'frost',
+  flood: 'deep water',
+  mist: 'mist',
+  storm: 'a storm',
+  snow: 'snow',
+  new_shoots: 'new shoots',
+  new_ground: 'new soil around its roots',
+  new_light: 'a new light',
+  new_leaves: 'new leaves',
+  warm_hand: 'a warm hand',
+  squirrel: 'the squirrel',
+  drey: 'the drey',
+  sloth: 'the sloth',
+  dragonfly: 'the dragonfly',
+  lucy: 'Lucy',
+  boots: 'boots on a trail',
+  wind_rising: 'a wind rising',
+};
+
 
 // About recent care. Context, never health claims the sensors can't prove.
 export const CARE_LINES: Record<CareLine, Lines> = {
@@ -281,6 +311,7 @@ export interface RenderInput {
   hikeDay?: string | null; // the week's hike day in words, for the hike day lines
   hikeDays?: string | null; // the two days on offer, "Saturday or Thursday"
   hikeDetail?: HikeDetail | null; // the hike day's best hours (said with the choice and on the day)
+  dream?: DreamMotif | null; // last night's dream, for the morning dream lines
 }
 
 // Facts that stand for words (an index into these lists)
@@ -301,7 +332,15 @@ export function renderMessage(r: RenderInput): { text: string; tip: string } {
   let text = pick(lines);
   text = text.replace('{concern}', (r.concern && CONCERN_PHRASE[`${r.concern.metric}:${r.concern.status}`]) ?? 'something feels a little off');
   if (r.isEstimate && r.intent === 'thirst') text = `I think ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
-  if (r.dayLine) text = `${pick(DAY_LINES[r.dayLine]).replace('{day}', r.hikeDay ?? 'one day this week').replace('{days}', r.hikeDays ?? r.hikeDay ?? 'one day this week')} ${text}`;
+  if (r.dayLine) {
+    const dream = r.dream ? DREAM_WORDS[r.dream] : "something I can't hold on to";
+    const line = pick(DAY_LINES[r.dayLine])
+      .replace('{day}', r.hikeDay ?? 'one day this week')
+      .replace('{days}', r.hikeDays ?? r.hikeDay ?? 'one day this week')
+      .replace('{dream}', dream)
+      .replace('{Dream}', `${dream[0].toUpperCase()}${dream.slice(1)}`);
+    text = `${line} ${text}`;
+  }
   if ((r.dayLine === 'hike_chosen' || r.dayLine === 'hike_today') && r.hikeDetail) text = text.replace(' 🥾', ` 🥾 ${hikeWindowShort(r.hikeDetail)}`);
   if (r.careLine) text = `${text} ${pick(CARE_LINES[r.careLine])}`;
   if (r.observation) text = `${text} ${pick(OBSERVATION_LINES[r.observation.id]).replace('{hours}', String(r.observation.hours ?? ''))}`;

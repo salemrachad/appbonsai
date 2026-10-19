@@ -1,7 +1,7 @@
 // SQLite schema for the local Appbonsai database (data/appbonsai.db).
 // All timestamps are INTEGER milliseconds since the Unix epoch (UTC).
 
-export const SCHEMA_VERSION = 10; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather, 7: devices, 8: trees + devices.tree_id, 9: utterances, 10: pressure + air quality on outside_weather
+export const SCHEMA_VERSION = 11; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather, 7: devices, 8: trees + devices.tree_id, 9: utterances, 10: pressure + air quality on outside_weather, 11: dreams
 
 export const SCHEMA_SQL = `
 -- Raw observations: the permanent truth. Health can be re-evaluated from these later.
@@ -132,6 +132,21 @@ CREATE TABLE IF NOT EXISTS utterances (
   text  TEXT    NOT NULL                        -- the words on screen (a later rewording doesn't rewrite them)
 );
 CREATE INDEX IF NOT EXISTS idx_utterances_at ON utterances(at);
+
+-- The tree's dreams (behaviour/dreams.ts), one row per night with a dream: composed when the night begins,
+-- its outcome (what was really dreamt) set at dawn. Written by the live evaluation only (replays never dream),
+-- so a later engine change doesn't rewrite past nights.
+CREATE TABLE IF NOT EXISTS dreams (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  night         TEXT    NOT NULL UNIQUE,         -- the tree's date of the evening it began
+  starts_at     INTEGER NOT NULL,
+  ends_at       INTEGER NOT NULL,                -- sunrise
+  composed_at   INTEGER NOT NULL,
+  dream_json    TEXT    NOT NULL,                -- motifs, phases, cast
+  outcome_json  TEXT,                            -- null until the night is over
+  engine_version TEXT   NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dreams_starts ON dreams(starts_at);
 
 -- Small key/value store: schema version, collector settings.
 CREATE TABLE IF NOT EXISTS meta (

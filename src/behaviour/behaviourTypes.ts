@@ -93,7 +93,10 @@ export type DayLine =
   | 'hike_picked'
   | 'hike_moved'
   | 'hike_chosen'
-  | 'hike_today';
+  | 'hike_today'
+  // Last night's dream (behaviour/dreams.ts), told once on waking; _again: it came back
+  | 'morning_dream'
+  | 'morning_dream_again';
 
 // Lines about recent care, spoken at most once a day while the context lasts.
 export type CareLine = 'settling_in' | 'new_spot' | 'new_shape';
@@ -358,6 +361,87 @@ export interface CanopyState {
   reasons: string[]; // developer panel
 }
 
+// ---- Dreams (behaviour/dreams.ts): the day digested at night (art). Health, mood, energy and the
+// visitors never read them ----
+// What a dream can be made of: each one is a trace of something the tree really lived
+export type DreamMotif =
+  | 'rain' // a relieving drink (or rain outside)
+  | 'dry_wind' // a thirst
+  | 'sun' // a thriving day
+  | 'glare' // heat, glaring light
+  | 'frost' // cold
+  | 'flood' // waterlogged soil
+  | 'mist' // humid air, fog outside
+  | 'storm' // a storm outside
+  | 'snow'
+  | 'new_shoots' // pruned
+  | 'new_ground' // repotted
+  | 'new_light' // moved
+  | 'new_leaves' // the canopy refilling
+  | 'warm_hand' // petting (attention)
+  | 'squirrel'
+  | 'drey'
+  | 'sloth'
+  | 'dragonfly'
+  | 'lucy'
+  | 'boots' // the hike (the people away), or tomorrow's
+  | 'wind_rising'; // the barometer falling: weather on its way
+// Who brought the fragment: each part of the tree's world remembers its own day
+export type DreamSource = 'tree' | 'care' | 'weather' | 'squirrel' | 'sloth' | 'dragonfly' | 'lucy' | 'attention' | 'hike' | 'memory';
+// day: from the day just lived; memory: a worry that keeps coming back; anticipation: tomorrow (before dawn)
+export type DreamRole = 'day' | 'memory' | 'anticipation';
+export interface DreamFragment {
+  motif: DreamMotif;
+  salience: number; // 0-1: how much it weighs tonight (intensity × novelty, + recurrence, + company)
+  source: DreamSource;
+  role: DreamRole;
+  why: string; // diary / developer panel: "after the long thirst"
+}
+// Who sleeps in or by the tree tonight (they dream together: their day weighs more)
+export type DreamCast = 'lucy' | 'sloth' | 'squirrel';
+export interface DreamPhase {
+  from: number;
+  to: number;
+  motif: DreamMotif;
+}
+// What was really dreamt (at dawn, from the night's episodes): phases asleep with trustworthy data
+export interface DreamOutcome {
+  dreamt: DreamMotif[]; // most salient first
+  phases: number; // dreamt phases
+  of: number; // planned phases
+  restless: boolean; // most of them under a stress (asleep, dry soil…)
+  finishedAt: number;
+}
+// One night's dream as composed when the night began (stored in the `dreams` table: an engine change later
+// doesn't rewrite past nights)
+export interface DreamRecord {
+  night: string; // the tree's date of the evening it began
+  startsAt: number;
+  endsAt: number; // sunrise
+  composedAt: number;
+  motifs: DreamFragment[]; // at most 3 (+ one anticipation), most salient first
+  phases: DreamPhase[];
+  cast: DreamCast[];
+  outcome: DreamOutcome | null; // null until the night is over
+}
+export interface DreamState {
+  night: { key: string; startsAt: number; endsAt: number } | null; // the night running now (null by day)
+  asleep: boolean;
+  phase: 'none' | 'deep' | 'dreaming'; // none: awake, by day, or no trustworthy data
+  motif: DreamMotif | null; // in the dream right now
+  phaseEndsAt: number | null;
+  restless: boolean; // asleep under a stress: the dream breaks off
+  cast: DreamCast[];
+  tonight: DreamRecord | null;
+  // Last night, for the morning line: what is told (null: nothing worth telling), and how many nights in a
+  // row it has come back
+  lastNight: { key: string; told: DreamMotif | null; again: number; restless: boolean; dreamt: DreamMotif[] } | null;
+  recurring: { motif: DreamMotif; strength: number; nights: number }[]; // what keeps coming back (last weeks)
+  compose: DreamRecord | null; // a new night's dream for the collector to store
+  finish: { night: string; outcome: DreamOutcome } | null; // last night's outcome for the collector to store
+  why: string; // developer panel
+}
+
 export interface Concern {
   metric: 'soil' | 'temperature' | 'humidity' | 'light';
   status: string; // the metric's status label, e.g. "Waterlogged"
@@ -405,6 +489,7 @@ export interface PlantBehaviourState {
   // Where the day is relative to the real sunrise / sunset (null outside their windows)
   twilight: { event: 'sunrise' | 'sunset' | null; minutes: number | null };
   hike?: HikePlan; // the week's hike pick (about the people, nothing reads it back; absent without a forecast)
+  dream?: DreamState; // the night's dream (art: nothing reads it back; absent from older saved states)
   reasons: string[]; // why the engine chose this behaviour (developer panel)
   evaluatedAt: number;
 }

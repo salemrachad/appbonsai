@@ -433,6 +433,23 @@ export const APP_CONFIG = {
     maxJumpPerMinute: { temperature: 8, humidity: 35 },
   },
 
+  // Dreams (behaviour/dreams.ts): the day digested at night, from what the tree really lived. Art, provisional.
+  dreams: {
+    afterSunsetMin: 45, // the night (and its first sleep cycle) begins this long after sunset
+    fallback: { sunsetHour: 19, sunriseHour: 6.5 }, // without a location (or near the poles)
+    cycleMin: { min: 50, max: 70 }, // one sleep cycle (a stable roll per night and cycle)
+    settleCycles: 1, // the first cycle is deep sleep only
+    dreamShare: { first: 0.2, last: 0.45 }, // the dreaming end of a cycle grows toward dawn
+    minPhaseMin: 5,
+    maxMotifs: 3, // + one anticipation before dawn
+    minSalience: 0.2, // below: not in tonight's dream
+    toldMin: 0.35, // the morning line tells a dream only this vivid (and not a restless one)
+    novelty: { nights: 14, step: 0.3, floor: 0.35 }, // pleasures habituate: each recent night with it weighs less
+    recurrence: { tauDays: 7, min: 1, cap: 0.6 }, // worries come back until they fade (strength = Σ salience × decay)
+    castBoost: 0.15, // the day of who sleeps beside the tree weighs more
+    keepNights: 21, // past nights the collector keeps in its runtime
+  },
+
   diagnostics: {
     liveReadingsKept: 60, // bottom live-sensor strip
   },

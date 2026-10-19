@@ -2,7 +2,9 @@ import React from 'react';
 import { RotateCcw, Wrench } from 'lucide-react';
 import { DEV_PRESETS } from '../../health/developerOverrides';
 import type { DevPreviews, SetPreview } from '../../hooks/useDevPreviews';
-import type { CanopyPreview, DragonflyPreview, HikePreview, LucyPreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
+import { DREAM_WORDS } from '../../behaviour/messages';
+import type { DreamMotif } from '../../behaviour/behaviourTypes';
+import type { CanopyPreview, DragonflyPreview, DreamPreview, HikePreview, LucyPreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
 import { SEASONS, type Season } from '../../perception/season';
 
 interface StateTesterProps {
@@ -150,7 +152,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 // Preview any health state, time, weather and visitor. Presentation only: telemetry, the database, care
 // events and episodes are untouched. Grouped: tree health · time & season · outside · the tree over time · visitors.
 export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, onClearPreviews }) => {
-  const { preset: activePresetId, season: activeSeason, visitor: activeVisitor, drey: activeDrey, canopy: activeCanopy, twilight: activeTwilight, dragonfly: activeDragonfly, sloth: activeSloth, lucy: activeLucy, weather: activeWeather, hike: activeHike } = previews;
+  const { preset: activePresetId, season: activeSeason, visitor: activeVisitor, drey: activeDrey, canopy: activeCanopy, twilight: activeTwilight, dragonfly: activeDragonfly, sloth: activeSloth, lucy: activeLucy, weather: activeWeather, hike: activeHike, dream: activeDream } = previews;
   const onSelectPreset = (v: string | null) => onPreview('preset', v);
   const onSelectSeason = (v: Season | null) => onPreview('season', v);
   const onSelectVisitor = (v: VisitorPreview | null) => onPreview('visitor', v);
@@ -165,7 +167,12 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
     onPreview('hike', v);
     onPreview('hikeChoice', null); // a fresh sample week: nothing chosen yet
   };
-  const anyActive = !!(activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeLucy || activeWeather || activeHike);
+  // A dream belongs to a sleeping tree: picking one puts the tree to sleep unless a state is previewed
+  const onSelectDream = (v: DreamPreview | null) => {
+    onPreview('dream', v);
+    if (v && !activePresetId) onPreview('preset', 'sleeping');
+  };
+  const anyActive = !!(activeDream || activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeLucy || activeWeather || activeHike);
   const resetAll = onClearPreviews;
   return (
     <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
@@ -253,6 +260,23 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
               {h.label}
             </button>
           ))}
+        </Row>
+      </Group>
+
+      {/* The night: what the tree dreams (real dreams are made of the day before) */}
+      <Group title="Night" icon="🌙" active={!!activeDream}>
+        <Row label="Dream">
+          <button onClick={() => onSelectDream(null)} className={chip(!activeDream)}>
+            Live
+          </button>
+          {(Object.keys(DREAM_WORDS) as DreamMotif[]).map((motif) => (
+            <button key={motif} onClick={() => onSelectDream({ motif, restless: activeDream?.restless ?? false })} className={chip(activeDream?.motif === motif)}>
+              {DREAM_WORDS[motif]}
+            </button>
+          ))}
+          <button onClick={() => activeDream && onSelectDream({ ...activeDream, restless: !activeDream.restless })} className={chip(!!activeDream?.restless)} disabled={!activeDream}>
+            Restless
+          </button>
         </Row>
       </Group>
 

@@ -1,6 +1,7 @@
 import type { BehaviourEpisode, HourlyBucket, Interaction, InteractionKind, PlantEvent, PlantEventType, TelemetryRecord } from '../src/history/historyTypes';
 import type { HealthCondition, Severity } from '../src/health/healthTypes';
 import type { OutsideObservation } from '../src/telemetry/outsideWeather';
+import type { DreamOutcome, DreamRecord } from '../src/behaviour/behaviourTypes';
 import { MIGRATIONS, SCHEMA_SQL, SCHEMA_VERSION } from './schema';
 
 // Thin data-access layer: plain SQLite SQL, no ORM, over a driver. On the laptop the driver is node:sqlite
@@ -25,7 +26,7 @@ export interface SqlDriver {
 
 // A whole tree's data, to move it to another server (scripts/cloudMigrate.ts → POST /api/admin/restore).
 // The tree's own id stays with the server it lands on; its devices are moved to that tree.
-export const DUMP_TABLES = ['telemetry', 'plant_events', 'behaviour_episodes', 'calibration_history', 'interactions', 'outside_weather', 'devices', 'utterances'] as const;
+export const DUMP_TABLES = ['telemetry', 'plant_events', 'behaviour_episodes', 'calibration_history', 'interactions', 'outside_weather', 'devices', 'utterances', 'dreams'] as const;
 export interface DatabaseDump {
   schemaVersion: number;
   tables: Record<(typeof DUMP_TABLES)[number], Row[]>;
@@ -33,7 +34,7 @@ export interface DatabaseDump {
 }
 
 // The tables that grow all the time. A nightly backup (server/backup.ts) takes only their rows added since the
-// last one (by id, so a reading stored late, e.g. from the device's buffer, is still caught), the rest whole.
+// last one (not dreams: a night's row is updated at dawn, so it is taken whole, a row a night) (by id, so a reading stored late, e.g. from the device's buffer, is still caught), the rest whole.
 export const GROWING_TABLES = ['telemetry', 'outside_weather', 'utterances'] as const;
 export type BackupCursor = Record<(typeof GROWING_TABLES)[number], number>; // the highest id already backed up
 
@@ -594,6 +595,24 @@ export class AppDatabase {
   }
   utterancesSince(since: number): Utterance[] {
     return this.all('SELECT id, at, key, kind, text FROM utterances WHERE at >= ? ORDER BY at', since) as Utterance[];
+  }
+
+  // ---- the tree's dreams (one row per night; the outcome is set at dawn) ----
+  insertDream(d: DreamRecord, engineVersion: string) {
+    const { outcome, ...dream } = d;
+    this.all(
+      'INSERT OR IGNORE INTO dreams (night, starts_at, ends_at, composed_at, dream_json, outcome_json, engine_version) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      d.night, d.startsAt, d.endsAt, d.composedAt, JSON.stringify({ motifs: dream.motifs, phases: dream.phases, cast: dream.cast }), outcome ? JSON.stringify(outcome) : null, engineVersion
+    );
+  }
+  finishDream(night: string, outcome: DreamOutcome) {
+    this.all('UPDATE dreams SET outcome_json = ? WHERE night = ?', JSON.stringify(outcome), night);
+  }
+  dreamsSince(since: number): DreamRecord[] {
+    return this.all('SELECT * FROM dreams WHERE starts_at >= ? ORDER BY starts_at', since).map((r) => {
+      const d = json(r.dream_json, { motifs: [], phases: [], cast: [] });
+      return { night: r.night, startsAt: r.starts_at, endsAt: r.ends_at, composedAt: r.composed_at, motifs: d.motifs ?? [], phases: d.phases ?? [], cast: d.cast ?? [], outcome: json(r.outcome_json, null) };
+    });
   }
 
   // ---- behaviour episodes ----

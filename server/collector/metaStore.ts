@@ -1,5 +1,5 @@
 import type { CollectorStatus } from '../../src/api/types';
-import type { MoodMemory, PlantBehaviourState, SlothMemory } from '../../src/behaviour/behaviourTypes';
+import type { DreamRecord, MoodMemory, PlantBehaviourState, SlothMemory } from '../../src/behaviour/behaviourTypes';
 import type { HikeMemory } from '../../src/behaviour/hike';
 import type { MessageMemory } from '../../src/behaviour/speech';
 import type { ExpressionState } from '../../src/expression/expressionTypes';
@@ -34,6 +34,7 @@ export interface SavedRuntime {
   due:{ poll: number | null; weather: number | null; hike: number | null }; // when each timer is next due (null: not scheduled)
   watering: SavedWatering;
   sloth: { key: string; memory: SlothMemory; history?: { sloth: { from: number; to: number }[]; dragonfly: { from: number; to: number }[] } } | null; // the air visitors' day memory
+  dreams?: DreamRecord[] | null; // the last weeks of stored nights (the `dreams` table), so a load reads none of them
 }
 
 // The last 24 h of samples, as they were after the last step: a Durable Object load reads

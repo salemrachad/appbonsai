@@ -9,7 +9,7 @@ import { GRIP_WORDS } from '../behaviour/sloth';
 import { weekdayName } from '../behaviour/hike';
 import { familiarityStage, lucyInterest, UNKNOWN_FAMILIARITY } from '../behaviour/familiarity';
 import type { FamiliarityPair, HabitatEncounter } from '../behaviour/behaviourTypes';
-import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gaze, Gesture, SceneId, TouchKind, TouchResponse, DragonflyPresentation, DreyLook, LucyPresentation, SlothPresentation, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
+import type { AvatarEffect, AvatarPresentation, ExpressionState, Foliage, GaugeTone, Gaze, Gesture, SceneId, TouchKind, TouchResponse, DragonflyPresentation, DreyLook, DreamPresentation, LucyPresentation, SlothPresentation, VisitorPlay, VisitorPresentation, WeatherLook } from './expressionTypes';
 import { APP_CONFIG } from '../config/appConfig';
 import type { AirBand, OutsideSky } from '../telemetry/outsideWeather';
 
@@ -506,6 +506,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     musing: s.musing ?? null,
     hikeDay: b.hike ? `${b.hike.nextWeek ? 'next ' : ''}${weekdayName(b.hike.day)}` : null,
     hikeDetail: b.hike?.detail ?? null,
+    dream: b.dream?.lastNight?.told ?? null,
     hikeDays: b.hike?.options?.length ? `${b.hike.nextWeek ? 'next ' : ''}${b.hike.options.map(weekdayName).join(' or ')}` : null,
   });
   let tip = rendered.tip;
@@ -565,6 +566,17 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
   // Lucy: what behaviour decided; her breath is the calming part (six a minute down or asleep, slower at night)
   const lu = h?.lucy?.visit ?? null;
   const lucy: LucyPresentation | null = lu ? lucyPresentation(lu) : null;
+  // The dream: only asleep with trustworthy data (behaviour decided); Lucy asleep by the pot keeps time with it
+  const d = b.dream;
+  const dream: DreamPresentation | null =
+    d && d.phase !== 'none' && d.night ? { key: `${d.night.key}:${d.phaseEndsAt ?? 0}`, phase: d.phase, motif: d.motif, restless: d.restless, endsAt: d.phaseEndsAt } : null;
+  const dreamSync: LucyPresentation['dreamSync'] = !dream
+    ? null
+    : dream.phase === 'deep'
+    ? 'deep'
+    : d!.cast.includes('lucy') && (dream.motif === 'lucy' || dream.motif === 'squirrel' || dream.motif === 'drey')
+    ? 'running'
+    : 'with_tree';
   // Encounters (arranged by behaviour): who looks at whom, where the squirrel's play never hops
   const met = encounterCues({ visitor, dragonfly, sloth }, h?.encounters ?? [], h?.familiarity ?? {});
   return {
@@ -577,7 +589,8 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     squirrelTraces: h?.traces ?? null,
     dragonfly: met.dragonfly,
     sloth: met.sloth,
-    lucy: withLucyInterest(lucy, met.visitor, met.dragonfly, met.sloth, h?.familiarity?.lucy_squirrel),
+    lucy: withDreamSync(withLucyInterest(lucy, met.visitor, met.dragonfly, met.sloth, h?.familiarity?.lucy_squirrel), dreamSync),
+    dream,
     encounters: h?.encounters ?? [],
     drey,
     ...(b.hike ? { hike: { boots: b.hike.today, plan: b.hike } } : {}),
@@ -680,6 +693,9 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
 // branch first, else a dragonfly, else an awake sloth. Watching over a struggling tree or in a storm she only
 // glances. Art only; nothing reads it back.
 // squirrelFamiliarity: how used to each other she and the squirrel are (0.5 unknown): familiar, she cools.
+const withDreamSync = (lucy: LucyPresentation | null, sync: LucyPresentation['dreamSync']): LucyPresentation | null =>
+  lucy && lucy.pose === 'sleeping' && sync ? { ...lucy, dreamSync: sync } : lucy;
+
 export function withLucyInterest(lucy: LucyPresentation | null, v: VisitorPresentation | null, df: DragonflyPresentation | null, sl: SlothPresentation | null, squirrelFamiliarity = 0.5): LucyPresentation | null {
   if (!lucy) return lucy;
   const who = v && (v.mode === 'visiting' || v.mode === 'peek') ? { who: 'squirrel' as const, id: v.id } : df ? { who: 'dragonfly' as const, id: df.id } : sl && sl.pose !== 'sleeping' ? { who: 'sloth' as const, id: sl.id } : null;

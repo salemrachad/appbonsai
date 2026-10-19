@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { LivingSnapshot } from '../api/types';
 import { evaluateBehaviour } from '../behaviour/BehaviourEngine';
-import type { PlantBehaviourState } from '../behaviour/behaviourTypes';
+import type { DreamMotif, PlantBehaviourState } from '../behaviour/behaviourTypes';
 import { expressBehaviour } from '../expression/ExpressionEngine';
 import { encounterCues, lucyPresentation, visitorPlay, weatherLook, withLucyInterest } from '../expression/ExpressionEngine';
 import { lucyRoute } from '../behaviour/lucy';
@@ -43,9 +43,12 @@ export type WeatherPreview = OutsideSky | 'windy' | 'hazy';
 // A hike preview runs the real planner on a sample forecast: a day picked later this week, a pick the
 // forecast moved, or today as hike day (the boots by the pot). Behaviour responds too (the announcement).
 export type HikePreview = 'announced' | 'moved' | 'today';
+// A dream preview shows the image of one motif drifting by the crown (real dreams need a night and a day
+// lived before it); restless: as when asleep under a stress.
+export type DreamPreview = { motif: DreamMotif; restless: boolean };
 
 export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previews: DevPreviews, latitude: number | null = null) {
-  const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth, lucy: previewLucy, hike: previewHike, hikeChoice: previewHikeChoice } = previews;
+  const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth, lucy: previewLucy, hike: previewHike, hikeChoice: previewHikeChoice, dream: previewDream } = previews;
   return useMemo<{ behaviour: PlantBehaviourState | null; expression: ExpressionState | null }>(() => {
     let r = evaluate(snapshot, display, previewSeason, latitude, previewTwilight, previewHike, previewHikeChoice);
     if (previewVisitor?.mode === 'traces' && r.expression) {
@@ -132,6 +135,12 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
     if (previewCanopy && r.expression) {
       r = { behaviour: r.behaviour, expression: { ...r.expression, avatar: { ...r.expression.avatar, canopy: previewCanopy } } };
     }
+    if (previewDream && r.expression) {
+      const x = r.expression;
+      const dream = { key: `preview:${previewDream.motif}:${previewDream.restless}`, phase: 'dreaming' as const, motif: previewDream.motif, restless: previewDream.restless, endsAt: null };
+      const running = previewDream.motif === 'lucy' || previewDream.motif === 'squirrel' || previewDream.motif === 'drey';
+      r = { behaviour: r.behaviour, expression: { ...x, dream, lucy: x.lucy && x.lucy.pose === 'sleeping' ? { ...x.lucy, dreamSync: running ? 'running' : 'with_tree' } : x.lucy } };
+    }
     if (previewDrey && r.expression) {
       r = { behaviour: r.behaviour, expression: { ...r.expression, drey: previewDrey } };
     }
@@ -150,7 +159,7 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
       r = { behaviour: r.behaviour, expression: { ...r.expression, atmosphere: { ...r.expression.atmosphere, weather, twilight } } };
     }
     return r;
-  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy, previewTwilight, previewDragonfly, previewSloth, previewLucy, previewHike, previewHikeChoice]);
+  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy, previewTwilight, previewDragonfly, previewSloth, previewLucy, previewHike, previewHikeChoice, previewDream]);
 }
 
 function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previewSeason: Season | null, latitude: number | null, previewTwilight: TwilightPreview | null = null, previewHike: HikePreview | null = null, previewHikeChoice: string | null = null) {

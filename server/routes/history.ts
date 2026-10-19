@@ -7,6 +7,7 @@ import { lucyDayVisits, lucyDiary } from '../../src/behaviour/lucy';
 import { recentTelemetry, recentWeather } from '../rowCache';
 import { encounterDiary, type Window } from '../../src/behaviour/encounters';
 import { habitatDiary, seasonEnergyAt } from '../../src/behaviour/habitat';
+import { dreamDiary } from '../../src/behaviour/dreams';
 import { toSample } from '../../src/perception/PerceptionEngine';
 import { fromRecord } from '../collector';
 import { buildDiary, saidItems } from '../../src/history/diary';
@@ -74,12 +75,14 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const lucy = lucyDiary(outside, now, days);
   // Who shared the tree: where those visits overlapped
   const encounters = encounterDiary(windows, since, now);
+  // The nights' dreams, as they were stored (what was really dreamt)
+  const dreams = dreamDiary(collector.dreamsSince(since - 14 * DAY), since, now); // (two weeks before: nights in a row)
   // What the tree said, the moments of each day and the finished days in short. The first day is read from
   // its midnight, so its moments and summary describe all of it (or it is left out: from)
   const said = db.utterancesSince(since);
   const daySamples = toSamples(telemetrySince(from));
   const days_ = [...dayMoments(daySamples, ACTIVE_SPECIES, now, said, from), ...daySummaries(daySamples, episodesSince(from), eventsSince(from), ACTIVE_SPECIES, now, from)].filter((i) => i.at >= since);
-  return [...buildDiary(episodesSince(since), eventsSince(since), APP_CONFIG.history.episodeGapMs, weatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...lucy, ...encounters].sort((a, b) => b.at - a.at);
+  return [...buildDiary(episodesSince(since), eventsSince(since), APP_CONFIG.history.episodeGapMs, weatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...lucy, ...encounters, ...dreams].sort((a, b) => b.at - a.at);
 }
 
 export function historyRoutes(db: AppDatabase, collector: LivingCollector): Router {

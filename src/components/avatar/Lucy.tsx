@@ -463,9 +463,9 @@ type LifeMode = 'sitting' | 'standing' | 'down' | 'asleep' | 'moving';
 // several seconds, a look held for a while. Glances drift from what she watches to the tree, a visitor, you, the
 // floor, across the room; ear flicks; head tilts; sniffing the air; a yawn; now and then a scratch; a sigh lying
 // down. Asleep: dream twitches, an ear, a sigh. Each movement lasts exactly as long as its animation.
-function useLucyLife(id: string | null, mode: LifeMode, hasVisitor: boolean, stopAt: number): Life {
-  const ctx = useRef({ mode, hasVisitor, stopAt });
-  ctx.current = { mode, hasVisitor, stopAt };
+function useLucyLife(id: string | null, mode: LifeMode, hasVisitor: boolean, stopAt: number, dreamSync: LucyPresentation['dreamSync'] = null): Life {
+  const ctx = useRef({ mode, hasVisitor, stopAt, dreamSync });
+  ctx.current = { mode, hasVisitor, stopAt, dreamSync };
   const [life, setLife] = useState<Life>(QUIET);
   useEffect(() => {
     setLife(QUIET);
@@ -497,7 +497,9 @@ function useLucyLife(id: string | null, mode: LifeMode, hasVisitor: boolean, sto
     const next = () => {
       const c = ctx.current;
       if (c.mode === 'asleep') {
-        const what = pick<'ear' | 'dream' | 'sigh' | 'none'>([['ear', 1], ['dream', 1.2], ['sigh', 1], ['none', 3]]);
+        // Her dream twitches keep time with the tree's dream (expression.lucy.dreamSync)
+        const dream = { running: 6, with_tree: 3, deep: 0.4 }[c.dreamSync ?? ''] ?? 1.2;
+        const what = pick<'ear' | 'dream' | 'sigh' | 'none'>([['ear', 1], ['dream', dream], ['sigh', 1], ['none', 3]]);
         if (what === 'ear') pulse('ear', DUR.ear);
         else if (what === 'dream') pulse('dream', DUR.dream);
         else if (what === 'sigh') pulse('sigh', DUR.sigh);
@@ -608,7 +610,7 @@ export const Lucy: React.FC<{ lucy: LucyPresentation | null; targets?: LucyTarge
     !m || !stop ? 'sitting' : m.moving || m.circling ? 'walking' : m.follow ? 'sitting' : stop.act === 'sit' ? 'sitting' : stop.act === 'down' ? 'down' : stop.act === 'sleep' ? 'sleeping' : 'walking';
   const mode: LifeMode = !m ? 'standing' : m.moving || m.circling ? 'moving' : pose === 'sleeping' ? 'asleep' : pose === 'down' ? 'down' : pose === 'sitting' ? 'sitting' : 'standing';
   const it = lucy?.interest ?? null;
-  const life = useLucyLife(lucy?.id ?? null, mode, !!(it && m?.target), stop?.at ?? 0);
+  const life = useLucyLife(lucy?.id ?? null, mode, !!(it && m?.target), stop?.at ?? 0, lucy?.dreamSync ?? null);
   shuffle.current = life.shuffle;
 
   if (!lucy || !m || !stop || m.gone) return null;

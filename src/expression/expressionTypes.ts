@@ -2,6 +2,7 @@
 // gives the avatar. The avatar only draws these; it never sees health or sensor values.
 
 import type { HikePlan } from '../behaviour/hike';
+import type { DreamMotif } from '../behaviour/behaviourTypes';
 import type { Season } from '../perception/season';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 
@@ -247,9 +248,22 @@ export interface SlothPresentation {
 // at `breath` (ms per breath): ~10 s (six a minute) when down or asleep, a calm pace to breathe along with. A
 // stroke gets a tilt, a wag or (asleep) an ear twitch. Her pillow is always there.
 export type LucySpotLook = 'pillow' | 'floor_left' | 'by_pot' | 'pot_front' | 'pot_right' | 'floor_right';
+// The tree's dream while it sleeps (from behaviour.dream): a faint image drifting beside the crown in the
+// dreaming phases, nothing in deep sleep. Art only.
+export interface DreamPresentation {
+  key: string; // the night and the phase: a new phase is a new image
+  phase: 'deep' | 'dreaming';
+  motif: DreamMotif | null; // dreaming: what it is made of
+  restless: boolean; // asleep under a stress: the image breaks off
+  endsAt: number | null; // when this phase gives way
+}
+
 export interface LucyPresentation {
   id: string;
   pose: 'walking' | 'sitting' | 'down' | 'sleeping'; // at the last evaluation (the route has the rest)
+  // Asleep by the tree, her dream twitches keep time with its dream: more while it dreams, most when she
+  // (or the squirrel she chases) is in it; few in its deep sleep
+  dreamSync?: 'running' | 'with_tree' | 'deep' | null;
   spot: LucySpotLook;
   rest: LucySpotLook;
   route: { at: number; spot: LucySpotLook; act: 'sniff' | 'stand' | 'sit' | 'down' | 'sleep'; look: 'user' | 'tree' | 'around' }[];
@@ -295,6 +309,7 @@ export interface ExpressionState {
   dragonfly: DragonflyPresentation | null;
   sloth: SlothPresentation | null;
   lucy?: LucyPresentation | null; // optional: a page left open across a deploy may read an older server
+  dream?: DreamPresentation | null; // asleep: the dream (optional: older servers)
   encounters: ('squirrel_sloth' | 'squirrel_dragonfly' | 'dragonfly_sloth' | 'lucy_squirrel')[]; // visitors meeting right now (art)
   drey: DreyLook;
   // The week's hike (from behaviour.hike): the plan Home announces, and on the day two pairs of hiking

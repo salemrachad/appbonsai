@@ -105,8 +105,9 @@ export interface DailySummary {
 export interface DiaryItem {
   at: number;
   // weather: outside, context only; habitat: the visitors; said: the tree's own words (as it said them);
-  // moment: a fact found in the day's readings; day_summary: the day in short, closing a finished day
-  kind: 'episode_start' | 'episode_gap' | 'event' | 'weather' | 'habitat' | 'said' | 'moment' | 'day_summary';
+  // moment: a fact found in the day's readings; day_summary: the day in short, closing a finished day;
+  // dream: a night's dream as it was stored (behaviour/dreams.ts)
+  kind: 'episode_start' | 'episode_gap' | 'event' | 'weather' | 'habitat' | 'said' | 'moment' | 'day_summary' | 'dream';
   title: string;
   detail?: string;
   condition?: HealthCondition;
@@ -115,6 +116,7 @@ export interface DiaryItem {
   habitat?: 'visit' | 'returned' | 'left' | 'drey_built' | 'drey_gone' | 'dragonfly' | 'sloth' | 'encounter' | 'traces' | 'peek' | 'wary' | 'settled' | 'sloth_home' | 'lucy';
   said?: 'state' | 'day_line' | 'care_line' | 'musing' | 'observation'; // what kind of line the tree said
   moment?: MomentKind;
+  dream?: 'dreamt' | 'restless' | 'recurring';
 }
 
 // The moments of a day found in its readings (src/history/moments.ts)

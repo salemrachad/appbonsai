@@ -21,9 +21,11 @@ import type {
   MoodMemory,
   SlothMemory,
   TimeOfDay,
+  DreamRecord,
 } from './behaviourTypes';
 import { evaluateMood } from './mood';
 import { evaluateCanopy } from './canopy';
+import { evaluateDreams } from './dreams';
 import { evaluateDragonfly } from './dragonfly';
 import { evaluateSloth } from './sloth';
 import { evaluateLucy, lucyDayVisits } from './lucy';
@@ -57,6 +59,7 @@ export interface BehaviourInput {
   wanderers?: { sloth?: SlothMemory; history?: { sloth: Window[]; dragonfly: Window[] } };
   moodMemory?: MoodMemory | null; // where the mood was (persisted by the collector): it drifts from there
   hike?: HikePlan | null; // the week's hike pick (the collector plans it from the forecast): a day line, the boots
+  dreams?: DreamRecord[]; // the stored nights of the last weeks (the collector keeps them): what tonight is made of
 }
 
 const CARE_REACTION: Partial<Record<PlantEvent['type'], ReactionKind>> = {
@@ -284,7 +287,7 @@ const isStressEpisode = (e: BehaviourEpisode) => seriousStress(e.condition) || e
 
 // "Given what is happening, what happened recently, and how the human has cared for the tree,
 // how should the companion behave?" Deterministic: history, duration, context, relationship.
-export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, moodMemory = null, hike = null }: BehaviourInput): PlantBehaviourState {
+export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, moodMemory = null, hike = null, dreams = [] }: BehaviourInput): PlantBehaviourState {
   const reasons: string[] = [];
   const condition = health.condition;
 
@@ -541,6 +544,27 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   const voice = evaluateVoice({ health, perception, species, intent: messageIntent, timeOfDay: tod, season, relationship, habitat, canopy, now });
   if (voice.budget > 0) reasons.push(`Voice: ${voice.why}`);
   if (canopy.fullness < 0.985) reasons.push(`Canopy: ${canopy.reasons.join('; ')}`);
+  // ---- Dreams: the day digested at night, from fragments each part of its world brings (art; drawn and told
+  // on waking, nothing above reads it) ----
+  const dream = evaluateDreams({
+    condition,
+    modifiers: health.modifiers,
+    episodes,
+    events,
+    interactions,
+    outsideToday: perception.outsideToday ?? [],
+    habitat,
+    hike,
+    canopy,
+    weatherComing: !!perception.outside?.weatherComing,
+    species,
+    location,
+    past: dreams,
+    now,
+  });
+  reasons.push(`Dream: ${dream.why}`);
+  // A dream worth telling takes over a calm (or dewy) morning line; a hard night keeps its own
+  if ((dayLine === 'morning_calm' || dayLine === 'morning_dewy') && dream.lastNight?.told) dayLine = dream.lastNight.again > 1 ? 'morning_dream_again' : 'morning_dream';
   if (habitat.welcoming || habitat.value > 0) reasons.push(`Habitat ${habitat.value}${habitat.welcoming ? ' (welcoming)' : ''}: ${habitat.presence === 'none' ? habitat.why : `squirrel ${habitat.presence}`} · trust ${habitat.memory.trust} (${habitat.memory.stage})`);
 
   return {
@@ -570,6 +594,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     voice,
     twilight,
     ...(hike ? { hike } : {}),
+    dream,
     reasons,
     evaluatedAt: now,
   };

@@ -1,6 +1,6 @@
 import type { CollectorStatus, LivingSnapshot } from '../../src/api/types';
 import { evaluateBehaviour } from '../../src/behaviour/BehaviourEngine';
-import type { PlantBehaviourState, SlothMemory } from '../../src/behaviour/behaviourTypes';
+import type { DreamRecord, PlantBehaviourState, SlothMemory } from '../../src/behaviour/behaviourTypes';
 import { slothLife } from '../../src/behaviour/sloth';
 import { DRAGONFLY } from '../../src/behaviour/dragonfly';
 import { airDays } from '../../src/behaviour/wanderer';
@@ -310,6 +310,36 @@ export class LivingCollector {
     return { sloth: memory, history };
   }
 
+  // The tree's last weeks of nights (the `dreams` table): what tonight's dream is weighed against. Kept with
+  // the runtime, so a load reads no dreams; read from the table only when there is no usable runtime.
+  private dreamPast: DreamRecord[] | null = null;
+  private pastDreams(now: number): DreamRecord[] {
+    if (!this.dreamPast) this.dreamPast = this.db.dreamsSince(now - APP_CONFIG.dreams.keepNights * DAY);
+    return this.dreamPast;
+  }
+  // The stored nights since `since` (the diary): from the runtime's copy when it reaches back that far
+  dreamsSince(since: number): DreamRecord[] {
+    const now = this.now();
+    if (since >= now - APP_CONFIG.dreams.keepNights * DAY) return this.pastDreams(now).filter((r) => r.endsAt >= since);
+    return this.db.dreamsSince(since - DAY).filter((r) => r.endsAt >= since);
+  }
+  // Store what the behaviour composed (a new night) or finished (last night's outcome, at dawn). Live
+  // evaluations only: replays never dream.
+  private keepDream(d: PlantBehaviourState['dream'], now: number) {
+    if (!d || (!d.compose && !d.finish)) return;
+    let past = this.pastDreams(now);
+    if (d.compose) {
+      this.db.insertDream(d.compose, APP_CONFIG.engineVersion);
+      past = [...past.filter((r) => r.night !== d.compose!.night), d.compose];
+    }
+    if (d.finish) {
+      const { night, outcome } = d.finish;
+      this.db.finishDream(night, outcome);
+      past = past.map((r) => (r.night === night ? { ...r, outcome } : r));
+    }
+    this.dreamPast = past.filter((r) => r.startsAt >= now - APP_CONFIG.dreams.keepNights * DAY);
+  }
+
   // The air visitors' past visit windows as the live view used them today (the diary reads the same), or
   // null before the first evaluation of the day
   airHistory(): { sloth: Window[]; dragonfly: Window[] } | null {
@@ -349,6 +379,7 @@ export class LivingCollector {
     if (runtime.previous && runtime.previous.timestamp === this.previous?.timestamp) this.previous = runtime.previous;
     this.due = { poll: runtime.due.poll ?? Infinity, weather: runtime.due.weather ?? 0, hike: runtime.due.hike ?? 0 };
     this.slothCache = runtime.sloth;
+    this.dreamPast = runtime.dreams ?? null;
     this.watering.resume(runtime.watering);
     const state = this.meta.get('collector_state');
     if (state) this.state = { ...state, perception: { ...state.perception, recent: this.recent, outsideToday: [] } };
@@ -373,6 +404,7 @@ export class LivingCollector {
       due: { poll: finiteOrNull(this.due.poll), weather: finiteOrNull(this.due.weather), hike: finiteOrNull(this.due.hike) },
       watering: this.watering.saved(),
       sloth: this.slothCache,
+      dreams: this.dreamPast,
     });
     // The 24 h of samples (written only when a reading changed them: the meta write skips the same value)
     const lastTs = this.recent.reduce<number | null>((m, s) => (m === null || s.t > m ? s.t : m), null);
@@ -697,8 +729,10 @@ export class LivingCollector {
       wanderers: this.wanderersMemory(now, perception.history.cadenceMs),
       moodMemory: this.meta.get('mood_memory'),
       hike: hike.plan,
+      dreams: this.pastDreams(now),
     });
     this.meta.set('mood_memory', behaviour.moodState.memory);
+    this.keepDream(behaviour.dream, now);
     // When to speak or stay quiet; persisted so refreshes and restarts don't replay lines
     const speech = decideSpeech({ behaviour, severity: health.severity, memory: this.messageMemory, now });
     const spokeNow = speech.memory.lastSpokenAt === now && this.messageMemory.lastSpokenAt !== now;

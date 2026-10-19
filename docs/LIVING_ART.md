@@ -109,7 +109,7 @@ watering already-wet soil gives *watering_enough*, never a celebration; feeding 
 |---|---|
 | Sustained dryness lowers energy gradually. | [Implemented] Tier rises with observed duration; vitality declines with τ 2 h; leaf droop and sway follow energy. |
 | After a reliable watering it **recovers over time**, not instantly happy. | [Implemented] relief → perking → settling recovery stages; `recovering` holds by severity (1–6 h); afterglow for 2 h after stress. |
-| Quieter at night. | [Implemented] `night_rest` → sleeping, night scene, quiet-night speech rules. |
+| Quieter at night. | [Implemented] `night_rest` → sleeping, night scene, quiet-night speech rules; the night digests the day as dreams (see "Dreams"). |
 | Long favourable periods read as **sustained stability**. | [Partial] `thriving` latch (vitality ≥ 90 for 2 h) with the golden scene. Nothing marks weeks of stability differently from two good hours. |
 | Sensor failure is communicated as **uncertainty**, not feeling. | [Implemented] `sensor_uncertain` overlay, static scene, paused gauge. |
 | Speaks rarely, never repeats on refresh, no random moods. | [Implemented] Speech policy, stable variants, once-per-episode/day/season lines; scenario test proves wording never drives logic. |
@@ -702,6 +702,71 @@ earn trust: she lives here.
 - Health, vitality, energy, speech priorities and the other visitors' engines never read her. Tested: LU1–LU13.
 - **Open:** the diary doesn't know past hike days (it counts the plan); her anchor hours could be learned from the
   household instead of set.
+
+### Dreams: the day digested at night [Implemented, V1]
+
+The night was the one state where nothing happened inside: the tree slept, the scene went dark, it stayed
+quiet. Now it dreams, and **a dream is the day being digested**. Evidence class *art* laid over *science*: in
+the dark a plant really does work through its day (it breaks down the starch its leaves made by daylight, its
+stems lengthen mostly at night, its circadian clock anticipates dawn). The dream is an image of that work,
+never a claim of a mind (`behaviour/dreams.ts`, numbers in `APP_CONFIG.dreams`).
+
+- **Distributed: no one writes the dream.** Each part of the tree's world brings fragments of its own day, as
+  it remembers it:
+  - the tree: its stresses (observed hours only: thirst -> a dry wind, heat -> a white glare, cold -> frost,
+    waterlogged -> deep water, humid air -> mist) and a thriving day (long sunlight), the canopy filling in;
+  - care, with the diffraction the waking tree has: a drink after a long thirst is a vivid rain, a routine
+    drink a faint one, water on wet soil nothing; pruning -> new shoots, repotting -> new soil, a move -> a new
+    light;
+  - attention: a hand on its leaves (petting is never care, but it was lived);
+  - the sky outside: a storm, rain heard through the glass, snow, fog;
+  - the squirrel, the sloth, the dragonfly: their visits of the day; the squirrel asleep in its drey;
+  - Lucy; the people: the hike today, or tomorrow's.
+
+  Tonight's dream is what weighs most: **salience = intensity x novelty, + recurrence, + company**, up to three
+  motifs plus one about tomorrow.
+- **Pleasures habituate, worries recur.** A pleasant or routine motif weighs less for each recent night that
+  dreamt it (the tenth squirrel dream in a row is faint). A worry (dry wind, glare, frost, deep water, storm)
+  is the opposite: its strength (salience x decay, tau 7 days, over the last two weeks) comes back, even on a
+  calm day, until it fades. A dry spell keeps returning in the dreams for days after the watering that ended
+  it.
+- **Who sleeps together dreams together.** Lucy asleep by the pot, the sloth on its branch and the squirrel in
+  its drey are tonight's cast. Their day weighs more, and they appear even on a day they brought nothing else.
+  That habituates too: Lucy, by the pot most nights, is seldom dreamt; after nights away she is. Lucy's dream
+  twitches keep time with the tree's dream: more while it dreams, most when she or the squirrel is in it, few in
+  its deep sleep. Two engines keep time together, and neither controls the other.
+- **The night:** from 45 min after sunset to sunrise, sleep cycles of 50-70 min (stable rolls). The first is
+  deep sleep only; each later one ends in a dreaming phase that grows toward dawn. The day's strongest motif
+  dreams first, the ones that came back in the middle of the night, tomorrow in the last dream before sunrise.
+- **Grounded:** a calm day with nobody brings nothing, so the night is deep and dreamless. No trustworthy data
+  means no dream: it can't dream what it didn't perceive. Asleep under a stress (dry soil at night), it dreams
+  restlessly, and the image flickers and breaks off. Never nightmares.
+- **Stored, because it happened:** a night's dream is composed when the night begins and stored (the `dreams`
+  table, schema v11). At dawn its outcome is stored too: the phases really dreamt (asleep with trustworthy
+  data, read from the night's episodes) and whether it was restless. An engine change later never rewrites past
+  nights. Written by the live evaluation only (replays never dream). The collector keeps the last three weeks
+  of nights in its runtime, so a load reads none of them.
+- **Seen, told, remembered:**
+  - *night look:* in a dreaming phase, a faint moonlit image drifts in the sky right of the crown (rain
+    falling upward, a dry wind, the squirrel's tail-curl, a paw print, boots...), with two small wisps rising
+    to it from the crown; nothing in deep sleep (`avatar/Dream.tsx`, outside the tree's filters). Reduced
+    motion: still and fainter.
+  - *words:* on waking, a dream worth telling (vivid enough, not restless) takes over the calm or dewy morning
+    line: "I dreamt of rain." and, when it came back, "I dreamt of a dry wind again." (`morning_dream`,
+    `morning_dream_again`; the words are in `messages.ts` `DREAM_WORDS`).
+  - *diary:* "Dreamt of a dry wind, rain and the sloth · after the long thirst", "A restless night. Dreamt
+    of...", "A dry wind came back in my dreams · 3 nights in a row"; moonlit bubbles on Home; "Dreams this
+    week" in History.
+- **Boundaries:** health, vitality, latches, episodes, mood, energy, speech timing, the visitors, the canopy
+  and the thoughts never read a dream (DR13; the owner's decision, 2026-10-19: art only, no mood nudge).
+- **Previews:** Developer -> Night -> Dream (a motif, Restless; picking one puts the tree to sleep), or
+  `#preview=sleeping&dream=rain` / `#dream=restless:frost`. Behaviour Debug shows tonight's motifs with their
+  weight and reason.
+- **Tested:** `npm run test:behaviour` DR1-DR13 (grounded, diffraction, novelty, recurrence and fading,
+  phases, company, restless, dreamless without data, the morning line, the diary, the real collector across a
+  restart in the night, isolation).
+- **Open:** whether a recurring worry should also show by day; dreams of the season turning; whether the other
+  visitors should dream too (the sloth asleep on its branch).
 
 ## 7. Known gaps
 

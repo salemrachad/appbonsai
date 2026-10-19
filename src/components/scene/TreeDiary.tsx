@@ -104,13 +104,15 @@ export const TreeDiary: React.FC<{ reloadKey?: string; onOpenDiary?: () => void 
 };
 
 // One line of the diary: a soft bubble, its time underneath. What the tree said is in its own voice (serif,
-// in quotes); a moment from the readings is smaller and muted; the rest is the plain record.
+// in quotes); a moment from the readings is smaller and muted; a dream is moonlit; the rest is the plain record.
 const Bubble: React.FC<{ at?: number; title?: string; kind?: DiaryItem['kind']; children: React.ReactNode }> = ({ at, title, kind, children }) => (
   <div className="max-w-full tree-diary-in" title={title}>
     <div
       className={`rounded-2xl rounded-tl-md backdrop-blur-md leading-snug ${
         kind === 'said'
           ? 'px-2.5 py-1 serif italic text-[12.5px] text-[var(--ink)]/85 bg-[var(--paper)]/70 border border-[#4A6741]/15'
+          : kind === 'dream'
+          ? 'px-2.5 py-1 serif italic text-[12px] text-[var(--ink)]/75 bg-[#B9B0F5]/15 border border-[#8E84D6]/20'
           : kind === 'moment'
           ? 'px-2.5 py-0.5 sans text-[10.5px] text-[var(--ink)]/55 bg-[var(--paper)]/45 border border-[var(--ink)]/5'
           : 'px-2.5 py-1 text-[11.5px] text-[var(--ink)]/80 bg-[var(--paper)]/60 border border-[var(--ink)]/5'

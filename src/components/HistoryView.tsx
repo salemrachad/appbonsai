@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Haze, Squirrel, Home, Sparkles, PawPrint, Dog, Users, MessageCircle, Sunrise, Droplets, Activity, CalendarCheck } from 'lucide-react';
+import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Haze, Squirrel, Home, Sparkles, PawPrint, Dog, Users, MessageCircle, Sunrise, Droplets, Activity, CalendarCheck, MoonStar } from 'lucide-react';
 import type { HealthCondition } from '../health/healthTypes';
 import type { DailySummary, DiaryItem, MomentKind, PlantEventType, WeatherSpellKind } from '../history/historyTypes';
 import { hhmm } from '../lib/time';
@@ -78,6 +78,12 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
     if (g && g.heading === heading) g.items.push(item);
     else groups.push({ heading, items: [item] });
   }
+
+  // The week's nights as the tree dreamt them (from the same diary lines)
+  const dreams = diary.filter((d) => d.kind === 'dream');
+  const dreamt = dreams.filter((d) => d.dream === 'dreamt' || d.dream === 'restless');
+  const restless = dreams.filter((d) => d.dream === 'restless').length;
+  const recurring = dreams.filter((d) => d.dream === 'recurring');
 
   const submit = async () => {
     if (!careType) return;
@@ -162,7 +168,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
                   </div>
                 );
               const { Icon, color } =
-                item.kind === 'said'
+                item.kind === 'dream'
+                  ? { Icon: MoonStar, color: '#7A6FB8' }
+                  : item.kind === 'said'
                   ? { Icon: MessageCircle, color: '#4A6741' }
                   : item.kind === 'moment' && item.moment
                   ? MOMENT_ICON[item.moment]
@@ -192,6 +200,8 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
                   <div className="flex flex-col min-w-0">
                     {item.kind === 'said' ? (
                       <span className="serif italic text-[13px] leading-snug text-[#2D332A]/90">“{item.title}”</span>
+                    ) : item.kind === 'dream' ? (
+                      <span className="serif italic text-[13px] leading-snug text-[#4B437F]/90">{item.title}</span>
                     ) : (
                       <span className={`sans text-xs ${item.kind === 'event' ? 'font-bold text-[#2D332A]' : item.kind === 'moment' ? 'font-medium text-[#2D332A]/70' : 'font-semibold text-[#2D332A]'}`}>{item.title}</span>
                     )}
@@ -203,6 +213,25 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
           </div>
         ))}
       </div>
+
+      {/* Dreams this week: the nights in short (the lines are in the diary above) */}
+      {dreams.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="sans text-[10px] font-bold uppercase tracking-widest text-[#2D332A]/50">Dreams this week</h3>
+          <div className="p-4 rounded-2xl glass space-y-1.5 sans text-[11.5px] text-[#2D332A]/75">
+            <p className="flex items-center gap-2">
+              <MoonStar className="w-3.5 h-3.5 text-[#7A6FB8]" />
+              {dreamt.length} {dreamt.length === 1 ? 'night' : 'nights'} with a dream{restless ? `, ${restless} restless` : ''}
+            </p>
+            {recurring.map((r, i) => (
+              <p key={i} className="serif italic text-[12.5px] text-[#4B437F]/85 pl-6">
+                {r.title} · {r.detail}
+              </p>
+            ))}
+            <p className="text-[10.5px] text-[#2D332A]/50 pl-6">Made of what the tree lived the day before: its stresses and care, the sky, the visitors, a hand on its leaves.</p>
+          </div>
+        </div>
+      )}
 
       {/* Past 7 days, compact */}
       <div className="space-y-2">

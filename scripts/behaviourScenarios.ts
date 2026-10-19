@@ -1786,6 +1786,150 @@ async function main() {
     check('LU9d diary: her company per day and her nights by the pot', diary.filter((d) => d.title === 'Lucy kept me company').length === 2 && diary.every((d) => d.habitat === 'lucy'), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));
   }
 
+  console.log('\n— Dreams (the day digested at night) —');
+  {
+    const { composeDream, dreamOutcome, evaluateDreams, nightOf, dreamDiary } = await import('../src/behaviour/dreams');
+    const { ACTIVE_SPECIES } = await import('../src/species');
+    const { startOfDay, addDays, dayKey, hourOf } = await import('../src/lib/time');
+    type Ep = import('../src/history/historyTypes').BehaviourEpisode;
+    type Ev = import('../src/history/historyTypes').PlantEvent;
+    type Rec = import('../src/behaviour/behaviourTypes').DreamRecord;
+    const loc = { latitude: 33.97, longitude: 35.73 };
+    let n = 0;
+    const ep = (condition: Ep['condition'], startedAt: number, hours: number, modifiers: Ep['modifiers'] = [], unobservedMs = 0): Ep => ({
+      id: ++n, startedAt, endedAt: startedAt + hours * HOUR, lastSeenAt: startedAt + hours * HOUR, unobservedMs, condition, modifiers, peakSeverity: 'none', engineVersion: 't',
+    });
+    // Nobody visiting, a full canopy: the visitors and the canopy bring nothing unless a test says so
+    const habitat = (over: Record<string, unknown> = {}) =>
+      ({ visitsToday: { count: 0, firstAt: null }, presence: 'none', memory: { stage: 'none' }, sloth: undefined, dragonfly: undefined, lucy: undefined, ...over }) as any;
+    const canopy = { fullness: 1, refilling: 0, trend: 'steady' as const, reasons: [] as string[] };
+    // A day in mid-June; on a day without Lucy's night by the pot (her plan is a roll on the date)
+    let day = startOfDay(Date.UTC(2026, 5, 10, 9));
+    for (let k = 0; k < 30; k++) {
+      const { lucyDay } = await import('../src/behaviour/lucy');
+      if (!lucyDay(day).visits.some((v) => v.kind === 'night')) break;
+      day = addDays(day, 1);
+    }
+    const night = nightOf(day, loc);
+    const calmDay = (d: number) => [ep('sleeping', d - 4 * HOUR, 10), ep('comfortable', d + 6 * HOUR, 15)];
+    const compose = (o: { episodes?: Ep[]; events?: Ev[]; past?: Rec[]; habitat?: any; hike?: any; weatherComing?: boolean; d?: number } = {}) => {
+      const d = o.d ?? day;
+      return composeDream({
+        night: nightOf(d, loc), dayStart: d, episodes: o.episodes ?? calmDay(d), events: o.events ?? [], interactions: [], outsideToday: [], habitat: o.habitat ?? habitat(),
+        hike: o.hike ?? null, canopy, weatherComing: o.weatherComing ?? false, species: ACTIVE_SPECIES, past: o.past ?? [], now: nightOf(d, loc).startsAt,
+      });
+    };
+    const watering = (at: number, conditionBefore: Ep['condition'] | null, moistureBefore: number): Ev => ({ id: ++n, timestamp: at, type: 'watering', note: null, metadata: { source: 'sensor', moistureBefore, moistureAfter: 70, conditionBefore } as any });
+
+    // DR1: grounded: a calm day with nobody brings nothing, so the night is deep and dreamless; every motif
+    // of a lived day traces back to a source and a reason
+    const quiet = compose();
+    check('DR1 a calm, empty day: a deep, dreamless night (nothing invented)', quiet.motifs.length === 0 && quiet.phases.length === 0, JSON.stringify(quiet.motifs));
+    const thirstDay = [ep('sleeping', day - 4 * HOUR, 10), ep('comfortable', day + 6 * HOUR, 3), ep('very_dry', day + 9 * HOUR, 6), ep('recovering', day + 15 * HOUR, 6)];
+    const relief = compose({ episodes: thirstDay, events: [watering(day + 15 * HOUR, 'very_dry', 18)] });
+    check('DR1b every motif has a source and a reason from the day', relief.motifs.length > 0 && relief.motifs.every((m) => m.source && m.why), relief.motifs.map((m) => `${m.motif}:${m.source}(${m.why})`).join(', '));
+
+    // DR2: diffraction: a drink after a long thirst is a vivid rain; a routine drink is faint; water on wet
+    // soil leaves nothing
+    const routine = compose({ events: [watering(day + 12 * HOUR, 'comfortable', 50)] });
+    const wet = compose({ events: [watering(day + 12 * HOUR, 'too_wet', 85)] });
+    const rain = relief.motifs.find((m) => m.motif === 'rain');
+    check('DR2 the same watering dreams differently: vivid after thirst, faint when routine, nothing on wet soil', relief.motifs[0].motif === 'rain' && rain!.salience >= 0.8 && (routine.motifs.find((m) => m.motif === 'rain')?.salience ?? 0) <= 0.35 && !wet.motifs.some((m) => m.motif === 'rain'), `relief ${rain?.salience} (${rain?.why}) · routine ${routine.motifs.map((m) => `${m.motif} ${m.salience}`)} · wet ${wet.motifs.map((m) => m.motif)}`);
+
+    // DR3: pleasures habituate: the squirrel every night weighs less each time
+    const squirrelDay = habitat({ visitsToday: { count: 2, firstAt: day + 9 * HOUR } });
+    const pastWith = (motif: string, nights: number, salience = 0.5, d = day): Rec[] =>
+      Array.from({ length: nights }, (_, k) => {
+        const pd = addDays(d, -(k + 1));
+        const nn = nightOf(pd, loc);
+        return { night: nn.key, startsAt: nn.startsAt, endsAt: nn.endsAt, composedAt: nn.startsAt, motifs: [{ motif, salience, source: 'squirrel', role: 'day', why: '' }], phases: [], cast: [], outcome: { dreamt: [motif], phases: 3, of: 6, restless: false, finishedAt: nn.endsAt } } as Rec;
+      });
+    const first = compose({ habitat: squirrelDay }).motifs.find((m) => m.motif === 'squirrel')!;
+    const tenth = compose({ habitat: squirrelDay, past: pastWith('squirrel', 9) }).motifs.find((m) => m.motif === 'squirrel');
+    check('DR3 novelty: the squirrel the first time is vivid, the tenth night in a row faint', first.salience > 0.45 && (tenth?.salience ?? 0) < first.salience * 0.6, `first ${first.salience} · tenth ${tenth?.salience ?? 'gone'}`);
+
+    // DR4: worries come back: after three dry nights, the dry wind returns even on a calm day, and fades
+    // once the dry spell is a fortnight behind
+    const back = compose({ past: pastWith('dry_wind', 3, 0.8) });
+    const later = addDays(day, 15);
+    const faded = compose({ d: later, past: pastWith('dry_wind', 3, 0.8) });
+    const dw = back.motifs.find((m) => m.motif === 'dry_wind');
+    check('DR4 a worry recurs on a calm day (memory), and fades after two weeks', dw?.role === 'memory' && !faded.motifs.some((m) => m.motif === 'dry_wind'), `${dw?.motif} ${dw?.salience} (${dw?.why}) · 15 days later: ${faded.motifs.map((m) => m.motif).join(',') || 'nothing'}`);
+
+    // DR5: deterministic phases inside the night, growing toward dawn; tomorrow's hike is the last dream
+    const ahead = compose({ episodes: thirstDay, events: [watering(day + 15 * HOUR, 'very_dry', 18)], hike: { day: dayKey(addDays(day, 1)), detail: null } });
+    const ph = ahead.phases;
+    const inNight = ph.every((p) => p.from >= night.startsAt && p.to <= night.endsAt && p.to > p.from);
+    const growing = ph.length >= 3 && ph[ph.length - 2].to - ph[ph.length - 2].from > ph[0].to - ph[0].from;
+    check('DR5 phases inside the night, longer toward dawn, the strongest first and tomorrow last; same every time', inNight && growing && ph[0].motif === 'rain' && ph[ph.length - 1].motif === 'boots' && JSON.stringify(ahead) === JSON.stringify(compose({ episodes: thirstDay, events: [watering(day + 15 * HOUR, 'very_dry', 18)], hike: { day: dayKey(addDays(day, 1)), detail: null } })), ph.map((p) => `${new Date(p.from).toISOString().slice(11, 16)} ${p.motif} ${Math.round((p.to - p.from) / MIN)}m`).join(' · '));
+
+    // DR6: who sleeps together dreams together: the sloth asleep in the tree tonight joins the dream, and its
+    // day weighs more than the same day without it
+    const slothDay = { visitsToday: { count: 1, firstAt: day + 14 * HOUR, minutes: 40 } };
+    const awayAtNight = compose({ habitat: habitat({ sloth: { ...slothDay, presence: 'none' } }) }).motifs.find((m) => m.motif === 'sloth');
+    const sleepsHere = compose({ habitat: habitat({ sloth: { ...slothDay, presence: 'sleeping' } }) });
+    const sl = sleepsHere.motifs.find((m) => m.motif === 'sloth');
+    check('DR6 the sloth asleep in the tree: in the cast, its day weighs more', sleepsHere.cast.includes('sloth') && !!sl && !!awayAtNight && sl.salience > awayAtNight.salience, `with it ${sl?.salience} · without ${awayAtNight?.salience}`);
+
+    // DR7-8: what was really dreamt: asleep and observed; asleep on dry soil = restless; no data = dreamless
+    const nightEps = (condition: Ep['condition'], modifiers: Ep['modifiers'] = []) => [ep(condition, night.startsAt - HOUR, 12, modifiers)];
+    const calmOut = dreamOutcome(relief, nightEps('sleeping'), night.endsAt);
+    const dryOut = dreamOutcome(relief, nightEps('thirsty', ['sleeping']), night.endsAt);
+    const blind = dreamOutcome(relief, nightEps('sensor_uncertain'), night.endsAt);
+    check('DR7 asleep on dry soil: a restless night (still dreamt)', calmOut.phases === relief.phases.length && !calmOut.restless && dryOut.restless && dryOut.dreamt.length > 0, `calm ${calmOut.phases}/${calmOut.of} · dry restless=${dryOut.restless}`);
+    check('DR8 no trustworthy data: dreamless (it cannot dream what it did not perceive)', blind.phases === 0 && blind.dreamt.length === 0);
+
+    // DR9: the morning: a dream worth telling, "again" when it came back; never after a restless night
+    const base = { modifiers: [] as any[], episodes: [], events: [], interactions: [], outsideToday: [], habitat: habitat(), hike: null, canopy, weatherComing: false, species: ACTIVE_SPECIES, location: loc };
+    const morning = night.endsAt + 30 * MIN;
+    const told = evaluateDreams({ ...base, condition: 'comfortable', past: [{ ...relief, outcome: calmOut }], now: morning });
+    const twice = pastWith('rain', 1, 0.85);
+    const again = evaluateDreams({ ...base, condition: 'comfortable', past: [...twice, { ...relief, outcome: calmOut }], now: morning });
+    const rough = evaluateDreams({ ...base, condition: 'comfortable', past: [{ ...relief, outcome: dryOut }], now: morning });
+    check('DR9 morning: tells the dream, says "again" when it came back, keeps quiet after a restless night', told.lastNight?.told === 'rain' && told.lastNight.again === 1 && again.lastNight?.again === 2 && rough.lastNight?.told === null, `told ${told.lastNight?.told} · again ×${again.lastNight?.again} · restless → ${rough.lastNight?.told}`);
+    const unfinished = evaluateDreams({ ...base, condition: 'comfortable', past: [relief], now: morning });
+    check('DR9b the night is finished once (for the collector to store)', unfinished.finish?.night === relief.night && told.finish === null);
+
+    // DR10: live: dreaming in a phase only while asleep with data; the image changes with the phases
+    const mid = relief.phases[1];
+    const live = (condition: any, modifiers: any[] = [], t = (mid.from + mid.to) / 2) => evaluateDreams({ ...base, condition, modifiers, past: [relief], now: t });
+    check('DR10 dreaming only asleep with data; restless asleep on dry soil; deep between phases', live('sleeping').phase === 'dreaming' && live('sleeping').motif === mid.motif && live('thirsty', ['sleeping']).restless && live('sensor_uncertain').phase === 'none' && live('comfortable').phase === 'none' && live('sleeping', [], mid.from - MIN).phase === 'deep', `${live('sleeping').why}`);
+
+    // DR11: the diary: what was dreamt, at sunrise; a worry back for 3 nights in a row; nothing for a
+    // dreamless night
+    const series: Rec[] = [0, 1, 2].map((k) => {
+      const d = addDays(day, k - 2);
+      const r = compose({ d, episodes: [ep('very_dry', d + 9 * HOUR, 8)] });
+      return { ...r, outcome: dreamOutcome(r, [ep('sleeping', r.startsAt - HOUR, 12)], r.endsAt) };
+    });
+    const empty = compose({ d: addDays(day, 1) });
+    const diary = dreamDiary([...series, { ...empty, outcome: dreamOutcome(empty, [ep('sleeping', empty.startsAt - HOUR, 12)], empty.endsAt) }], addDays(day, -3), addDays(day, 3));
+    check('DR11 diary: each dreamt night, a worry back 3 nights in a row, nothing for a dreamless one', diary.filter((x) => x.dream === 'dreamt').length === 3 && diary.some((x) => x.dream === 'recurring' && /3 nights/.test(x.detail ?? '')), diary.map((x) => `${x.title} · ${x.detail}`).join(' | '));
+
+    // DR12-13: through the real collector: one row per night, composed at the night's start and finished at
+    // dawn; a restart in the middle of the night changes nothing; health and mood never read a dream
+    const nightLight = (b: Bench) => {
+      const h = hourOf(b.clock);
+      return { soil: 60, light: h >= 6 && h < 19 ? 55 : 0 };
+    };
+    const a = new Bench();
+    await a.boot();
+    await a.run(22 * 60, () => nightLight(a));
+    const r = new Bench();
+    await r.boot();
+    await r.run(16 * 60, () => nightLight(r));
+    await r.boot(); // restarted in the night
+    await r.run(6 * 60, () => nightLight(r));
+    const rowsA = a.db.dreamsSince(0);
+    const rowsR = r.db.dreamsSince(0);
+    check('DR12 the real collector stores the night once, finished at dawn; a restart in the night changes nothing', rowsA.length === 1 && !!rowsA[0].outcome && rowsA[0].composedAt >= rowsA[0].startsAt && JSON.stringify(rowsA) === JSON.stringify(rowsR), `${rowsA.map((x) => `${x.night} ${x.motifs.map((m) => m.motif).join(',') || 'dreamless'} → ${x.outcome?.dreamt.join(',') || '-'}`)}`);
+    const st = a.state();
+    const without = evaluateBehaviour({ health: st.health, perception: st.perception, episodes: a.db.episodesSince(0), events: [], species: ACTIVE_SPECIES, now: a.clock, location: loc, dreams: [] });
+    const withIt = evaluateBehaviour({ health: st.health, perception: st.perception, episodes: a.db.episodesSince(0), events: [], species: ACTIVE_SPECIES, now: a.clock, location: loc, dreams: pastWith('dry_wind', 5, 0.9, startOfDay(a.clock)) });
+    const strip = (x: typeof without) => JSON.stringify({ mood: x.moodState, energy: x.energy, intent: x.messageIntent, habitat: x.habitat, canopy: x.canopy, voice: x.voice });
+    check('DR13 a dream never changes mood, energy, intent, the visitors, the canopy or the thoughts', strip(without) === strip(withIt));
+  }
+
   finish();
 }
 
