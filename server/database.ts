@@ -162,6 +162,9 @@ const toDevice = (r: Row): DeviceRecord => ({
   lastSeq: r.last_seq,
 });
 
+// The tables whose row counts the status shows (telemetry's is kept with its oldest reading)
+const COUNTED = ['plant_events', 'interactions', 'behaviour_episodes'];
+
 export class AppDatabase {
   constructor(private sql: SqlDriver) {
     sql.exec(SCHEMA_SQL);
@@ -182,20 +185,38 @@ export class AppDatabase {
     return this.all(sql, ...params)[0];
   }
 
-  // Counts for the status page, kept in memory: a COUNT(*) reads every row of its table, and the status is asked
-  // every few seconds (a Durable Object's SQLite bills each row read). A row inserted or deleted drops the
-  // count, so it is read again once, exactly. Telemetry's count follows each new reading instead (one a minute).
+  // Counts for the status page: a COUNT(*) reads every row of its table, and the status is asked every few
+  // seconds (a Durable Object's SQLite bills each row read). A row inserted or deleted drops the count, so it is
+  // read again once, exactly. Telemetry's count follows each new reading instead.
+  // They are also kept in meta (`table_counts`, one row): a Durable Object is unloaded between requests (with
+  // readings every few minutes, it loads again for each one), and counting the whole telemetry table on every
+  // load read more rows each day than the free tier allows (2026-10-19). A load reads that one row instead.
   private counts = new Map<string, number>();
   // Bumped when a restore or a top-up rewrites history: caches of past rows start over
   dataVersion = 0;
   private telemetryCache: { count: number; oldest: number | null } | null = null;
+  private countsLoaded = false;
+  private loadCounts() {
+    if (this.countsLoaded) return;
+    this.countsLoaded = true;
+    const stored = this.getMeta<Record<string, number | null>>('table_counts') ?? {};
+    for (const [k, v] of Object.entries(stored)) if (COUNTED.includes(k) && typeof v === 'number') this.counts.set(k, v);
+    if (typeof stored.telemetry === 'number') this.telemetryCache = { count: stored.telemetry, oldest: stored.telemetry_oldest ?? null };
+  }
+  private saveCounts() {
+    const o: Record<string, number | null> = Object.fromEntries(this.counts);
+    if (this.telemetryCache) Object.assign(o, { telemetry: this.telemetryCache.count, telemetry_oldest: this.telemetryCache.oldest });
+    this.setMeta('table_counts', o);
+  }
   private forgetCounts(sql: string) {
     const w = sql.match(/^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|UPDATE|DELETE\s+FROM)\s+(\w+)/i);
     if (w) this.windows.delete(w[1]); // a cached window of this table is stale (see windowOf)
     const m = /^\s*(INSERT|DELETE)\b/i.test(sql) ? sql.match(/\b(?:INTO|FROM)\s+(\w+)/i) : null;
-    if (!m) return;
+    if (!m || !(COUNTED.includes(m[1]) || (m[1] === 'telemetry' && !this.countingTelemetry))) return;
+    this.loadCounts(); // the stored count must drop too, not only the one in memory
     this.counts.delete(m[1]);
-    if (m[1] === 'telemetry' && !this.countingTelemetry) this.telemetryCache = null;
+    if (m[1] === 'telemetry') this.telemetryCache = null;
+    this.saveCounts();
   }
   private countingTelemetry = false;
 
@@ -219,8 +240,12 @@ export class AppDatabase {
     else this.episodeWindow = null;
   }
   private countOf(table: string): number {
+    this.loadCounts();
     let n = this.counts.get(table);
-    if (n === undefined) this.counts.set(table, (n = Number(this.sql.all(`SELECT COUNT(*) AS n FROM ${table}`)[0].n)));
+    if (n === undefined) {
+      this.counts.set(table, (n = Number(this.sql.all(`SELECT COUNT(*) AS n FROM ${table}`)[0].n)));
+      this.saveCounts();
+    }
     return n;
   }
   // Rows read by the database so far (see SqlDriver.rowsRead), null when the driver can't tell
@@ -299,13 +324,16 @@ export class AppDatabase {
       // with a complete one (server/backup.ts)
       this.all("DELETE FROM meta WHERE key <> 'schema_version'");
       this.metaSeen.clear();
-      for (const [key, value] of Object.entries(dump.meta)) if (key !== 'schema_version' && key !== 'backup_state') this.setMeta(key, value);
+      // (and not the other server's counts: they are counted here again, once)
+      for (const [key, value] of Object.entries(dump.meta)) if (key !== 'schema_version' && key !== 'backup_state' && key !== 'table_counts') this.setMeta(key, value);
       counts.meta = Object.keys(dump.meta).length;
     }, () => this.metaSeen.clear());
     this.counts.clear();
     this.windows.clear();
     this.episodeWindow = null;
     this.telemetryCache = null;
+    this.countsLoaded = true;
+    this.saveCounts();
     this.dataVersion++;
     return counts;
   }
@@ -317,7 +345,9 @@ export class AppDatabase {
     this.sql.transaction(() => {
       for (const { id: _id, ...row } of rows) added += this.insertRow('telemetry', row, 'INSERT OR IGNORE');
     });
+    this.loadCounts();
     this.telemetryCache = null;
+    this.saveCounts();
     this.dataVersion++;
     return added;
   }
@@ -359,6 +389,7 @@ export class AppDatabase {
 
   // ---- telemetry ----
   insertTelemetry(t: Omit<TelemetryRecord, 'id'>, rawJson: unknown): number | null {
+    this.loadCounts(); // (a stored count the insert below must follow)
     this.countingTelemetry = true; // the cached count follows the insert below
     const r = this.get(
         `INSERT OR IGNORE INTO telemetry
@@ -381,7 +412,10 @@ export class AppDatabase {
         rawJson === undefined ? null : JSON.stringify(rawJson)
       );
     this.countingTelemetry = false;
-    if (r && this.telemetryCache) this.telemetryCache = { count: this.telemetryCache.count + 1, oldest: this.telemetryCache.oldest === null ? t.timestamp : Math.min(this.telemetryCache.oldest, t.timestamp) };
+    if (r && this.telemetryCache) {
+      this.telemetryCache = { count: this.telemetryCache.count + 1, oldest: this.telemetryCache.oldest === null ? t.timestamp : Math.min(this.telemetryCache.oldest, t.timestamp) };
+      this.saveCounts();
+    }
     return r ? Number(r.id) : null;
   }
 
@@ -428,9 +462,11 @@ export class AppDatabase {
   }
 
   telemetryStats(): { count: number; oldest: number | null } {
+    this.loadCounts();
     if (!this.telemetryCache) {
       const r = this.sql.all('SELECT COUNT(*) AS n, MIN(timestamp) AS oldest FROM telemetry')[0];
       this.telemetryCache = { count: Number(r.n), oldest: r.oldest ?? null };
+      this.saveCounts();
     }
     return this.telemetryCache;
   }

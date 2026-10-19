@@ -650,8 +650,8 @@ async function main() {
     check('RS2 a resumed start in push mode evaluates nothing and stores nothing', full(restarted) === before && restarted.db.telemetryStats().count === rows);
     const due = restarted.db.getMeta<any>('collector_runtime').due;
     check(
-      'RS3 the timers are saved with it (the alarm time): the overdue check one interval after the last push, the weather 15 min after its last fetch',
-      due.poll === restarted.clock + MIN && due.weather === restarted.clock - 4 * MIN + 15 * MIN && restarted.collector.nextWakeAt() === steady.collector.nextWakeAt(),
+      'RS3 the timers are saved with it (the alarm time): the overdue check when a push would be overdue (1.5 intervals after the last one: a healthy device never wakes it), the weather 15 min after its last fetch',
+      due.poll === restarted.collector.collectorStatus().lastSuccessAt! + 1.5 * MIN + 1 && due.weather === restarted.clock - 4 * MIN + 15 * MIN && restarted.collector.nextWakeAt() === steady.collector.nextWakeAt(),
       JSON.stringify(due)
     );
   }
@@ -975,6 +975,54 @@ async function main() {
     check('RR1 a status check reads (almost) nothing: the telemetry count is kept, not recounted', telemetryScans <= 1 && statusRows / (24 * 60 * 4) < 2 && statusCounted === stored + 24 * 60, `${telemetryScans} telemetry scans, ${(statusRows / (24 * 60 * 4)).toFixed(2)} rows per check, count ${stored} → ${statusCounted}`);
     check('RR2 the diary reads only what it hasn\'t seen (two weeks once, then the new rows)', diaryRows < 20 * 1440 + 288 * 300, `${diaryRows} rows over ${24 * 12} diary loads`);
     check('RR3 a day with the page open stays far under the free tier (< 1 M rows)', day < 1_000_000, `${day} rows returned in the day`);
+  }
+  {
+    // With the page closed, a Durable Object is unloaded between pushes: every push is a load, with a fresh
+    // AppDatabase over the same SQLite. What a load reads must not grow with the history (on 2026-10-19 each
+    // load counted the whole telemetry table and re-read a day of readings: 4.4 k rows a load, 6 M a day).
+    // A COUNT(*) is billed as the table it reads, so it counts here as that many rows.
+    const { nodeSqliteDriver } = await import('../server/nodeSqlite');
+    const { AppDatabase } = await import('../server/database');
+    const { serverStatus } = await import('../server/routes/status');
+    const perLoad = async (historyDays: number) => {
+      const inner = nodeSqliteDriver(':memory:');
+      let rows = 0;
+      const driver = {
+        ...inner,
+        all: (sql: string, ...params: any[]) => {
+          const out = inner.all(sql, ...params);
+          rows += /COUNT\(\*\)[\s\S]*FROM telemetry/i.test(sql) ? Number(inner.all('SELECT COUNT(*) AS n FROM telemetry')[0].n) : out.length;
+          return out;
+        },
+      };
+      const b = new Bench(new AppDatabase(driver));
+      b.db.setMeta('collector_settings', { ...b.db.getMeta<any>('collector_settings'), telemetryIntervalMs: 5 * MIN });
+      b.usePush();
+      const seedFrom = b.clock - historyDays * DAY;
+      for (let t = seedFrom; t < b.clock; t += 5 * MIN)
+        b.db.insertTelemetry({ timestamp: t, source: 'esp32_sensor', deviceId: null, soilMoisture: 60, apiSoilMoisture: 60, soilRaw: 2000 + (t % 7), temperature: 24, humidity: 60, lightPercent: 40, lightRaw: 2000 + (t % 5), radiation: null, wifiRssi: -60, dataQuality: 'good' }, null);
+      await b.boot();
+      for (let i = 0; i < 6; i++) b.push({ soil: 60 }, { advance: 5 * MIN }); // settled in, the day's memory derived
+      const loads: number[] = [];
+      for (let i = 0; i < 24; i++) {
+        b.db = new AppDatabase(driver); // a load: nothing kept in memory
+        const r0 = rows;
+        await b.boot();
+        b.push({ soil: 60 - i * 0.1 }, { advance: 5 * MIN });
+        serverStatus(b.db, b.collector, b.clock); // the page asking how the tree is (its counts)
+        loads.push(rows - r0);
+      }
+      const sorted = [...loads].sort((a, x) => a - x);
+      // the typical load, and the most a load read (the first of a day derives the visitors' last two weeks once)
+      return { median: sorted[Math.floor(sorted.length / 2)], max: sorted[sorted.length - 1] };
+    };
+    const short = await perLoad(2);
+    const long = await perLoad(9);
+    check(
+      'RR6 a Durable Object load (one per push when nothing keeps it loaded) reads a few dozen rows, however long the history',
+      long.median <= 60 && long.median <= short.median + 10 && long.max <= 15 * 288,
+      `typical load ${short.median} rows over 2 days of history, ${long.median} over 9 days; at most ${long.max} (the day's derivation) · at 288 loads a day ≈ ${Math.round((long.median * 288 + long.max) / 1000)} k rows`
+    );
   }
 
   // The per-poll episode queries are answered by an index, never by reading the whole (ever-growing) table

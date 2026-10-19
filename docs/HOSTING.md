@@ -95,8 +95,21 @@ A Durable Object's SQLite bills **rows read**: 5 M a day on the free plan. Past 
 site shows "Server offline"; the ESP32 keeps up to 360 readings (6 h) to send once it answers again. This
 happened on 2026-10-18: the status check counted every telemetry row every 15 s per open page, and the diary
 re-read two weeks of readings every few minutes. Both are cached now (`AppDatabase` counts, `server/rowCache.ts`);
-`GET /api/status` → `rowsRead.today` shows the day's reads, and `npx wrangler tail` shows the exception if it
-happens again. Workers Paid ($5/month) includes 25 billion rows read a month.
+`GET /api/status` → `rowsRead.sinceStart` shows the reads since the object loaded (`today` counts only since
+then too: the dashboard's Durable Objects page has the real daily total), and `npx wrangler tail` shows the
+exception if it happens again. Workers Paid ($5/month) includes 25 billion rows read a month.
+
+**Every load must be cheap** (2026-10-19, 2.99 M by evening). Unless something keeps it busy, the object is
+unloaded between requests: with the page closed, it loaded for every push (and an alarm 1 s before each one),
+and each load counted the whole telemetry table and re-read a day of readings, ~4.4 k rows a load and growing.
+Now:
+- the table counts are kept in `meta.table_counts`;
+- the last 24 h of samples are kept in `meta.collector_recent` (used when it ends at the newest stored reading);
+- the push watchdog's alarm is due only when a push would be overdue (1.5 intervals), so a healthy device never
+  wakes it.
+
+A load reads ~16 rows (`npm run test:collector` RR6 checks it over growing history), plus ~2.6 k once a day for
+the visitors' last two weeks. Readings come every 5 min (Settings, since 2026-10-19), so 288 loads a day.
 
 ## Deploying (Workers Builds)
 

@@ -5,7 +5,7 @@ import type { MessageMemory } from '../../src/behaviour/speech';
 import type { ExpressionState } from '../../src/expression/expressionTypes';
 import type { HealthMemory } from '../../src/health/HealthEngine';
 import type { PlantHealthState } from '../../src/health/healthTypes';
-import type { PerceptionState } from '../../src/perception/perceptionTypes';
+import type { PerceptionSample, PerceptionState } from '../../src/perception/perceptionTypes';
 import type { TreeSettings } from '../../src/settings/settings';
 import type { SensorCalibration } from '../../src/telemetry/calibration';
 import type { PlantTelemetry, TelemetrySource } from '../../src/telemetry/types';
@@ -36,6 +36,15 @@ export interface SavedRuntime {
   sloth: { key: string; memory: SlothMemory; history?: { sloth: { from: number; to: number }[]; dragonfly: { from: number; to: number }[] } } | null; // the air visitors' day memory
 }
 
+// The last 24 h of samples, as they were after the last step: a Durable Object load reads
+// this one row instead of a day of readings (rows read are billed). Usable only for the same source,
+// calibration and location, and only when it ends at the newest stored reading.
+export interface SavedRecent {
+  key: string; // JSON of [source, calibration, location]
+  lastTs: number | null; // the newest sample's time
+  samples: PerceptionSample[]; // as they arrived (a load sorts them and keeps one per timestamp, as the table does)
+}
+
 // The last evaluation, as the API shows it (perception without its 24 h of samples and today's skies)
 export interface SavedState {
   perception: PerceptionState;
@@ -51,6 +60,7 @@ export interface MetaValues {
   health_memory: SavedMemory;
   collector_runtime: SavedRuntime;
   collector_state: SavedState;
+  collector_recent: SavedRecent;
   message_memory: MessageMemory; // what the tree said and when (speech.ts)
   mood_memory: MoodMemory; // where the mood was: it drifts from there (behaviour/mood.ts)
   watering_detection_suppressed_until: number;

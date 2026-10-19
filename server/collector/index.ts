@@ -65,6 +65,8 @@ interface PerceiveContext {
 
 const dayStartOf = startOfDay; // the tree's day (its timezone), not the server's
 const finiteOrNull = (n: number) => (Number.isFinite(n) ? n : null);
+// A live-strip entry from a sample (the same fields as records.ts toLive from the reading)
+const liveOf = (s: PerceptionSample): LiveReading => ({ t: s.t, moisture: s.soil, soilRaw: s.soilRaw, light: s.light ?? s.radiation, lightRaw: s.lightRaw, temperature: s.temp, humidity: s.hum });
 
 // The living loop: ESP32 → SQLite → perception → health → episodes → behaviour → expression.
 // Runs only while the local server runs; nothing is collected when the PC is off.
@@ -372,9 +374,38 @@ export class LivingCollector {
       watering: this.watering.saved(),
       sloth: this.slothCache,
     });
+    // The 24 h of samples (written only when a reading changed them: the meta write skips the same value)
+    const lastTs = this.recent.reduce<number | null>((m, s) => (m === null || s.t > m ? s.t : m), null);
+    this.meta.set('collector_recent', {
+      key: this.recentKey(),
+      lastTs,
+      samples: lastTs === null ? [] : this.recent.filter((s) => s.t >= lastTs - DAY),
+    });
   }
 
+  // The last 24 h of samples. From the saved copy when it ends at the newest stored reading (two rows read
+  // through the index, plus one meta row), else from a day of readings
+  private recentKey() {
+    return JSON.stringify([this.source(), this.calibration, this.location()]);
+  }
   private loadRecent(now: number) {
+    const saved = this.meta.get('collector_recent');
+    if (saved && saved.key === this.recentKey() && saved.lastTs !== null) {
+      const tail = this.db.latestTelemetry(this.source(), 2).filter((r) => r.timestamp <= now);
+      const last = tail[0] ? fromRecord(tail[0], this.calibration, false) : null;
+      if (last && last.timestamp === saved.lastTs) {
+        // As the table has them: one per timestamp (the first: a repeated reading is ignored there, but it was
+        // added in memory), in time order (buffered readings arrive late)
+        const seen = new Set<number>();
+        this.recent = saved.samples
+          .filter((s) => s.t >= now - DAY && s.t <= now && !seen.has(s.t) && !!seen.add(s.t))
+          .sort((a, b) => a.t - b.t);
+        this.latest = stamp(last);
+        this.previous = stamp(tail[1] ? fromRecord(tail[1], this.calibration, false) : null);
+        this.liveReadings = this.recent.slice(-APP_CONFIG.diagnostics.liveReadingsKept).map(liveOf);
+        return;
+      }
+    }
     const rows = this.db.telemetrySince(this.source(), now - DAY, now);
     const ts = rows.flatMap((r) => {
       const t = fromRecord(r, this.calibration, false);
@@ -450,9 +481,12 @@ export class LivingCollector {
   }
 
   // ---- polling ----
-  // The next poll in one interval. Push mode: nothing to fetch, the timer only notices a push that is overdue.
+  // The next poll in one interval. Push mode: nothing to fetch, the timer only notices a push that is overdue,
+  // so it is due when the push would be overdue (a healthy device never wakes the alarm; a Durable Object then
+  // loads only for the pushes), and once overdue, every interval as in pull mode
   private schedule() {
-    this.due.poll = this.now() + this.pollMs();
+    const overdueAt = (this.status.lastSuccessAt ?? this.startedAt) + this.pollMs() * APP_CONFIG.push.graceFactor + 1;
+    this.due.poll = this.pushMode() && !this.pushOverdue() ? overdueAt : this.now() + this.pollMs();
     this.saveRuntime();
     this.arm();
   }
