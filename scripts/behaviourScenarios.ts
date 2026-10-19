@@ -1946,6 +1946,15 @@ async function main() {
         dreamScene('lucy', 'squirrel') === 'Lucy and the squirrel' && / in the rain| and /.test(diary14[0]?.title ?? ''),
       `${rainy.phases.map((p) => dreamScene(p.motif, p.with)).join(' → ')} · told: ${dreamScene(morning14.lastNight!.told!, morning14.lastNight!.toldWith)} · ${diary14[0]?.title}`
     );
+
+    // DR15: the developer panel's breakdown: every weight (chosen and left out) recomputes from its parts
+    // (intensity × novelty + recurrence + company), and each also-ran says truly why it was left out
+    const busy = compose({ episodes: thirstDay, events: [watering(day + 15 * HOUR, 'very_dry', 18)], habitat: habitat({ visitsToday: { count: 1, firstAt: day + 9 * HOUR }, sloth: { visitsToday: { count: 1, firstAt: day + 14 * HOUR, minutes: 30 }, presence: 'sleeping' } }), past: pastWith('squirrel', 6) });
+    const every = [...busy.motifs, ...(busy.alsoRan ?? [])];
+    const adds = every.every((f) => f.parts && Math.abs(Math.min(1, f.parts.intensity * f.parts.novelty + f.parts.recurrence + f.parts.company) - f.salience) <= 0.02);
+    const minS = 0.2;
+    const outOk = (busy.alsoRan ?? []).every((f) => (f.out === 'too faint') === (f.salience < minS)) && (busy.alsoRan ?? []).every((f) => !busy.motifs.some((m) => m.motif === f.motif && m.role === f.role));
+    check('DR15 every dream weight recomputes from its parts; each one left out says why', adds && outOk && busy.motifs.length > 0, `${every.map((f) => `${f.motif} ${f.salience}=${f.parts?.intensity}×${f.parts?.novelty}+${f.parts?.recurrence}+${f.parts?.company}${f.out ? ` (${f.out})` : ''}`).join(' · ')}`);
   }
 
   finish();

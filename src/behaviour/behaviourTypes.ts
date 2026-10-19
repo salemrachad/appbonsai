@@ -396,6 +396,9 @@ export interface DreamFragment {
   source: DreamSource;
   role: DreamRole;
   why: string; // diary / developer panel: "after the long thirst"
+  // How the salience was reached (developer panel): intensity × novelty + recurrence + company
+  parts?: { intensity: number; novelty: number; recurrence: number; company: number };
+  out?: 'too faint' | 'not in the top 3' | 'one anticipation only'; // an also-ran: why it was left out
 }
 // Who sleeps in or by the tree tonight (they dream together: their day weighs more)
 export type DreamCast = 'lucy' | 'sloth' | 'squirrel';
@@ -426,6 +429,7 @@ export interface DreamRecord {
   motifs: DreamFragment[]; // at most 3 (+ one anticipation), most salient first
   phases: DreamPhase[];
   cast: DreamCast[];
+  alsoRan?: DreamFragment[]; // the candidates left out of tonight's dream, with why (developer panel)
   outcome: DreamOutcome | null; // null until the night is over
 }
 export interface DreamState {

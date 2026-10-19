@@ -769,11 +769,14 @@ never a claim of a mind (`behaviour/dreams.ts`, numbers in `APP_CONFIG.dreams`).
 - **Boundaries:** health, vitality, latches, episodes, mood, energy, speech timing, the visitors, the canopy
   and the thoughts never read a dream (DR13; the owner's decision, 2026-10-19: art only, no mood nudge).
 - **Previews:** Developer -> Night -> Dream (a motif, Restless; picking one puts the tree to sleep), or
-  `#preview=sleeping&dream=rain` / `#dream=restless:frost`. Behaviour Debug shows tonight's motifs with their
-  weight and reason.
-- **Tested:** `npm run test:behaviour` DR1-DR14 (grounded, diffraction, novelty, recurrence and fading,
+  `#preview=sleeping&dream=rain` / `#dream=restless:frost`. Behaviour Debug has a Dreams section (dreams
+  aren't latches, so they have no hysteresis): the night, what plays now, tonight's motifs with their weight as
+  it was reached (intensity × novelty + recurrence + company) and reason, the ones left out and why, who sleeps
+  beside it, the timeline (the phase playing now marked), last night's outcome and morning line, and the
+  recurring worries.
+- **Tested:** `npm run test:behaviour` DR1-DR15 (grounded, diffraction, novelty, recurrence and fading,
   phases, company, restless, dreamless without data, the morning line, the diary, the real collector across a
-  restart in the night, isolation, combined scenes DR14).
+  restart in the night, isolation, combined scenes DR14, the weight breakdown DR15).
 - **Open:** whether a recurring worry should also show by day; dreams of the season turning; whether the other
   visitors should dream too (the sloth asleep on its branch).
 

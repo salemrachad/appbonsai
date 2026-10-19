@@ -602,7 +602,7 @@ export class AppDatabase {
     const { outcome, ...dream } = d;
     this.all(
       'INSERT OR IGNORE INTO dreams (night, starts_at, ends_at, composed_at, dream_json, outcome_json, engine_version) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      d.night, d.startsAt, d.endsAt, d.composedAt, JSON.stringify({ motifs: dream.motifs, phases: dream.phases, cast: dream.cast }), outcome ? JSON.stringify(outcome) : null, engineVersion
+      d.night, d.startsAt, d.endsAt, d.composedAt, JSON.stringify({ motifs: dream.motifs, phases: dream.phases, cast: dream.cast, alsoRan: dream.alsoRan ?? [] }), outcome ? JSON.stringify(outcome) : null, engineVersion
     );
   }
   finishDream(night: string, outcome: DreamOutcome) {
@@ -610,8 +610,8 @@ export class AppDatabase {
   }
   dreamsSince(since: number): DreamRecord[] {
     return this.all('SELECT * FROM dreams WHERE starts_at >= ? ORDER BY starts_at', since).map((r) => {
-      const d = json(r.dream_json, { motifs: [], phases: [], cast: [] });
-      return { night: r.night, startsAt: r.starts_at, endsAt: r.ends_at, composedAt: r.composed_at, motifs: d.motifs ?? [], phases: d.phases ?? [], cast: d.cast ?? [], outcome: json(r.outcome_json, null) };
+      const d = json(r.dream_json, { motifs: [], phases: [], cast: [], alsoRan: [] });
+      return { night: r.night, startsAt: r.starts_at, endsAt: r.ends_at, composedAt: r.composed_at, motifs: d.motifs ?? [], phases: d.phases ?? [], cast: d.cast ?? [], alsoRan: d.alsoRan ?? [], outcome: json(r.outcome_json, null) };
     });
   }
 

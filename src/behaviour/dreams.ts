@@ -211,31 +211,40 @@ export function composeDream(i: DreamDayInput & { past: DreamRecord[]; now: numb
   const castOnly: DreamFragment[] = cast
     .filter((who) => !day.some((f) => f.motif === CAST_MOTIF[who]))
     .map((who) => ({ motif: CAST_MOTIF[who], salience: 0.3, source: CAST_SOURCE[who], role: 'day', why: `${who === 'lucy' ? 'Lucy' : `the ${who}`} asleep beside it` }));
+  // salience = intensity × novelty + recurrence + company (each kept for the developer panel)
   const frags = [...day, ...castOnly].map((f) => {
     const m = memory.get(f.motif);
-    let salience = f.salience;
+    const parts = { intensity: f.salience, novelty: 1, recurrence: 0, company: 0 };
     let why = f.why;
     if (WORRIES.includes(f.motif)) {
       if (m && m.strength >= c.recurrence.min) {
-        salience += 0.1 * Math.min(3, m.strength);
+        parts.recurrence = 0.1 * Math.min(3, m.strength);
         why = `${why}, again`;
       }
-    } else if (m) salience *= Math.max(c.novelty.floor, 1 / (1 + c.novelty.step * m.nights));
+    } else if (m) parts.novelty = Math.max(c.novelty.floor, 1 / (1 + c.novelty.step * m.nights));
     // Company: the day of whoever sleeps beside the tree weighs more
-    if (!castOnly.includes(f) && cast.some((who) => CAST_MOTIF[who] === f.motif)) salience += c.castBoost;
-    return { ...f, salience, why };
+    if (!castOnly.includes(f) && cast.some((who) => CAST_MOTIF[who] === f.motif)) parts.company = c.castBoost;
+    return { ...f, salience: parts.intensity * parts.novelty + parts.recurrence + parts.company, why, parts };
   });
   // A worry that keeps coming back, even on a day without it (until it fades)
   for (const [motif, m] of memory) {
     if (!WORRIES.includes(motif) || m.strength < c.recurrence.min || frags.some((f) => f.motif === motif)) continue;
-    frags.push({ motif, salience: Math.min(c.recurrence.cap, 0.3 * m.strength), source: 'memory', role: 'memory', why: `came back (${m.nights} of the last nights)` });
+    const intensity = Math.min(c.recurrence.cap, 0.3 * m.strength);
+    frags.push({ motif, salience: intensity, source: 'memory', role: 'memory', why: `came back (${m.nights} of the last nights)`, parts: { intensity, novelty: 1, recurrence: 0, company: 0 } });
   }
-  const rounded = frags.map((f) => ({ ...f, salience: r2(Math.min(1, f.salience)) })).filter((f) => f.salience >= c.minSalience);
+  const all = frags.map((f) => ({ ...f, salience: r2(Math.min(1, f.salience)), parts: { intensity: r2(f.parts.intensity), novelty: r2(f.parts.novelty), recurrence: r2(f.parts.recurrence), company: r2(f.parts.company) } }));
+  const rounded = all.filter((f) => f.salience >= c.minSalience);
   const byWeight = (a: DreamFragment, b: DreamFragment) => b.salience - a.salience || a.motif.localeCompare(b.motif);
   const main = rounded.filter((f) => f.role !== 'anticipation').sort(byWeight).slice(0, c.maxMotifs);
   const ahead = rounded.filter((f) => f.role === 'anticipation').sort(byWeight).slice(0, 1);
   const motifs = [...main, ...ahead];
-  return { night: i.night.key, startsAt: i.night.startsAt, endsAt: i.night.endsAt, composedAt: i.now, motifs, phases: planPhases(i.night, motifs), cast, outcome: null };
+  // Left out, and why (developer panel): the strongest five
+  const alsoRan: DreamFragment[] = all
+    .filter((f) => !motifs.includes(f))
+    .sort(byWeight)
+    .slice(0, 5)
+    .map((f) => ({ ...f, out: f.salience < c.minSalience ? 'too faint' : f.role === 'anticipation' ? 'one anticipation only' : 'not in the top 3' }));
+  return { night: i.night.key, startsAt: i.night.startsAt, endsAt: i.night.endsAt, composedAt: i.now, motifs, phases: planPhases(i.night, motifs), cast, alsoRan, outcome: null };
 }
 
 // Sleep cycles from the night's start to sunrise (lengths: stable rolls). The first is deep sleep only; then

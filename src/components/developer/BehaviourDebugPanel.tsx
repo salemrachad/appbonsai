@@ -1,6 +1,9 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
-import type { PlantBehaviourState } from '../../behaviour/behaviourTypes';
+import type { DreamFragment, PlantBehaviourState } from '../../behaviour/behaviourTypes';
+import { APP_CONFIG } from '../../config/appConfig';
+import { dreamScene } from '../../behaviour/messages';
+import { phaseText } from '../../behaviour/dreams';
 import type { ExpressionState } from '../../expression/expressionTypes';
 import { CONDITION_LABELS } from '../../health/labels';
 import type { PlantEvent } from '../../history/historyTypes';
@@ -12,6 +15,10 @@ interface Props {
   recentEvents: PlantEvent[];
   previewing: boolean;
 }
+
+// A dream motif's weight as it was reached: intensity × novelty + recurrence + company (older nights: the total)
+const weight = (f: DreamFragment) =>
+  `${f.motif.replace('_', ' ')} ${f.salience}${f.parts ? ` = ${f.parts.intensity} × ${f.parts.novelty.toFixed(2)} + ${f.parts.recurrence} + ${f.parts.company}` : ''} · ${f.source}${f.role !== 'day' ? ` (${f.role})` : ''} · ${f.why}${f.out ? ` → ${f.out}` : ''}`;
 
 const mins = (ms: number | null) => (ms === null ? 'until something changes' : ms <= 0 ? 'may speak again' : `${Math.ceil(ms / 60000)} min`);
 
@@ -130,6 +137,73 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
             <Row label="Sloth loyalty" value={`${b.habitat.sloth.memory.loyalty} · ${b.habitat.sloth.memory.homeBranch?.replace('_', ' ') ?? 'no home branch'} · ${b.habitat.sloth.memory.daysWithIt} days with it (14)`} />
           )}
           {x.visitor && x.visitor.id.startsWith('preview') && <Row label="Shown" value={`preview: squirrel ${x.visitor.mode}`} />}
+        </Section>
+      )}
+
+      {b.dream && (
+        <Section title="Dreams (the night · art, never health)">
+          <p className="sans text-[10.5px] text-[#2D332A]/55">
+            Not a latch, so no hysteresis: tonight is weighed once when the night begins (intensity × novelty + recurrence + company), then plays on a fixed timeline.
+            {previewing && ' Previewing: this is the browser’s re-run without the stored nights, not the real night.'}
+          </p>
+          <Row label="Night" value={b.dream.night ? `${b.dream.night.key} · ${clock(b.dream.night.startsAt)} → sunrise ${clock(b.dream.night.endsAt)}` : 'by day'} strong />
+          <Row
+            label="Now"
+            value={
+              b.dream.phase === 'dreaming' && b.dream.motif
+                ? `dreaming of ${dreamScene(b.dream.motif, b.dream.with)}${b.dream.restless ? ' (restless)' : ''} · until ${b.dream.phaseEndsAt ? clock(b.dream.phaseEndsAt) : '?'}`
+                : b.dream.phase === 'deep'
+                ? `deep sleep${b.dream.phaseEndsAt ? ` · next dream ${clock(b.dream.phaseEndsAt)}` : ''}`
+                : b.dream.why
+            }
+          />
+          {b.dream.tonight && (
+            <>
+              {b.dream.tonight.motifs.length ? (
+                b.dream.tonight.motifs.map((f) => <Row key={f.motif} label="Tonight" value={weight(f)} />)
+              ) : (
+                <Row label="Tonight" value="nothing weighed enough: a deep, dreamless night" />
+              )}
+              {(b.dream.tonight.alsoRan ?? []).map((f) => <Row key={`out-${f.motif}`} label="Left out" value={weight(f)} tone="muted" />)}
+              <Row label="Beside it" value={b.dream.tonight.cast.length ? b.dream.tonight.cast.join(', ') : 'nobody'} />
+              <Row
+                label="Timeline"
+                value={
+                  b.dream.tonight.phases.length ? (
+                    <span className="flex flex-col items-end">
+                      {b.dream.tonight.phases.map((p) => (
+                        <span key={p.from} className={p.from <= b.evaluatedAt && b.evaluatedAt < p.to ? 'font-bold' : undefined}>
+                          {p.from <= b.evaluatedAt && b.evaluatedAt < p.to ? '● ' : ''}
+                          {phaseText(p)}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    '–'
+                  )
+                }
+              />
+            </>
+          )}
+          <Row
+            label="Last night"
+            value={
+              b.dream.lastNight
+                ? `${b.dream.lastNight.key} · ${b.dream.lastNight.dreamt.length ? b.dream.lastNight.dreamt.join(', ') : 'dreamless'}${b.dream.lastNight.restless ? ' · restless' : ''} · morning line: ${
+                    b.dream.lastNight.told ? `“${dreamScene(b.dream.lastNight.told, b.dream.lastNight.toldWith)}”${b.dream.lastNight.again > 1 ? ` again ×${b.dream.lastNight.again}` : ''}` : 'nothing told'
+                  }`
+                : 'no stored night'
+            }
+          />
+          <Row
+            label="Recurring worries"
+            value={
+              b.dream.recurring.length
+                ? b.dream.recurring.map((r) => `${r.motif.replace('_', ' ')} ${r.strength} (${r.nights} nights)`).join(' · ')
+                : `none (a worry recurs at strength ≥ ${APP_CONFIG.dreams.recurrence.min}, fading τ ${APP_CONFIG.dreams.recurrence.tauDays} days)`
+            }
+          />
+          {x.dream && x.dream.key.startsWith('preview') && <Row label="Shown" value={`preview: ${x.dream.motif ? dreamScene(x.dream.motif, x.dream.with) : '–'}`} />}
         </Section>
       )}
     </div>

@@ -269,7 +269,7 @@
    "hash": {
     "perception": "abef8f283acf",
     "health": "489221d9bfd8",
-    "behaviour": "5d842ee2f5fd",
+    "behaviour": "b652e9d86b15",
     "expression": "16dd38a2080c",
     "liveReadings": "58fffce2dc77",
     "recentEvents": "fd4688789421",
@@ -292,7 +292,7 @@
    "hash": {
     "perception": "bda05505f617",
     "health": "e137acac2378",
-    "behaviour": "531e99b4c47e",
+    "behaviour": "14b0dd1bfea4",
     "expression": "7a4f2e67be35",
     "liveReadings": "a1d069e65c7c",
     "recentEvents": "fd4688789421",
@@ -315,7 +315,7 @@
    "hash": {
     "perception": "9e9b89893365",
     "health": "6ea9ca105d0c",
-    "behaviour": "4b96947d3b7d",
+    "behaviour": "d76924aae7db",
     "expression": "bd99666aca73",
     "liveReadings": "db6b45604887",
     "recentEvents": "fd4688789421",
@@ -338,7 +338,7 @@
    "hash": {
     "perception": "36738b78533b",
     "health": "11b0be91de5d",
-    "behaviour": "378c7a332bb4",
+    "behaviour": "53f36a5c2b4c",
     "expression": "910c28636f77",
     "liveReadings": "f379e15aa2c1",
     "recentEvents": "fd4688789421",
@@ -361,7 +361,7 @@
    "hash": {
     "perception": "ce5599f8b775",
     "health": "8c2027bda7b1",
-    "behaviour": "f635308efe92",
+    "behaviour": "0c2e65e4789e",
     "expression": "4af94403cccc",
     "liveReadings": "fdc918dae4ad",
     "recentEvents": "fd4688789421",
@@ -384,7 +384,7 @@
    "hash": {
     "perception": "ffe787e5f2ff",
     "health": "eba2b1efc274",
-    "behaviour": "5f507950fbbc",
+    "behaviour": "8e1886b72620",
     "expression": "dde9846a993c",
     "liveReadings": "e23f000e0679",
     "recentEvents": "fd4688789421",
@@ -407,7 +407,7 @@
    "hash": {
     "perception": "c3cc05d8d408",
     "health": "71eae9cf9c1b",
-    "behaviour": "3354ae733851",
+    "behaviour": "b7c14c7ff258",
     "expression": "9e290ed4100a",
     "liveReadings": "78b7369cde88",
     "recentEvents": "fd4688789421",
@@ -430,7 +430,7 @@
    "hash": {
     "perception": "8d5f367b2a02",
     "health": "5fc84447780e",
-    "behaviour": "8f2042b64140",
+    "behaviour": "21828242be89",
     "expression": "c1bb92a30bcf",
     "liveReadings": "41abb359afa7",
     "recentEvents": "fd4688789421",
@@ -453,7 +453,7 @@
    "hash": {
     "perception": "8c80e1aebb04",
     "health": "ea36668a614d",
-    "behaviour": "ff6ee02aeb21",
+    "behaviour": "709b033ce6cf",
     "expression": "60e5d8324b3a",
     "liveReadings": "74b2342db303",
     "recentEvents": "fd4688789421",
@@ -476,7 +476,7 @@
    "hash": {
     "perception": "c95319c35f7c",
     "health": "ae7703edb240",
-    "behaviour": "e661cd5d3401",
+    "behaviour": "26d6dbbbf3e9",
     "expression": "74e9aced5903",
     "liveReadings": "86d5bcac789e",
     "recentEvents": "fd4688789421",
@@ -821,7 +821,7 @@
    "hash": {
     "perception": "d2dd8dd6d09e",
     "health": "08feca0107a4",
-    "behaviour": "6c3d098ca221",
+    "behaviour": "5568668423da",
     "expression": "a4368cb77a8c",
     "liveReadings": "1ff06e5b7869",
     "recentEvents": "6c6fba91e353",
@@ -844,7 +844,7 @@
    "hash": {
     "perception": "d4e928862300",
     "health": "60058fb5ffc2",
-    "behaviour": "7b81ecaf6538",
+    "behaviour": "6a267b210111",
     "expression": "88162b8f2a7c",
     "liveReadings": "40a75618d893",
     "recentEvents": "6c6fba91e353",
@@ -867,7 +867,7 @@
    "hash": {
     "perception": "07d359e197e0",
     "health": "a4f22a9859ba",
-    "behaviour": "587411a8a84f",
+    "behaviour": "63b36df5451f",
     "expression": "bb06ab02d08c",
     "liveReadings": "1e47bdec2534",
     "recentEvents": "6c6fba91e353",
@@ -890,7 +890,7 @@
    "hash": {
     "perception": "762a569cd22c",
     "health": "29529f1e0fd2",
-    "behaviour": "b328cb96974d",
+    "behaviour": "355a0b94abdf",
     "expression": "a124260010dd",
     "liveReadings": "4fa7bfbfdc2c",
     "recentEvents": "6c6fba91e353",
@@ -913,7 +913,7 @@
    "hash": {
     "perception": "73c81cf16639",
     "health": "e6fd53e66e9b",
-    "behaviour": "fb37cd819d47",
+    "behaviour": "37e44069a970",
     "expression": "e886499925f2",
     "liveReadings": "213307969362",
     "recentEvents": "6c6fba91e353",
@@ -936,7 +936,7 @@
    "hash": {
     "perception": "64035d5fcc70",
     "health": "70b9baa53882",
-    "behaviour": "103af478e47b",
+    "behaviour": "dc1b0dcba3aa",
     "expression": "131862cf2611",
     "liveReadings": "480a003c513d",
     "recentEvents": "6c6fba91e353",
@@ -959,7 +959,7 @@
    "hash": {
     "perception": "4a3bbc7e5db5",
     "health": "b72f00ca8d0e",
-    "behaviour": "fe7676262fdc",
+    "behaviour": "be570f35d478",
     "expression": "7b5bd0a63eeb",
     "liveReadings": "8e70d1491bad",
     "recentEvents": "6c6fba91e353",
@@ -982,7 +982,7 @@
    "hash": {
     "perception": "217376d02569",
     "health": "0cf75d2cbdb6",
-    "behaviour": "741d370f2639",
+    "behaviour": "b9a181e461d7",
     "expression": "2d7419f4438a",
     "liveReadings": "f23c562f8316",
     "recentEvents": "6c6fba91e353",
@@ -1005,7 +1005,7 @@
    "hash": {
     "perception": "d468e04a947f",
     "health": "77b51d11674c",
-    "behaviour": "f83556bb240b",
+    "behaviour": "646917e88caa",
     "expression": "2f2744cf4db5",
     "liveReadings": "55c3f072d3e8",
     "recentEvents": "6c6fba91e353",
@@ -1028,7 +1028,7 @@
    "hash": {
     "perception": "66e43a21ece1",
     "health": "49d7859cc3a7",
-    "behaviour": "b97a7bc5c39d",
+    "behaviour": "e52b1fe7163f",
     "expression": "6c1bf8f076cd",
     "liveReadings": "6bed13afa423",
     "recentEvents": "6c6fba91e353",
@@ -1373,7 +1373,7 @@
    "hash": {
     "perception": "e9ace2e1569b",
     "health": "62fe4ec649be",
-    "behaviour": "1aadbaa2f535",
+    "behaviour": "b0acf96b2138",
     "expression": "9426a547ded2",
     "liveReadings": "661083b91bcf",
     "recentEvents": "dfc980fdafc1",
@@ -1396,7 +1396,7 @@
    "hash": {
     "perception": "05a7a8bf2f89",
     "health": "6c8df428dfa5",
-    "behaviour": "950ee99ae822",
+    "behaviour": "4aebe2de616c",
     "expression": "4e8b5f85b893",
     "liveReadings": "9c44132515f7",
     "recentEvents": "dfc980fdafc1",
@@ -1419,7 +1419,7 @@
    "hash": {
     "perception": "252271c759a0",
     "health": "1a46f3c02617",
-    "behaviour": "a536bc283456",
+    "behaviour": "d05a841c13f1",
     "expression": "8a72220afc06",
     "liveReadings": "254e60303c2b",
     "recentEvents": "dfc980fdafc1",
@@ -1442,7 +1442,7 @@
    "hash": {
     "perception": "ea09e820242f",
     "health": "8a681fb76f57",
-    "behaviour": "441bd67212d8",
+    "behaviour": "73d3589aec29",
     "expression": "4655ce53b976",
     "liveReadings": "b74505d5ced3",
     "recentEvents": "dfc980fdafc1",
@@ -1465,7 +1465,7 @@
    "hash": {
     "perception": "abf185ceec8e",
     "health": "9ab798b7b31e",
-    "behaviour": "395244150142",
+    "behaviour": "fd35b474c5a5",
     "expression": "affebc484b38",
     "liveReadings": "0d5ba5a5bbc7",
     "recentEvents": "dfc980fdafc1",
@@ -1488,7 +1488,7 @@
    "hash": {
     "perception": "e023764e8cd0",
     "health": "5bd9288e96c0",
-    "behaviour": "e19ad991fdaa",
+    "behaviour": "5fbe37e27ef8",
     "expression": "7f747bf29e36",
     "liveReadings": "b5f462481881",
     "recentEvents": "dfc980fdafc1",
@@ -1511,7 +1511,7 @@
    "hash": {
     "perception": "14f1d9219055",
     "health": "d5b4ac17ae03",
-    "behaviour": "c41934a1606c",
+    "behaviour": "9a7525e130a1",
     "expression": "86dcc294d8cc",
     "liveReadings": "2ffa58453762",
     "recentEvents": "dfc980fdafc1",
@@ -1534,7 +1534,7 @@
    "hash": {
     "perception": "a1d009ad18e2",
     "health": "7aaafd9163d3",
-    "behaviour": "7c72b541abff",
+    "behaviour": "df577e7ee209",
     "expression": "389e99d42b20",
     "liveReadings": "0579b0f27b58",
     "recentEvents": "dfc980fdafc1",
@@ -1557,7 +1557,7 @@
    "hash": {
     "perception": "95b028a7e90b",
     "health": "a308ef3d7914",
-    "behaviour": "59bbb0da3f40",
+    "behaviour": "3f2ee688fa0a",
     "expression": "2dc70c46aadb",
     "liveReadings": "5032bb2f1f4e",
     "recentEvents": "dfc980fdafc1",
@@ -1580,7 +1580,7 @@
    "hash": {
     "perception": "ed4569b9de6e",
     "health": "11b0f72cab8f",
-    "behaviour": "31c2a59bb2d2",
+    "behaviour": "3acc32058288",
     "expression": "d12050463ef9",
     "liveReadings": "8b4aba1de8de",
     "recentEvents": "dfc980fdafc1",
