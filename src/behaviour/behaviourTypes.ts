@@ -403,10 +403,14 @@ export interface DreamPhase {
   from: number;
   to: number;
   motif: DreamMotif;
+  // A combined scene: as the dream moves on, the motif before lingers in the new one (the squirrel in the
+  // rain). Absent: one image (and on nights stored before scenes)
+  with?: DreamMotif;
 }
 // What was really dreamt (at dawn, from the night's episodes): phases asleep with trustworthy data
 export interface DreamOutcome {
   dreamt: DreamMotif[]; // most salient first
+  scenes?: [DreamMotif, DreamMotif][]; // combined scenes really dreamt (motif, the one lingering in it)
   phases: number; // dreamt phases
   of: number; // planned phases
   restless: boolean; // most of them under a stress (asleep, dry soil…)
@@ -429,13 +433,14 @@ export interface DreamState {
   asleep: boolean;
   phase: 'none' | 'deep' | 'dreaming'; // none: awake, by day, or no trustworthy data
   motif: DreamMotif | null; // in the dream right now
+  with: DreamMotif | null; // a combined scene: the motif before, lingering in this one
   phaseEndsAt: number | null;
   restless: boolean; // asleep under a stress: the dream breaks off
   cast: DreamCast[];
   tonight: DreamRecord | null;
   // Last night, for the morning line: what is told (null: nothing worth telling), and how many nights in a
   // row it has come back
-  lastNight: { key: string; told: DreamMotif | null; again: number; restless: boolean; dreamt: DreamMotif[] } | null;
+  lastNight: { key: string; told: DreamMotif | null; toldWith: DreamMotif | null; again: number; restless: boolean; dreamt: DreamMotif[] } | null;
   recurring: { motif: DreamMotif; strength: number; nights: number }[]; // what keeps coming back (last weeks)
   compose: DreamRecord | null; // a new night's dream for the collector to store
   finish: { night: string; outcome: DreamOutcome } | null; // last night's outcome for the collector to store

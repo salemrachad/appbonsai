@@ -463,6 +463,9 @@
 .dream-hover { animation: dream-hover 5s ease-in-out infinite; }
 @keyframes dream-walk { 0%, 100% { transform: translateX(-6px); } 50% { transform: translateX(6px); } }
 .dream-walk { animation: dream-walk 6s ease-in-out infinite; }
+/* A combined scene: the motif before lingers, then fades back as the new one takes over */
+@keyframes dream-linger { 0% { opacity: 1; } 100% { opacity: 0.35; } }
+.dream-linger { animation: dream-linger 40s ease-in-out both; }
 @keyframes dream-flash { 0%, 88%, 100% { opacity: 0.2; } 90%, 94% { opacity: 1; } }
 .dream-flash { animation: dream-flash 7s linear infinite; }
 .dream-rise, .dream-fall, .dream-sway, .dream-turn, .dream-breathe, .dream-grow, .dream-hover, .dream-walk { transform-box: fill-box; transform-origin: center; }
@@ -482,7 +485,7 @@
     animation: none !important;
   }
   /* The dream: still and fainter */
-  .dream, .dream-restless, .dream-drift, .dream-wisp-1, .dream-wisp-2, .dream-rise, .dream-fall, .dream-sway, .dream-turn, .dream-breathe, .dream-grow, .dream-hover, .dream-walk, .dream-flash {
+  .dream, .dream-restless, .dream-drift, .dream-wisp-1, .dream-wisp-2, .dream-rise, .dream-fall, .dream-sway, .dream-turn, .dream-breathe, .dream-grow, .dream-hover, .dream-walk, .dream-flash, .dream-linger {
     animation: none !important;
   }
   .dream { opacity: 0.55; }

@@ -1,10 +1,11 @@
 import type { DreamMotif } from '../../behaviour/behaviourTypes';
 import type { DreamPresentation } from '../../expression/expressionTypes';
+import { isDreamAtmosphere } from '../../behaviour/messages';
 
 // The tree's dream while it sleeps (expression.dream; behaviour/dreams.ts decides what it is made of and when).
 // A faint, moonlit image drifting in the sky right of the crown, two small breaths of light rising to it from
 // the crown. Only in a dreaming phase; nothing in deep sleep. Restless (asleep under a stress): it flickers and
-// breaks off. Low contrast on purpose: a dream is glimpsed, not shown. Reduced motion: still, fainter.
+// breaks off. Where the dream moves on, the motif before lingers in the new one (a combined scene). Low contrast on purpose: a dream is glimpsed, not shown. Reduced motion: still, fainter.
 
 const INK = '#E9E6FF';
 
@@ -167,6 +168,54 @@ function Glyph({ motif }: { motif: DreamMotif }) {
   }
 }
 
+// A combined scene (expression.dream.with: the motif before, lingering as the dream moves on). A sky-like motif
+// is where it happens, drawn large and soft behind; a figure stands in it. Two figures share the scene; two
+// skies mix. The lingering one fades slowly as the new one takes over.
+function Scene({ motif, lingering }: { motif: DreamMotif; lingering: DreamMotif | null }) {
+  if (!lingering || lingering === motif) return <Glyph motif={motif} />;
+  const linger = (m: DreamMotif) => (m === lingering ? 'dream-linger' : undefined);
+  const skyA = isDreamAtmosphere(motif);
+  const skyB = isDreamAtmosphere(lingering);
+  if (skyA !== skyB) {
+    const sky = skyA ? motif : lingering;
+    const figure = skyA ? lingering : motif;
+    return (
+      <>
+        {/* The weather fills the scene: spread around the figure */}
+        <g opacity={0.75} className={linger(sky)}>
+          {[[-16, -8], [15, -4], [-2, 12]].map(([x, y], i) => (
+            <g key={i} transform={`translate(${x} ${y}) scale(0.8)`}>
+              <Glyph motif={sky} />
+            </g>
+          ))}
+        </g>
+        <g transform="scale(0.78)" className={linger(figure)}>
+          <Glyph motif={figure} />
+        </g>
+      </>
+    );
+  }
+  if (!skyA)
+    return (
+      <>
+        <g transform="translate(-13 3) scale(0.62)" className="dream-linger">
+          <Glyph motif={lingering} />
+        </g>
+        <g transform="translate(11 -1) scale(0.72)">
+          <Glyph motif={motif} />
+        </g>
+      </>
+    );
+  return (
+    <>
+      <g opacity={0.55} className="dream-linger">
+        <Glyph motif={lingering} />
+      </g>
+      <Glyph motif={motif} />
+    </>
+  );
+}
+
 export function Dream({ dream }: { dream: DreamPresentation | null }) {
   if (!dream || dream.phase !== 'dreaming' || !dream.motif) return null;
   return (
@@ -175,9 +224,9 @@ export function Dream({ dream }: { dream: DreamPresentation | null }) {
       <circle cx={292} cy={52} r={2.5} fill={INK} className="dream-wisp-1" />
       <circle cx={312} cy={40} r={4} fill={INK} className="dream-wisp-2" />
       <g className="dream-drift" style={{ transformOrigin: '360px 60px', transformBox: 'view-box' }}>
-        <circle cx={360} cy={60} r={46} fill="url(#dreamHalo)" />
+        <circle cx={360} cy={60} r={dream.with ? 52 : 46} fill="url(#dreamHalo)" />
         <g transform="translate(360 60) scale(1.35)">
-          <Glyph motif={dream.motif} />
+          <Scene motif={dream.motif} lingering={dream.with ?? null} />
         </g>
       </g>
     </g>

@@ -507,6 +507,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     hikeDay: b.hike ? `${b.hike.nextWeek ? 'next ' : ''}${weekdayName(b.hike.day)}` : null,
     hikeDetail: b.hike?.detail ?? null,
     dream: b.dream?.lastNight?.told ?? null,
+    dreamWith: b.dream?.lastNight?.toldWith ?? null,
     hikeDays: b.hike?.options?.length ? `${b.hike.nextWeek ? 'next ' : ''}${b.hike.options.map(weekdayName).join(' or ')}` : null,
   });
   let tip = rendered.tip;
@@ -569,12 +570,12 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
   // The dream: only asleep with trustworthy data (behaviour decided); Lucy asleep by the pot keeps time with it
   const d = b.dream;
   const dream: DreamPresentation | null =
-    d && d.phase !== 'none' && d.night ? { key: `${d.night.key}:${d.phaseEndsAt ?? 0}`, phase: d.phase, motif: d.motif, restless: d.restless, endsAt: d.phaseEndsAt } : null;
+    d && d.phase !== 'none' && d.night ? { key: `${d.night.key}:${d.phaseEndsAt ?? 0}`, phase: d.phase, motif: d.motif, with: d.with ?? null, restless: d.restless, endsAt: d.phaseEndsAt } : null;
   const dreamSync: LucyPresentation['dreamSync'] = !dream
     ? null
     : dream.phase === 'deep'
     ? 'deep'
-    : d!.cast.includes('lucy') && (dream.motif === 'lucy' || dream.motif === 'squirrel' || dream.motif === 'drey')
+    : d!.cast.includes('lucy') && [dream.motif, dream.with].some((m) => m === 'lucy' || m === 'squirrel' || m === 'drey')
     ? 'running'
     : 'with_tree';
   // Encounters (arranged by behaviour): who looks at whom, where the squirrel's play never hops

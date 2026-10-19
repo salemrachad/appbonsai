@@ -738,6 +738,15 @@ never a claim of a mind (`behaviour/dreams.ts`, numbers in `APP_CONFIG.dreams`).
 - **The night:** from 45 min after sunset to sunrise, sleep cycles of 50-70 min (stable rolls). The first is
   deep sleep only; each later one ends in a dreaming phase that grows toward dawn. The day's strongest motif
   dreams first, the ones that came back in the middle of the night, tomorrow in the last dream before sunrise.
+- **Combined scenes:** where the dream moves on to another motif, the one before lingers in the first phase of
+  the new one, then fades as the new one takes over, the way one dream turns into the next. Sky-like motifs
+  (rain, snow, mist, a dry wind, a storm, sunlight, glare, frost, deep water, a rising wind) are where a scene
+  happens; the others stand in it: "the squirrel in the rain", "Lucy in a dry wind". Two figures share the
+  scene ("Lucy and the squirrel"); two skies mix ("rain and a dry wind"). Only tonight's motifs ever meet, so a
+  scene is two things the tree really lived, never an invented one. The scenes really dreamt are stored at
+  dawn, and the morning line and the diary tell them as scenes ("I dreamt of the squirrel in the rain.",
+  "Dreamt of the squirrel in a dry wind and rain"). Preview `#dream=squirrel+rain`, or Developer -> Night ->
+  Dream + With.
 - **Grounded:** a calm day with nobody brings nothing, so the night is deep and dreamless. No trustworthy data
   means no dream: it can't dream what it didn't perceive. Asleep under a stress (dry soil at night), it dreams
   restlessly, and the image flickers and breaks off. Never nightmares.
@@ -762,9 +771,9 @@ never a claim of a mind (`behaviour/dreams.ts`, numbers in `APP_CONFIG.dreams`).
 - **Previews:** Developer -> Night -> Dream (a motif, Restless; picking one puts the tree to sleep), or
   `#preview=sleeping&dream=rain` / `#dream=restless:frost`. Behaviour Debug shows tonight's motifs with their
   weight and reason.
-- **Tested:** `npm run test:behaviour` DR1-DR13 (grounded, diffraction, novelty, recurrence and fading,
+- **Tested:** `npm run test:behaviour` DR1-DR14 (grounded, diffraction, novelty, recurrence and fading,
   phases, company, restless, dreamless without data, the morning line, the diary, the real collector across a
-  restart in the night, isolation).
+  restart in the night, isolation, combined scenes DR14).
 - **Open:** whether a recurring worry should also show by day; dreams of the season turning; whether the other
   visitors should dream too (the sloth asleep on its branch).
 

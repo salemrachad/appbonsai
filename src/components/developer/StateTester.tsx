@@ -270,13 +270,23 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
             Live
           </button>
           {(Object.keys(DREAM_WORDS) as DreamMotif[]).map((motif) => (
-            <button key={motif} onClick={() => onSelectDream({ motif, restless: activeDream?.restless ?? false })} className={chip(activeDream?.motif === motif)}>
+            <button key={motif} onClick={() => onSelectDream({ motif, with: activeDream?.with ?? null, restless: activeDream?.restless ?? false })} className={chip(activeDream?.motif === motif)}>
               {DREAM_WORDS[motif]}
             </button>
           ))}
           <button onClick={() => activeDream && onSelectDream({ ...activeDream, restless: !activeDream.restless })} className={chip(!!activeDream?.restless)} disabled={!activeDream}>
             Restless
           </button>
+        </Row>
+        <Row label="With">
+          <button onClick={() => activeDream && onSelectDream({ ...activeDream, with: null })} className={chip(!activeDream?.with)} disabled={!activeDream}>
+            Alone
+          </button>
+          {(Object.keys(DREAM_WORDS) as DreamMotif[]).map((motif) => (
+            <button key={motif} onClick={() => activeDream && onSelectDream({ ...activeDream, with: motif })} className={chip(activeDream?.with === motif)} disabled={!activeDream || activeDream.motif === motif}>
+              {DREAM_WORDS[motif]}
+            </button>
+          ))}
         </Row>
       </Group>
 

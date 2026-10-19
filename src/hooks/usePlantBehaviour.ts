@@ -45,7 +45,7 @@ export type WeatherPreview = OutsideSky | 'windy' | 'hazy';
 export type HikePreview = 'announced' | 'moved' | 'today';
 // A dream preview shows the image of one motif drifting by the crown (real dreams need a night and a day
 // lived before it); restless: as when asleep under a stress.
-export type DreamPreview = { motif: DreamMotif; restless: boolean };
+export type DreamPreview = { motif: DreamMotif; with?: DreamMotif | null; restless: boolean };
 
 export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previews: DevPreviews, latitude: number | null = null) {
   const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth, lucy: previewLucy, hike: previewHike, hikeChoice: previewHikeChoice, dream: previewDream } = previews;
@@ -137,8 +137,8 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
     }
     if (previewDream && r.expression) {
       const x = r.expression;
-      const dream = { key: `preview:${previewDream.motif}:${previewDream.restless}`, phase: 'dreaming' as const, motif: previewDream.motif, restless: previewDream.restless, endsAt: null };
-      const running = previewDream.motif === 'lucy' || previewDream.motif === 'squirrel' || previewDream.motif === 'drey';
+      const dream = { key: `preview:${previewDream.motif}:${previewDream.with ?? ''}:${previewDream.restless}`, phase: 'dreaming' as const, motif: previewDream.motif, with: previewDream.with ?? null, restless: previewDream.restless, endsAt: null };
+      const running = [previewDream.motif, previewDream.with].some((m) => m === 'lucy' || m === 'squirrel' || m === 'drey');
       r = { behaviour: r.behaviour, expression: { ...x, dream, lucy: x.lucy && x.lucy.pose === 'sleeping' ? { ...x.lucy, dreamSync: running ? 'running' : 'with_tree' } : x.lucy } };
     }
     if (previewDrey && r.expression) {

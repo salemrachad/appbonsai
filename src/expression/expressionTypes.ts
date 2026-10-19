@@ -254,6 +254,7 @@ export interface DreamPresentation {
   key: string; // the night and the phase: a new phase is a new image
   phase: 'deep' | 'dreaming';
   motif: DreamMotif | null; // dreaming: what it is made of
+  with: DreamMotif | null; // a combined scene: the motif before, lingering in this one
   restless: boolean; // asleep under a stress: the image breaks off
   endsAt: number | null; // when this phase gives way
 }

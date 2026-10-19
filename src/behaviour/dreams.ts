@@ -6,7 +6,7 @@ import type { SpeciesProfile } from '../species';
 import { sunTimes } from '../perception/sun';
 import { lucyDay } from './lucy';
 import { stableVariant } from './speech';
-import { DREAM_WORDS } from './messages';
+import { DREAM_WORDS, dreamScene, isDreamAtmosphere } from './messages';
 import type { HikePlan } from './hike';
 import type { CanopyState, DreamCast, DreamFragment, DreamMotif, DreamOutcome, DreamPhase, DreamRecord, DreamSource, DreamState, HabitatState } from './behaviourTypes';
 import { DAY, HOUR, MIN, addDays, clockAt, dayKey, hhmm, startOfDay } from '../lib/time';
@@ -240,7 +240,8 @@ export function composeDream(i: DreamDayInput & { past: DreamRecord[]; now: numb
 
 // Sleep cycles from the night's start to sunrise (lengths: stable rolls). The first is deep sleep only; then
 // each ends in a dreaming phase that grows toward dawn. The day's strongest motif dreams first, the ones that
-// came back in the middle of the night, tomorrow in the last dream before sunrise.
+// came back in the middle of the night, tomorrow in the last dream before sunrise. Where the dream moves on to
+// another motif, the one before lingers in the first phase of the new one: a combined scene.
 export function planPhases(night: Night, motifs: DreamFragment[]): DreamPhase[] {
   const c = C();
   if (!motifs.length) return [];
@@ -260,11 +261,12 @@ export function planPhases(night: Night, motifs: DreamFragment[]): DreamPhase[] 
   if (!windows.length) return [];
   const ahead = motifs.find((m) => m.role === 'anticipation');
   const order = [...motifs.filter((m) => m.role === 'day'), ...motifs.filter((m) => m.role === 'memory')];
-  return windows.map((w, j) => {
+  const phases: DreamPhase[] = windows.map((w, j) => {
     if (ahead && (j === windows.length - 1 || !order.length)) return { ...w, motif: ahead.motif };
     const n = ahead ? windows.length - 1 : windows.length;
     return { ...w, motif: order[Math.min(order.length - 1, Math.floor((j * order.length) / Math.max(1, n)))].motif };
   });
+  return phases.map((p, j) => (j > 0 && phases[j - 1].motif !== p.motif ? { ...p, with: phases[j - 1].motif } : p));
 }
 
 const asleepIn = (condition: HealthCondition, modifiers: HealthModifier[]) => condition === 'sleeping' || modifiers.includes('sleeping');
@@ -273,6 +275,7 @@ const asleepIn = (condition: HealthCondition, modifiers: HealthModifier[]) => co
 // asleep under a stress (dry soil, cold) still dreams, restlessly. No data: no dream.
 export function dreamOutcome(r: DreamRecord, episodes: BehaviourEpisode[], now: number): DreamOutcome {
   const dreamt = new Set<DreamMotif>();
+  const scenes: [DreamMotif, DreamMotif][] = [];
   let phases = 0;
   let restless = 0;
   for (const p of r.phases) {
@@ -285,8 +288,12 @@ export function dreamOutcome(r: DreamRecord, episodes: BehaviourEpisode[], now: 
     phases++;
     if (e.condition !== 'sleeping') restless++;
     dreamt.add(p.motif);
+    if (p.with) {
+      dreamt.add(p.with);
+      scenes.push([p.motif, p.with]);
+    }
   }
-  return { dreamt: r.motifs.map((m) => m.motif).filter((m) => dreamt.has(m)), phases, of: r.phases.length, restless: phases > 0 && restless * 2 >= phases, finishedAt: now };
+  return { dreamt: r.motifs.map((m) => m.motif).filter((m) => dreamt.has(m)), scenes, phases, of: r.phases.length, restless: phases > 0 && restless * 2 >= phases, finishedAt: now };
 }
 
 // Nights in a row (up to and including `night`) that dreamt this motif
@@ -340,18 +347,23 @@ export function evaluateDreams(i: DreamInput): DreamState {
     const top = lastRec.motifs.find((m) => o.dreamt.includes(m.motif) && m.role !== 'anticipation') ?? lastRec.motifs.find((m) => o.dreamt.includes(m.motif)) ?? null;
     const told = top && !o.restless && top.salience >= c.toldMin ? top.motif : null;
     const pastWith = [...i.past.filter((r) => r.night !== lastRec!.night), lastRec];
-    lastNight = { key: lastRec.night, told, again: told ? streak(pastWith, lastRec.night, told) : 0, restless: o.restless, dreamt: o.dreamt };
+    // Told as the scene it was dreamt in, when it was one (the squirrel in the rain)
+    const scene = told ? (o.scenes ?? []).find((x) => x.includes(told)) : undefined;
+    const toldWith = scene ? (scene[0] === told ? scene[1] : scene[0]) : null;
+    lastNight = { key: lastRec.night, told, toldWith, again: told ? streak(pastWith, lastRec.night, told) : 0, restless: o.restless, dreamt: o.dreamt };
   }
 
   // Right now: deep sleep, or one of tonight's dreaming phases (none when awake or without trustworthy data)
   let phase: DreamState['phase'] = 'none';
   let motif: DreamMotif | null = null;
+  let withMotif: DreamMotif | null = null;
   let phaseEndsAt: number | null = null;
   if (running && asleep && tonight) {
     const p = tonight.phases.find((x) => x.from <= i.now && i.now < x.to);
     if (p) {
       phase = 'dreaming';
       motif = p.motif;
+      withMotif = p.with ?? null;
       phaseEndsAt = p.to;
     } else {
       phase = 'deep';
@@ -375,13 +387,14 @@ export function evaluateDreams(i: DreamInput): DreamState {
     ? 'Awake in the night: no dream'
     : !tonight?.motifs.length
     ? 'A deep, dreamless night (nothing weighed enough)'
-    : `${phase === 'dreaming' ? `Dreaming of ${motif!.replace('_', ' ')}` : 'Deep sleep'}${restless ? ', restless' : ''}. Tonight: ${tonight.motifs.map((m) => `${m.motif} ${m.salience} (${m.why})`).join(', ')}${tonight.cast.length ? `; beside it: ${tonight.cast.join(', ')}` : ''}`;
+    : `${phase === 'dreaming' ? `Dreaming of ${dreamScene(motif!, withMotif)}` : 'Deep sleep'}${restless ? ', restless' : ''}. Tonight: ${tonight.motifs.map((m) => `${m.motif} ${m.salience} (${m.why})`).join(', ')}${tonight.cast.length ? `; beside it: ${tonight.cast.join(', ')}` : ''}`;
 
   return {
     night: running ? { key: running.key, startsAt: running.startsAt, endsAt: running.endsAt } : null,
     asleep,
     phase,
     motif,
+    with: withMotif,
     phaseEndsAt,
     restless,
     cast: tonight?.cast ?? [],
@@ -408,7 +421,18 @@ export function dreamDiary(records: DreamRecord[], since: number, now: number): 
     if (!o || o.finishedAt > now || r.endsAt < since || !o.dreamt.length) continue;
     const top = r.motifs.find((m) => m.motif === o.dreamt[0])!;
     const details = [top.why, r.cast.includes('lucy') ? 'Lucy slept by the pot' : null, o.restless ? 'a restless night' : null].filter(Boolean);
-    items.push({ at: r.endsAt, kind: 'dream', dream: o.restless ? 'restless' : 'dreamt', title: `${o.restless ? 'A restless night. Dreamt' : 'Dreamt'} of ${list(o.dreamt.map((m) => DREAM_WORDS[m]))}`, detail: details.join(' · ') });
+    // Its scenes first (the squirrel in the rain), then what was dreamt alone
+    const parts: string[] = [];
+    const told = new Set<DreamMotif>();
+    // (a figure in its weather first, then two figures, then two skies; each motif told once)
+    const order = (x: [DreamMotif, DreamMotif]) => (isDreamAtmosphere(x[0]) !== isDreamAtmosphere(x[1]) ? 0 : isDreamAtmosphere(x[0]) ? 2 : 1);
+    for (const [a, b] of [...(o.scenes ?? [])].sort((x, y) => order(x) - order(y))) {
+      if (told.has(a) || told.has(b) || parts.length >= 2) continue;
+      parts.push(dreamScene(a, b));
+      told.add(a).add(b);
+    }
+    for (const m of o.dreamt) if (!told.has(m)) parts.push(DREAM_WORDS[m]);
+    items.push({ at: r.endsAt, kind: 'dream', dream: o.restless ? 'restless' : 'dreamt', title: `${o.restless ? 'A restless night. Dreamt' : 'Dreamt'} of ${list(parts)}`, detail: details.join(' · ') });
     for (const m of o.dreamt) {
       const n = streak(records, r.night, m);
       if (n >= 3 && WORRIES.includes(m)) items.push({ at: r.endsAt + 1, kind: 'dream', dream: 'recurring', title: `${DREAM_WORDS[m][0].toUpperCase()}${DREAM_WORDS[m].slice(1)} came back in my dreams`, detail: `${n} nights in a row` });
@@ -418,4 +442,4 @@ export function dreamDiary(records: DreamRecord[], since: number, now: number): 
 }
 
 // Phases as the developer panel shows them
-export const phaseText = (p: DreamPhase) => `${hhmm(p.from)}–${hhmm(p.to)} ${p.motif.replace('_', ' ')}`;
+export const phaseText = (p: DreamPhase) => `${hhmm(p.from)}–${hhmm(p.to)} ${dreamScene(p.motif, p.with)}`;

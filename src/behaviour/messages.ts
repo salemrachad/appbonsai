@@ -153,6 +153,28 @@ export const DREAM_WORDS: Record<DreamMotif, string> = {
   wind_rising: 'a wind rising',
 };
 
+// Combined scenes: weather-like motifs are where a scene happens, the others stand in it ("the squirrel in the
+// rain"); two figures share it ("Lucy and the squirrel"), two skies mix ("rain and a dry wind")
+const DREAM_IN: Partial<Record<DreamMotif, string>> = {
+  rain: 'the rain',
+  snow: 'the snow',
+  mist: 'the mist',
+  dry_wind: 'a dry wind',
+  storm: 'a storm',
+  sun: 'long sunlight',
+  glare: 'a white glare',
+  frost: 'the frost',
+  flood: 'deep water',
+  wind_rising: 'a rising wind',
+};
+export const isDreamAtmosphere = (m: DreamMotif) => m in DREAM_IN;
+export function dreamScene(a: DreamMotif, b?: DreamMotif | null): string {
+  if (!b || b === a) return DREAM_WORDS[a];
+  const fig = isDreamAtmosphere(a) ? (isDreamAtmosphere(b) ? null : b) : isDreamAtmosphere(b) ? a : null;
+  if (fig) return `${DREAM_WORDS[fig]} in ${DREAM_IN[fig === a ? b : a]}`;
+  return `${DREAM_WORDS[a]} and ${DREAM_WORDS[b]}`;
+}
+
 
 // About recent care. Context, never health claims the sensors can't prove.
 export const CARE_LINES: Record<CareLine, Lines> = {
@@ -312,6 +334,7 @@ export interface RenderInput {
   hikeDays?: string | null; // the two days on offer, "Saturday or Thursday"
   hikeDetail?: HikeDetail | null; // the hike day's best hours (said with the choice and on the day)
   dream?: DreamMotif | null; // last night's dream, for the morning dream lines
+  dreamWith?: DreamMotif | null; // the motif it was dreamt together with (a combined scene)
 }
 
 // Facts that stand for words (an index into these lists)
@@ -333,7 +356,7 @@ export function renderMessage(r: RenderInput): { text: string; tip: string } {
   text = text.replace('{concern}', (r.concern && CONCERN_PHRASE[`${r.concern.metric}:${r.concern.status}`]) ?? 'something feels a little off');
   if (r.isEstimate && r.intent === 'thirst') text = `I think ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
   if (r.dayLine) {
-    const dream = r.dream ? DREAM_WORDS[r.dream] : "something I can't hold on to";
+    const dream = r.dream ? dreamScene(r.dream, r.dreamWith) : "something I can't hold on to";
     const line = pick(DAY_LINES[r.dayLine])
       .replace('{day}', r.hikeDay ?? 'one day this week')
       .replace('{days}', r.hikeDays ?? r.hikeDay ?? 'one day this week')

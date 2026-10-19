@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { DEV_PRESETS } from '../health/developerOverrides';
 import { SEASONS, type Season } from '../perception/season';
 import { OUTSIDE_SKIES } from '../telemetry/outsideWeather';
-import { DREAM_WORDS } from '../behaviour/messages';
+import { DREAM_WORDS, dreamScene } from '../behaviour/messages';
 import type { DreamMotif } from '../behaviour/behaviourTypes';
 import type { CanopyPreview, DragonflyPreview, DreamPreview, DreyPreview, HikePreview, LucyPreview, SlothPreview, TwilightPreview, VisitorPreview, WeatherPreview } from './usePlantBehaviour';
 
@@ -97,10 +97,11 @@ export function previewsFromHash(hash: string): DevPreviews {
       return r ? (r[1] as HikePreview) : null;
     })(),
     hikeChoice: null,
-    // #dream=rain or #dream=restless:frost: the image of a dream by the crown
+    // #dream=rain, #dream=squirrel+rain (a combined scene) or #dream=restless:frost: a dream by the crown
     dream: (() => {
-      const r = m(/dream=(restless:)?([a-z_]+)/);
-      return r && r[2] in DREAM_WORDS ? { motif: r[2] as DreamMotif, restless: !!r[1] } : null;
+      const r = m(/dream=(restless:)?([a-z_]+)(?:\+([a-z_]+))?/);
+      if (!r || !(r[2] in DREAM_WORDS)) return null;
+      return { motif: r[2] as DreamMotif, with: r[3] && r[3] in DREAM_WORDS ? (r[3] as DreamMotif) : null, restless: !!r[1] };
     })(),
   };
 }
@@ -136,7 +137,7 @@ const toastFor = <K extends keyof DevPreviews>(key: K, v: DevPreviews[K]): strin
       return v ? (v === 'today' ? 'Hike day: boots out' : `Hike ${v}`) : 'Back to the real hike plan';
     case 'dream': {
       const d = v as DreamPreview | null;
-      return d ? `Dreaming of ${DREAM_WORDS[d.motif]}${d.restless ? ' (restless)' : ''}` : 'Back to real dreams';
+      return d ? `Dreaming of ${dreamScene(d.motif, d.with)}${d.restless ? ' (restless)' : ''}` : 'Back to real dreams';
     }
     case 'hikeChoice':
       return v ? `Hike preview: you chose ${v}` : null;
@@ -161,7 +162,7 @@ function labelOf(p: DevPreviews): string | null {
       p.twilight && `${p.twilight.event === 'sunrise' ? 'Sunrise' : 'Sunset'} ${p.twilight.minutes >= 0 ? '+' : ''}${p.twilight.minutes} min`,
       p.weather && `Outside: ${p.weather.replace('_', ' ')}`,
       p.hike && (p.hike === 'today' ? 'Hike day' : `Hike ${p.hike}`),
-      p.dream && `Dreaming of ${DREAM_WORDS[p.dream.motif]}${p.dream.restless ? ' (restless)' : ''}`,
+      p.dream && `Dreaming of ${dreamScene(p.dream.motif, p.dream.with)}${p.dream.restless ? ' (restless)' : ''}`,
     ]
       .filter(Boolean)
       .join(' · ') || null

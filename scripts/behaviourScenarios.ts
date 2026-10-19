@@ -1928,6 +1928,24 @@ async function main() {
     const withIt = evaluateBehaviour({ health: st.health, perception: st.perception, episodes: a.db.episodesSince(0), events: [], species: ACTIVE_SPECIES, now: a.clock, location: loc, dreams: pastWith('dry_wind', 5, 0.9, startOfDay(a.clock)) });
     const strip = (x: typeof without) => JSON.stringify({ mood: x.moodState, energy: x.energy, intent: x.messageIntent, habitat: x.habitat, canopy: x.canopy, voice: x.voice });
     check('DR13 a dream never changes mood, energy, intent, the visitors, the canopy or the thoughts', strip(without) === strip(withIt));
+
+    // DR14: combined scenes: where the dream moves on, the motif before lingers in the first phase of the new
+    // one (only tonight's motifs); dreamt scenes are stored at dawn and told as scenes ("the squirrel in the rain")
+    const { dreamScene } = await import('../src/behaviour/messages');
+    const rainy = compose({ episodes: thirstDay, events: [watering(day + 15 * HOUR, 'very_dry', 18)], habitat: squirrelDay });
+    const changes = rainy.phases.filter((p, j) => j > 0 && rainy.phases[j - 1].motif !== p.motif);
+    const scenesOk = rainy.phases.every((p, j) => (p.with ? j > 0 && rainy.phases[j - 1].motif === p.with && p.with !== p.motif : j === 0 || rainy.phases[j - 1].motif === p.motif));
+    const tonightOnly = rainy.phases.every((p) => !p.with || rainy.motifs.some((m) => m.motif === p.with));
+    const out14 = dreamOutcome(rainy, [ep('sleeping', rainy.startsAt - HOUR, 12)], rainy.endsAt);
+    const morning14 = evaluateDreams({ ...base, condition: 'comfortable', past: [{ ...rainy, outcome: out14 }], now: rainy.endsAt + 30 * MIN });
+    const diary14 = dreamDiary([{ ...rainy, outcome: out14 }], rainy.startsAt - 24 * HOUR, rainy.endsAt + 24 * HOUR);
+    check(
+      'DR14 combined scenes where the dream moves on (tonight’s motifs only), stored at dawn, told and written as scenes',
+      changes.length >= 1 && changes.every((p) => !!p.with) && scenesOk && tonightOnly && (out14.scenes?.length ?? 0) === changes.length &&
+        morning14.lastNight?.toldWith != null && dreamScene('squirrel', 'rain') === 'the squirrel in the rain' && dreamScene('rain', 'squirrel') === 'the squirrel in the rain' &&
+        dreamScene('lucy', 'squirrel') === 'Lucy and the squirrel' && / in the rain| and /.test(diary14[0]?.title ?? ''),
+      `${rainy.phases.map((p) => dreamScene(p.motif, p.with)).join(' → ')} · told: ${dreamScene(morning14.lastNight!.told!, morning14.lastNight!.toldWith)} · ${diary14[0]?.title}`
+    );
   }
 
   finish();
