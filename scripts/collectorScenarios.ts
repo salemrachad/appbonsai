@@ -816,6 +816,18 @@ async function main() {
     check('SM3 soil % now read with the typed range (raw 2800 -> 50%)', pct === 50, `${pct}%`);
     check('SM4 the scale change is not a watering', b.waterings().length === 0, b.decision());
   }
+  {
+    // Push mode: the save's preview is the last reading, so it answers without waiting for the next push
+    // (that took up to a minute, past the page's 15 s: "The Appbonsai server timed out")
+    const { CalibrationService } = await import('../server/calibration');
+    const b = new Bench();
+    b.usePush();
+    await b.boot();
+    b.pushRun(3, () => ({ soil: 50, raw: 2800 }));
+    const svc = new CalibrationService(b.db, b.collector, { now: () => b.clock });
+    const res = await Promise.race([svc.saveSoil({ dryRaw: 3600, wetRaw: 2000, manual: true, confirm: true }), new Promise<null>((r) => setTimeout(() => r(null), 1000))]);
+    check('SM5 push mode: a typed dry/wet saves at once, previewing the last reading (raw 2800 -> 50%)', !!res?.saved && res.preview?.raw === 2800 && res.preview.percent === 50, JSON.stringify(res?.preview));
+  }
 
   console.log('\n— Outside weather (context only) —');
   {

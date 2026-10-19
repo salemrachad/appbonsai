@@ -732,6 +732,12 @@ export class LivingCollector {
     return { soilRaw: t.soilRaw ?? null, lightRaw: t.lightRaw ?? null, soilPercent: t.soilMoisture, lightPercent: t.lightPercent ?? null, at: t.timestamp };
   }
 
+  // The last reading's raw values, as it arrived (a calibration save's preview: answers at once, never waits
+  // for the device's next push)
+  latestRaw(): { soilRaw: number | null; lightRaw: number | null } | null {
+    return this.latest ? { soilRaw: this.latest.soilRaw ?? null, lightRaw: this.latest.lightRaw ?? null } : null;
+  }
+
   // ---- attention (not care): stored for relationship memory only, never triggers an evaluation ----
   recordInteraction(body: unknown): { ok: true; interaction: Interaction; merged: boolean } | { ok: false; status: number; error: string } {
     return recordInteraction(this.db, body, this.now());

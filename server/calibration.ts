@@ -65,21 +65,20 @@ export class CalibrationService {
     return { sensor, raws, ...captureStats(raws), warnings };
   }
 
-  private async preview(sensor: 'soil' | 'light', convert: (raw: number) => number) {
-    try {
-      const r = await this.collector.readRaw();
-      const raw = sensor === 'soil' ? r.soilRaw : r.lightRaw;
-      return { raw, percent: raw === null ? null : convert(raw) };
-    } catch {
-      return null;
-    }
+  // What the last reading would become. Never a fresh read: in push mode that waits for the device's next push
+  // (up to a minute), longer than the page waits for a save.
+  private preview(sensor: 'soil' | 'light', convert: (raw: number) => number) {
+    const r = this.collector.latestRaw();
+    if (!r) return null;
+    const raw = sensor === 'soil' ? r.soilRaw : r.lightRaw;
+    return { raw, percent: raw === null ? null : convert(raw) };
   }
 
   // dryRun: validate + preview only. Warnings need confirm: true; errors always block.
   // manual: dry (high raw) / wet (low raw) typed in by hand, without the watering the guided flow needs
   async saveSoil(input: { dryRaw: number; wetRaw: number; dry?: CaptureStats; wet?: CaptureStats; confirm?: boolean; dryRun?: boolean; manual?: boolean }): Promise<SaveResult> {
     const v = validateSoil(Number(input.dryRaw), Number(input.wetRaw), input.dry, input.wet);
-    const preview = await this.preview('soil', (raw) => soilPercentFromRaw(raw, { dryRaw: input.dryRaw, wetRaw: input.wetRaw }));
+    const preview = this.preview('soil', (raw) => soilPercentFromRaw(raw, { dryRaw: input.dryRaw, wetRaw: input.wetRaw }));
     const ok = v.errors.length === 0 && (v.warnings.length === 0 || !!input.confirm) && !input.dryRun;
     if (ok) {
       this.collector.applyCalibration(
@@ -96,7 +95,7 @@ export class CalibrationService {
   // manual: min (dark) / max (bright) raw typed in by hand, e.g. a stopgap until a new sensor arrives
   async saveLight(input: { darkRaw: number; brightRaw: number; dark?: CaptureStats; bright?: CaptureStats; confirm?: boolean; dryRun?: boolean; manual?: boolean }): Promise<SaveResult> {
     const v = validateLight(Number(input.darkRaw), Number(input.brightRaw), input.dark, input.bright);
-    const preview = await this.preview('light', (raw) => lightPercentFromRaw(raw, { darkRaw: input.darkRaw, brightRaw: input.brightRaw }));
+    const preview = this.preview('light', (raw) => lightPercentFromRaw(raw, { darkRaw: input.darkRaw, brightRaw: input.brightRaw }));
     const ok = v.errors.length === 0 && (v.warnings.length === 0 || !!input.confirm) && !input.dryRun;
     if (ok) {
       this.collector.applyCalibration(
