@@ -217,7 +217,9 @@ curl -H "Authorization: Bearer <device token>" -F firmware=@<dir>/appbonsai_esp3
 ```
 
 `200` → it restarts into the new firmware (unsent readings in RAM are lost); `401` wrong or no token; `400` no file
-or a bad image (the old firmware keeps running). This works on the device's own network only; updates from the
+or a bad image (the old firmware keeps running). Firmware 1.3.0 powers the soil probe from GPIO25 only while reading (constant DC
+corroded the FC-28, which drifted toward reading wetter): move the probe's VCC wire from 3V3 to GPIO25 with it, and
+pause watering detection first (`POST /api/collector/calibration {minutes: 30}`), since the raw level shifts. This works on the device's own network only; updates from the
 cloud (a `commands` entry in the push reply) come with the product.
 
 **Devices:** `npm run device -- add <device id> [label]` prints the token once (only its SHA-256 is stored);

@@ -15,7 +15,9 @@
 //
 // FC-28 Soil Sensor:
 //   AO  -> GPIO34
-//   VCC -> 3V3
+//   VCC -> GPIO25 (powered only while reading:
+//          constant DC corrodes the probe and it
+//          drifts toward reading wetter)
 //   GND -> GND
 //
 // LDR:
@@ -42,7 +44,7 @@
 //        http://<device>/update
 // ======================================================
 
-const char* FIRMWARE_VERSION = "1.2.1";
+const char* FIRMWARE_VERSION = "1.3.0";
 
 
 // ----------------------
@@ -50,6 +52,7 @@ const char* FIRMWARE_VERSION = "1.2.1";
 // ----------------------
 
 const int SOIL_PIN  = 34;
+const int SOIL_POWER_PIN = 25; // the probe's VCC, on only while it is read
 const int LIGHT_PIN = 35;
 
 const int SDA_PIN = 21;
@@ -194,6 +197,11 @@ String int64ToString(int64_t v) {
 
 int readSoilRaw() {
 
+  // Power the probe only for the reading (against electrolysis), let it settle, drop the first sample
+  digitalWrite(SOIL_POWER_PIN, HIGH);
+  delay(100);
+  analogRead(SOIL_PIN);
+
   long total = 0;
   const int samples = 30;
 
@@ -201,6 +209,8 @@ int readSoilRaw() {
     total += analogRead(SOIL_PIN);
     delay(3);
   }
+
+  digitalWrite(SOIL_POWER_PIN, LOW);
 
   return total / samples;
 }
@@ -1750,6 +1760,17 @@ void setup() {
   pinMode(
     SOIL_PIN,
     INPUT
+  );
+
+
+  pinMode(
+    SOIL_POWER_PIN,
+    OUTPUT
+  );
+
+  digitalWrite(
+    SOIL_POWER_PIN,
+    LOW
   );
 
 
