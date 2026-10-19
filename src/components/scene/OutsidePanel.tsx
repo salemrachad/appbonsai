@@ -12,15 +12,26 @@ interface OutsidePanelProps {
   air?: AirComparison | null; // inside vs outside by dew point (perception.air)
 }
 
-// The barometer's tendency over 3 h, and the European AQI bands, in plain words
-const TENDENCY: Record<NonNullable<OutsideWeather['pressureTendency']>, { arrow: string; words: string }> = {
-  falling_fast: { arrow: '↓↓', words: 'falling fast: weather coming' },
-  falling: { arrow: '↓', words: 'falling' },
-  steady: { arrow: '→', words: 'steady' },
-  rising: { arrow: '↑', words: 'rising' },
+// The barometer's tendency over 3 h, and the European AQI bands, in plain words and colours. The pressure's
+// colour says what it means for the weather (not good or bad); the air's follows the official EAQI scale,
+// darkened to read on the glass.
+const TENDENCY: Record<NonNullable<OutsideWeather['pressureTendency']>, { arrow: string; words: string; color: string; means: string }> = {
+  falling_fast: { arrow: '↓↓', words: 'falling fast', color: '#356077', means: 'weather is likely on its way' },
+  falling: { arrow: '↓', words: 'falling', color: '#5B86A0', means: 'clouds or rain may come' },
+  steady: { arrow: '→', words: 'steady', color: '', means: 'the weather is settled for now' },
+  rising: { arrow: '↑', words: 'rising', color: '#4A6741', means: 'clearing or fair weather ahead' },
 };
-const AIR_WORDS: Record<NonNullable<OutsideWeather['air']>['band'], string> = {
-  good: 'good', fair: 'fair', moderate: 'moderate', poor: 'poor', very_poor: 'very poor', extremely_poor: 'extremely poor',
+const pressureLevel = (p: number) =>
+  p < 1000 ? 'low pressure (unsettled weather)' : p > 1020 ? 'high pressure (usually fair weather)' : 'around normal (1013 hPa is the average at sea level)';
+
+type Band = NonNullable<OutsideWeather['air']>['band'];
+const AIR: Record<Band, { words: string; color: string; means: string }> = {
+  good: { words: 'good', color: '#2E8B57', means: 'Clean air.' },
+  fair: { words: 'fair', color: '#3A9A8A', means: 'Fine for everyone.' },
+  moderate: { words: 'moderate', color: '#B8961E', means: 'Acceptable; very sensitive people may notice it.' },
+  poor: { words: 'poor', color: '#D2552D', means: 'Unhealthy for sensitive people; dusty or hazy.' },
+  very_poor: { words: 'very poor', color: '#A2213A', means: 'Unhealthy; limit long stays outdoors.' },
+  extremely_poor: { words: 'extremely poor', color: '#7D2181', means: 'Very unhealthy; better to stay inside.' },
 };
 
 const ago = (ms: number) => {
@@ -116,30 +127,46 @@ export const OutsidePanel: React.FC<OutsidePanelProps> = ({ weather, outside, in
       </div>
       {/* Beyond the sky: the barometer and the air (each only when known) */}
       {(outside?.pressure != null || outside?.air) && (
-        <div className="mt-2 pt-1.5 border-t border-[var(--ink)]/5 flex flex-wrap items-center gap-x-4 gap-y-0.5 sans text-[11px] text-[var(--ink)]/60 tabular-nums">
-          {outside?.pressure != null && (
-            <span
-              className="flex items-center gap-1"
-              title={outside.pressureTrend != null ? `Air pressure at sea level. ${outside.pressureTrend > 0 ? '+' : ''}${outside.pressureTrend} hPa over the last 3 hours.` : 'Air pressure at sea level.'}
-            >
-              <Gauge className="w-3 h-3 text-[#6B7A8F]" />
-              {Math.round(outside.pressure)} hPa
-              {outside.pressureTendency && (
-                <span className={outside.pressureTendency === 'falling_fast' ? 'text-[#356077] font-semibold' : ''}>
-                  {' '}
-                  {TENDENCY[outside.pressureTendency].arrow} {TENDENCY[outside.pressureTendency].words}
-                </span>
-              )}
-            </span>
-          )}
-          {outside?.air && (
-            <span
-              className={`flex items-center gap-1 ${['poor', 'very_poor', 'extremely_poor'].includes(outside.air.band) ? 'text-[#9E6B2E] font-semibold' : ''}`}
-              title={`European air quality index (modelled by Copernicus CAMS).${outside.air.pm25 != null ? ` PM2.5 ${Math.round(outside.air.pm25)} µg/m³` : ''}${outside.air.pm10 != null ? ` · PM10 ${Math.round(outside.air.pm10)} µg/m³` : ''}`}
-            >
-              Air: {AIR_WORDS[outside.air.band]} · {Math.round(outside.air.aqi)}
-            </span>
-          )}
+        <div className="outside-facts mt-2 pt-1.5 border-t border-[var(--ink)]/5 flex flex-wrap items-center gap-x-4 gap-y-0.5 sans text-[11px] text-[var(--ink)]/60 tabular-nums">
+          {outside?.pressure != null && (() => {
+            const t = outside.pressureTendency ? TENDENCY[outside.pressureTendency] : null;
+            const change = outside.pressureTrend != null ? ` (${outside.pressureTrend > 0 ? '+' : ''}${outside.pressureTrend} hPa in 3 h)` : '';
+            return (
+              <span
+                className="flex items-center gap-1 cursor-help"
+                title={`Air pressure outside: ${Math.round(outside.pressure)} hPa, ${pressureLevel(outside.pressure)}.
+${
+                  t ? `${t.words[0].toUpperCase()}${t.words.slice(1)}${change}: ${t.means}.` : 'The trend appears after 2 hours of readings.'
+                }`}
+              >
+                <Gauge className="w-3 h-3 text-[#6B7A8F]" />
+                {Math.round(outside.pressure)} hPa
+                {t && (
+                  <span className={outside.pressureTendency === 'falling_fast' ? 'font-semibold' : ''} style={t.color ? { color: t.color } : undefined}>
+                    {' '}
+                    {t.arrow} {t.words}
+                  </span>
+                )}
+              </span>
+            );
+          })()}
+          {outside?.air && (() => {
+            const a = AIR[outside.air.band];
+            const pm = [outside.air.pm25 != null ? `PM2.5 ${Math.round(outside.air.pm25)} µg/m³` : '', outside.air.pm10 != null ? `PM10 ${Math.round(outside.air.pm10)} µg/m³` : ''].filter(Boolean).join(' · ');
+            return (
+              <span
+                className={`flex items-center gap-1.5 cursor-help ${['poor', 'very_poor', 'extremely_poor'].includes(outside.air.band) ? 'font-semibold' : ''}`}
+                style={{ color: a.color }}
+                title={`Air outside: ${a.words} (European AQI ${Math.round(outside.air.aqi)}; lower is better: 0–20 good … over 100 extremely poor).
+${a.means}${pm ? `
+${pm}` : ''}
+The tree is in the greenhouse: this is the air outside.`}
+              >
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: a.color }} aria-label={`air ${a.words}`} />
+                Air: {a.words} · {Math.round(outside.air.aqi)}
+              </span>
+            );
+          })()}
         </div>
       )}
     </div>
