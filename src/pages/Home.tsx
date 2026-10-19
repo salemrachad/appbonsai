@@ -1,5 +1,6 @@
 import React from 'react';
 import { BonsaiAvatar } from '../components/avatar/BonsaiAvatar';
+import { HikePanel } from '../components/scene/HikePanel';
 import { OutsidePanel } from '../components/scene/OutsidePanel';
 import { TreeDiary } from '../components/scene/TreeDiary';
 import { WeatherForeground } from '../components/scene/WeatherForeground';
@@ -38,13 +39,16 @@ export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, 
         <BonsaiAvatar className="w-full h-full max-h-[620px]" expression={expression} onPetSession={onPetSession} />
         {/* Outside weather in front of the tree (fog drifting across it, rain falling past it) */}
         <WeatherForeground weather={expression?.atmosphere.weather} />
-        {/* The tree's diary as quiet chat bubbles (all of today's lines, and the week's hike as it picked it) */}
-        <TreeDiary hike={expression?.hike?.plan ?? null} hikePreview={hikePreview} onChooseHike={onChooseHike} reloadKey={diaryKey} onOpenDiary={onOpenDiary} />
+        {/* The tree's diary as quiet chat bubbles (all of today's lines) */}
+        <TreeDiary reloadKey={diaryKey} onOpenDiary={onOpenDiary} />
       </div>
 
       <div className="flex flex-col gap-5">
         {/* The world outside the greenhouse, next to what the sensors measure inside (context only) */}
         <OutsidePanel weather={expression?.atmosphere.weather ?? null} outside={outside} inside={inside} air={air} />
+
+        {/* The week's hike as the tree picked it (about the people, never the tree) */}
+        {expression?.hike?.plan && <HikePanel plan={expression.hike.plan} preview={hikePreview} onChoose={onChooseHike} />}
 
         <div className="flex items-center gap-6 min-h-[150px]">
           <div className="shrink-0">
