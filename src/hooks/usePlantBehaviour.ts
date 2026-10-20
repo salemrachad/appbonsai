@@ -3,7 +3,7 @@ import type { LivingSnapshot } from '../api/types';
 import { evaluateBehaviour } from '../behaviour/BehaviourEngine';
 import type { DreamMotif, PlantBehaviourState } from '../behaviour/behaviourTypes';
 import { expressBehaviour } from '../expression/ExpressionEngine';
-import { encounterCues, lucyPresentation, visitorPlay, weatherLook, withLucyInterest } from '../expression/ExpressionEngine';
+import { dreamEcho, encounterCues, lucyPresentation, visitorPlay, weatherLook, withLucyInterest } from '../expression/ExpressionEngine';
 import { lucyRoute } from '../behaviour/lucy';
 import type { DreyLook, ExpressionState, LucyPresentation, SlothPresentation, VisitorPresentation } from '../expression/expressionTypes';
 import { meet } from '../behaviour/encounters';
@@ -137,7 +137,7 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
     }
     if (previewDream && r.expression) {
       const x = r.expression;
-      const dream = { key: `preview:${previewDream.motif}:${previewDream.with ?? ''}:${previewDream.restless}`, phase: 'dreaming' as const, motif: previewDream.motif, with: previewDream.with ?? null, restless: previewDream.restless, endsAt: null };
+      const dream = { key: `preview:${previewDream.motif}:${previewDream.with ?? ''}:${previewDream.restless}`, phase: 'dreaming' as const, motif: previewDream.motif, with: previewDream.with ?? null, echo: dreamEcho(previewDream.motif, previewDream.with ?? null), restless: previewDream.restless, endsAt: null };
       const running = [previewDream.motif, previewDream.with].some((m) => m === 'lucy' || m === 'squirrel' || m === 'drey');
       r = { behaviour: r.behaviour, expression: { ...x, dream, lucy: x.lucy && x.lucy.pose === 'sleeping' ? { ...x.lucy, dreamSync: running ? 'running' : 'with_tree' } : x.lucy } };
     }

@@ -1,4 +1,4 @@
-import type { LucyVisit, Mood, PlantBehaviourState, ReactionKind } from '../behaviour/behaviourTypes';
+import type { DreamMotif, LucyVisit, Mood, PlantBehaviourState, ReactionKind } from '../behaviour/behaviourTypes';
 import { renderMessage } from '../behaviour/messages';
 import { decideSpeech, INITIAL_MESSAGE_MEMORY, SpeechDecision, stableVariant } from '../behaviour/speech';
 import type { HealthCondition, HealthModifier, PlantHealthState, QualitativeState } from '../health/healthTypes';
@@ -570,7 +570,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
   // The dream: only asleep with trustworthy data (behaviour decided); Lucy asleep by the pot keeps time with it
   const d = b.dream;
   const dream: DreamPresentation | null =
-    d && d.phase !== 'none' && d.night ? { key: `${d.night.key}:${d.phaseEndsAt ?? 0}`, phase: d.phase, motif: d.motif, with: d.with ?? null, restless: d.restless, endsAt: d.phaseEndsAt } : null;
+    d && d.phase !== 'none' && d.night ? { key: `${d.night.key}:${d.phaseEndsAt ?? 0}`, phase: d.phase, motif: d.motif, with: d.with ?? null, echo: d.phase === 'dreaming' ? dreamEcho(d.motif, d.with ?? null) : [], restless: d.restless, endsAt: d.phaseEndsAt } : null;
   const dreamSync: LucyPresentation['dreamSync'] = !dream
     ? null
     : dream.phase === 'deep'
@@ -694,6 +694,36 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
 // branch first, else a dragonfly, else an awake sloth. Watching over a struggling tree or in a storm she only
 // glances. Art only; nothing reads it back.
 // squirrelFamiliarity: how used to each other she and the squirrel are (0.5 unknown): familiar, she cools.
+// Dream echoes (art): the effects the tree's body briefly re-lives while it dreams of something. Effects only,
+// never a filter, foliage tone, gesture, droop or face (those would read as its real state, or as waking).
+// Motifs with nothing on the tree that fits stay empty: the dream image carries them.
+export const DREAM_ECHO: Record<DreamMotif, AvatarEffect[]> = {
+  rain: ['rain', 'drips'],
+  dry_wind: ['dry_wind', 'cracks'],
+  sun: ['bright_sun', 'pollen'],
+  glare: ['hot_sun', 'heat_waves'],
+  frost: ['frost', 'breath_vapor'],
+  flood: ['puddle', 'drips'],
+  mist: ['mist'],
+  storm: ['rain', 'dry_wind'],
+  snow: ['snow'],
+  new_shoots: ['sparkles'],
+  new_leaves: ['sparkles'],
+  warm_hand: ['sparkles'],
+  new_light: ['bright_sun'],
+  wind_rising: ['dry_wind'],
+  new_ground: [],
+  squirrel: [],
+  drey: [],
+  sloth: [],
+  dragonfly: [],
+  lucy: [],
+  boots: [],
+};
+// One list per motif in playing order: the lingering one first, then the new one
+export const dreamEcho = (motif: DreamMotif | null, lingering: DreamMotif | null): AvatarEffect[][] =>
+  [...new Set([lingering, motif].filter((m): m is DreamMotif => !!m))].map((m) => DREAM_ECHO[m]);
+
 const withDreamSync = (lucy: LucyPresentation | null, sync: LucyPresentation['dreamSync']): LucyPresentation | null =>
   lucy && lucy.pose === 'sleeping' && sync ? { ...lucy, dreamSync: sync } : lucy;
 

@@ -6,7 +6,7 @@ import { FoliageDefs, PadBranchlets, PadLeaves, PADS, paletteFor } from './Folia
 import { PetSession, usePetting } from './usePetting';
 import { Dragonfly, dragonflyAt, useDragonflyFlight } from './Dragonfly';
 import { Sloth, slothAt, slothRiderAt } from './Sloth';
-import { Dream, DreamDefs } from './Dream';
+import { Dream, DreamDefs, DreamEcho } from './Dream';
 import { HikingBoots } from './HikingBoots';
 import { Lucy, LucyPillow, SPOT as LUCY_SPOT } from './Lucy';
 import { Drey, SquirrelTraces, useVisitorPlay, Visitor, visitorAt } from './Visitor';
@@ -502,6 +502,8 @@ const BonsaiAvatarView: React.FC<BonsaiAvatarProps> = ({ expression, onClick, on
 
         {/* Asleep: the dream drifting beside the crown (outside the tree's filters: never frosted or tinted) */}
         <Dream dream={expression?.dream ?? null} />
+        {/* ...and the tree's body briefly re-living what it dreams of (its own effects, faint) */}
+        <DreamEcho dream={expression?.dream ?? null} shown={look.effects} palette={palette} soil={look.soil} />
         <Lanterns effects={look.effects} />
         <ForegroundEffects effects={look.effects} palette={palette} seasonal={look.seasonalLeaves} />
         <circle ref={petting.glowRef} cx="220" cy="120" r="34" fill="url(#petHandGlow)" opacity="0" pointerEvents="none" style={{ mixBlendMode: 'screen' }} />

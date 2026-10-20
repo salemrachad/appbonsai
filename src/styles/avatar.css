@@ -466,6 +466,11 @@
 /* A combined scene: the motif before lingers, then fades back as the new one takes over */
 @keyframes dream-linger { 0% { opacity: 1; } 100% { opacity: 0.35; } }
 .dream-linger { animation: dream-linger 40s ease-in-out both; }
+/* Dream echoes: the tree briefly re-lives what it dreams of (Dream.tsx DreamEcho), every 30 s */
+@keyframes dream-echo { 0%, 100% { opacity: 0; } 7%, 20% { opacity: 0.45; } 27% { opacity: 0; } }
+.dream-echo { opacity: 0; animation: dream-echo 30s ease-in-out infinite both; }
+@keyframes dream-echo-restless { 0%, 100% { opacity: 0; } 4% { opacity: 0.4; } 8% { opacity: 0.05; } 13% { opacity: 0.3; } 17% { opacity: 0; } }
+.dream-echo-restless { animation-name: dream-echo-restless; animation-duration: 9s; }
 @keyframes dream-flash { 0%, 88%, 100% { opacity: 0.2; } 90%, 94% { opacity: 1; } }
 .dream-flash { animation: dream-flash 7s linear infinite; }
 .dream-rise, .dream-fall, .dream-sway, .dream-turn, .dream-breathe, .dream-grow, .dream-hover, .dream-walk { transform-box: fill-box; transform-origin: center; }
@@ -489,5 +494,6 @@
     animation: none !important;
   }
   .dream { opacity: 0.55; }
+  .dream-echo { display: none; }
   .dew-fall { opacity: 0; } /* a still frame shows no drop in mid-air */
 }

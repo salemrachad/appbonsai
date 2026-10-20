@@ -1954,6 +1954,26 @@ async function main() {
     const adds = every.every((f) => f.parts && Math.abs(Math.min(1, f.parts.intensity * f.parts.novelty + f.parts.recurrence + f.parts.company) - f.salience) <= 0.02);
     const minS = 0.2;
     const outOk = (busy.alsoRan ?? []).every((f) => (f.out === 'too faint') === (f.salience < minS)) && (busy.alsoRan ?? []).every((f) => !busy.motifs.some((m) => m.motif === f.motif && m.role === f.role));
+    // DR16: echoes: the tree re-lives what it dreams of with its own effects (only ones the avatar draws; the
+    // lingering motif first in a scene); only while dreaming; the tree's own look never changes
+    {
+      const { DREAM_ECHO, dreamEcho, expressBehaviour } = await import('../src/expression/ExpressionEngine');
+      const DRAWN = ['sparkles', 'heat_waves', 'hot_sun', 'bright_sun', 'snow', 'frost', 'mist', 'dry_wind', 'rain', 'puddle', 'cracks', 'drips', 'icicles', 'breath_vapor', 'pollen', 'night_mist', 'dew', 'fireflies', 'falling_leaves'];
+      const drawable = Object.values(DREAM_ECHO).every((fx) => fx.every((e) => DRAWN.includes(e)));
+      const scene = dreamEcho('squirrel', 'rain');
+      const dreaming = live('sleeping');
+      const deep = live('sleeping', [], mid.from - MIN);
+      const sb = a.state();
+      const xOf = (dream: typeof dreaming | undefined) => expressBehaviour({ behaviour: { ...sb.behaviour, dream }, health: sb.health, perception: sb.perception, now: a.clock });
+      const xd = xOf(dreaming);
+      const xn = xOf(undefined);
+      const look = (x: typeof xd) => JSON.stringify({ avatar: x.avatar, motion: x.motion, droop: x.leafDroop, scene: x.atmosphere.scene });
+      check(
+        'DR16 echoes: drawable effects only, lingering first in a scene, only while dreaming, the tree’s own look unchanged',
+        drawable && JSON.stringify(scene) === JSON.stringify([DREAM_ECHO.rain, DREAM_ECHO.squirrel]) && JSON.stringify(xd.dream?.echo) === JSON.stringify(dreamEcho(dreaming.motif, dreaming.with)) && (xd.dream?.echo.length ?? 0) > 0 && (xOf(deep).dream?.echo.length ?? 0) === 0 && look(xd) === look(xn),
+        `${dreaming.motif} → ${JSON.stringify(xd.dream?.echo)} · squirrel+rain → ${JSON.stringify(scene)}`
+      );
+    }
     check('DR15 every dream weight recomputes from its parts; each one left out says why', adds && outOk && busy.motifs.length > 0, `${every.map((f) => `${f.motif} ${f.salience}=${f.parts?.intensity}×${f.parts?.novelty}+${f.parts?.recurrence}+${f.parts?.company}${f.out ? ` (${f.out})` : ''}`).join(' · ')}`);
   }
 

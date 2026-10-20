@@ -760,6 +760,14 @@ never a claim of a mind (`behaviour/dreams.ts`, numbers in `APP_CONFIG.dreams`).
     falling upward, a dry wind, the squirrel's tail-curl, a paw print, boots...), with two small wisps rising
     to it from the crown; nothing in deep sleep (`avatar/Dream.tsx`, outside the tree's filters). Reduced
     motion: still and fainter.
+  - *echoes:* while it dreams, the tree's body now and then re-lives what it dreams of with its own effects:
+    the rain it drank (rain, drips), the dry wind it felt (dry wind, cracked soil), frost (frost, breath
+    vapour), sun, glare, deep water, mist, snow, sparkles for new shoots or a hand. Faint (about 45 %) and
+    short: about 8 s in every 30, the lingering motif's echo first in a scene, brief flickers when restless.
+    Effects only, drawn over the tree: never a filter, foliage tone, gesture, droop or face, which would read
+    as its real state or as waking. The visitors, Lucy, the boots and new soil have nothing on the tree that
+    fits, so the dream image carries them alone (`DREAM_ECHO` in `ExpressionEngine.ts`, `DreamEcho` in
+    `Dream.tsx`).
   - *words:* on waking, a dream worth telling (vivid enough, not restless) takes over the calm or dewy morning
     line: "I dreamt of rain." and, when it came back, "I dreamt of a dry wind again." (`morning_dream`,
     `morning_dream_again`; the words are in `messages.ts` `DREAM_WORDS`).
@@ -774,9 +782,9 @@ never a claim of a mind (`behaviour/dreams.ts`, numbers in `APP_CONFIG.dreams`).
   it was reached (intensity × novelty + recurrence + company) and reason, the ones left out and why, who sleeps
   beside it, the timeline (the phase playing now marked), last night's outcome and morning line, and the
   recurring worries.
-- **Tested:** `npm run test:behaviour` DR1-DR15 (grounded, diffraction, novelty, recurrence and fading,
+- **Tested:** `npm run test:behaviour` DR1-DR16 (grounded, diffraction, novelty, recurrence and fading,
   phases, company, restless, dreamless without data, the morning line, the diary, the real collector across a
-  restart in the night, isolation, combined scenes DR14, the weight breakdown DR15).
+  restart in the night, isolation, combined scenes DR14, the weight breakdown DR15, echoes DR16).
 - **Open:** whether a recurring worry should also show by day; dreams of the season turning; whether the other
   visitors should dream too (the sloth asleep on its branch).
 

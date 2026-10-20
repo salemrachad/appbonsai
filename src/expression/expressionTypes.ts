@@ -255,6 +255,9 @@ export interface DreamPresentation {
   phase: 'deep' | 'dreaming';
   motif: DreamMotif | null; // dreaming: what it is made of
   with: DreamMotif | null; // a combined scene: the motif before, lingering in this one
+  // Echoes: the tree's own effects for what it dreams, passing over it now and then (one list per motif, the
+  // lingering one first; empty = nothing on the tree fits)
+  echo: AvatarEffect[][];
   restless: boolean; // asleep under a stress: the image breaks off
   endsAt: number | null; // when this phase gives way
 }

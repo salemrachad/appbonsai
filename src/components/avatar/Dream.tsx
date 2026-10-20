@@ -1,5 +1,7 @@
 import type { DreamMotif } from '../../behaviour/behaviourTypes';
-import type { DreamPresentation } from '../../expression/expressionTypes';
+import type { AvatarEffect, AvatarPresentation, DreamPresentation } from '../../expression/expressionTypes';
+import { AvatarEffects, BodyDetails, ForegroundEffects, SoilEffects } from './AvatarEffects';
+import type { Palette } from './Foliage';
 import { isDreamAtmosphere } from '../../behaviour/messages';
 
 // The tree's dream while it sleeps (expression.dream; behaviour/dreams.ts decides what it is made of and when).
@@ -241,5 +243,28 @@ export function DreamDefs() {
       <stop offset="60%" stopColor="#B9B0F5" stopOpacity="0.2" />
       <stop offset="100%" stopColor="#B9B0F5" stopOpacity="0" />
     </radialGradient>
+  );
+}
+
+// Echoes: while it dreams, the tree's body now and then re-lives what it dreams of, with its own effects (the
+// rain it drank, the dry wind it felt), faint and short: in to ~45 % over 2 s, held 4 s, out 2 s, every 30 s;
+// in a combined scene the lingering motif's echo first, the new one half a cycle later. Restless: brief
+// flickers. Drawn over the tree, never instead of its look; effects it already shows are left out (no doubles).
+const NO_SEASON: AvatarPresentation['seasonalLeaves'] = { newGrowth: 0, yellowing: 0, leafDrop: 0 };
+export function DreamEcho({ dream, shown, palette, soil }: { dream: DreamPresentation | null; shown: AvatarEffect[]; palette: Palette; soil: AvatarPresentation['soil'] }) {
+  if (!dream || dream.phase !== 'dreaming' || !dream.echo?.length) return null;
+  const slots = dream.echo.map((fx) => fx.filter((e) => !shown.includes(e))).filter((fx) => fx.length);
+  if (!slots.length) return null;
+  return (
+    <g key={dream.key} pointerEvents="none" aria-hidden>
+      {slots.map((fx, i) => (
+        <g key={i} className={dream.restless ? 'dream-echo dream-echo-restless' : 'dream-echo'} style={{ animationDelay: `${3 + i * (dream.restless ? 4.5 : 15)}s` }}>
+          <AvatarEffects effects={fx} />
+          <SoilEffects effects={fx} soil={soil} />
+          <BodyDetails effects={fx} shielding={false} shaking={false} />
+          <ForegroundEffects effects={fx} palette={palette} seasonal={NO_SEASON} />
+        </g>
+      ))}
+    </g>
   );
 }
