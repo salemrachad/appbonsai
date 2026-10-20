@@ -2,7 +2,6 @@ import React from 'react';
 import { BonsaiAvatar } from '../components/avatar/BonsaiAvatar';
 import { HikePanel } from '../components/scene/HikePanel';
 import { OutsidePanel } from '../components/scene/OutsidePanel';
-import { TreeDiary } from '../components/scene/TreeDiary';
 import { WeatherForeground } from '../components/scene/WeatherForeground';
 import { WhyColumn } from '../components/scene/WhyColumn';
 import type { PlantBehaviourState } from '../behaviour/behaviourTypes';
@@ -28,15 +27,13 @@ interface HomeProps {
   air?: AirComparison | null; // inside vs outside by dew point
   hikePreview?: boolean; // the hike shown is a developer preview
   onChooseHike?: (day: string) => void; // a day chosen on the hike calendar
-  diaryKey?: string; // changes when the diary has something new (the Home diary reloads)
-  onOpenDiary?: () => void; // the full diary (History)
   // "Why": the explanation column on the left (written from the same state, src/explain/why.ts)
   perception?: PerceptionState | null;
   behaviour?: PlantBehaviourState | null;
 }
 
 // The companion screen: shows what the engines concluded, never recalculates it.
-export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null, hikePreview = false, onChooseHike, diaryKey, onOpenDiary, perception = null, behaviour = null }) => {
+export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null, hikePreview = false, onChooseHike, perception = null, behaviour = null }) => {
   const msg = expression?.message;
 
   return (
@@ -47,8 +44,6 @@ export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, 
         <BonsaiAvatar className="w-full h-full max-h-[620px]" expression={expression} onPetSession={onPetSession} />
         {/* Outside weather in front of the tree (fog drifting across it, rain falling past it) */}
         <WeatherForeground weather={expression?.atmosphere.weather} />
-        {/* The tree's diary as quiet chat bubbles (all of today's lines) */}
-        <TreeDiary reloadKey={diaryKey} onOpenDiary={onOpenDiary} />
       </div>
 
       <div className="flex flex-col gap-5">

@@ -390,7 +390,7 @@ export function renderMessage(r: RenderInput): { text: string; tip: string } {
   return { text, tip: tip.trim() };
 }
 
-// ---- The weekly hike, in the tree's voice (the diary bubble on Home) ----
+// ---- The weekly hike, in the tree's voice (the hike panel on Home) ----
 
 const HIKE_SAYS: Record<HikeQuality, string> = {
   great: '{Day} looks perfect for your hike.',

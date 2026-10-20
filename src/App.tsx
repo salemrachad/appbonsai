@@ -281,8 +281,6 @@ export default function App() {
         air={perception?.air ?? null}
         hikePreview={!!previews.hike}
         onChooseHike={chooseHike}
-        diaryKey={diaryKey}
-        onOpenDiary={() => setPanel('history')}
         perception={perception}
         behaviour={behaviour}
         // Inside vs outside only with the real sensor (in weather mode the 'inside' values ARE the outside estimate)

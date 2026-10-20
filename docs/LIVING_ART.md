@@ -459,9 +459,9 @@ read it.
   later, heat, gusts, strong sun, and when the light ends ("Best from 7:00 to 11:00: 15–19°, sunny and dry.
   Rain likely from 15:00, so don't start late. Light until 17:35."). Said with the choice and on the day.
 - **Art:** on hike day two pairs of hiking boots and their two water bottles stand together on the ground
-  right of the stand (`avatar/HikingBoots.tsx`). Home shows the plan as an entry of the tree's diary: quiet
-  chat bubbles over the top-left of the scene (`scene/TreeDiary.tsx`, collapsible), the hike pinned on top in
-  the tree's voice with its two days as chips (a 🌱 on its pick), today's latest diary lines below it.
+  right of the stand (`avatar/HikingBoots.tsx`). Home shows the plan in the hike panel (`scene/HikePanel.tsx`,
+  right column), its two days as chips (a 🌱 on its pick). The diary lives in History, no longer on Home
+  (2026-10-20).
 - **Tested:** `npm run test:scenarios` HK1–HK12.
 - **Open:** preferring weekends, and remembering hikes that happened in the diary.
 
@@ -827,7 +827,7 @@ never a claim of a mind (`behaviour/dreams.ts`, numbers in `APP_CONFIG.dreams`).
     line: "I dreamt of rain." and, when it came back, "I dreamt of a dry wind again." (`morning_dream`,
     `morning_dream_again`; the words are in `messages.ts` `DREAM_WORDS`).
   - *diary:* "Dreamt of a dry wind, rain and the sloth · after the long thirst", "A restless night. Dreamt
-    of...", "A dry wind came back in my dreams · 3 nights in a row"; moonlit bubbles on Home; "Dreams this
+    of...", "A dry wind came back in my dreams · 3 nights in a row"; "Dreams this
     week" in History.
 - **Boundaries:** health, vitality, latches, episodes, mood, energy, speech timing, the visitors, the canopy
   and the thoughts never read a dream (DR13; the owner's decision, 2026-10-19: art only, no mood nudge).
