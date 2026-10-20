@@ -11,8 +11,36 @@ import { ComfortRange, RelativeLightBand, SpeciesProfile } from './types';
 
 const TEMPERATURE: ComfortRange = { minCritical: 5, minWarning: 13, minOptimal: 18, maxOptimal: 28, maxWarning: 32, maxCritical: 38, unit: '°C' };
 const HUMIDITY: ComfortRange = { minCritical: 25, minWarning: 40, minOptimal: 50, maxOptimal: 75, maxWarning: 85, maxCritical: 98, unit: '%' };
-// PROTOTYPE: FC-28 % for this pot
-const SOIL: ComfortRange = { minCritical: 20, minWarning: 35, minOptimal: 45, maxOptimal: 80, maxWarning: 90, maxCritical: 98, unit: '%' };
+// The wet-to-dry cycle, from the owner's watering guidance (2026-10-20; evidence class: calibration + care
+// guidance for this pot). In raw FC-28 values: 4000 is bone dry, about 1500-2000 fully saturated; water when the
+// raw value climbs to about 3200-3400 (slightly dry about 1 cm below the surface); never keep it constantly
+// saturated, never let it dry out to 4000. The tree's scale is the soil calibration dry 4000 -> 0 %,
+// wet 500 -> 100 %: every soil threshold below is one of these raw anchors on that scale (soilPercent). If the
+// calibration changes, change SOIL_SCALE and the thresholds follow.
+export const SOIL_SCALE = { dryRaw: 4000, wetRaw: 500 } as const;
+export const soilPercent = (raw: number) => Math.round(((SOIL_SCALE.dryRaw - raw) / (SOIL_SCALE.dryRaw - SOIL_SCALE.wetRaw)) * 100);
+export const soilRaw = (percent: number) => Math.round(SOIL_SCALE.dryRaw - (percent / 100) * (SOIL_SCALE.dryRaw - SOIL_SCALE.wetRaw));
+const SOIL_RAW = {
+  veryDry: 3700, // past this for hours: very dry
+  dry: 3550,
+  thirsty: 3400, // past the watering window: thirsty (a stress)
+  ready: 3200, // 3200-3400: the right moment to water (calm, not a stress)
+  saturated: 1500, // a fresh drink reads up to here: fine
+  wet: 1250, // wetter than saturated, held for hours: waterlogged
+  flooded: 1000,
+} as const;
+// optimal = drying through its cycle, from saturated (71 %) down to the end of the watering window (17 %)
+const SOIL: ComfortRange = {
+  minCritical: soilPercent(SOIL_RAW.veryDry), // 9
+  minWarning: soilPercent(SOIL_RAW.dry), // 13
+  minOptimal: soilPercent(SOIL_RAW.thirsty), // 17
+  maxOptimal: soilPercent(SOIL_RAW.saturated), // 71
+  maxWarning: soilPercent(SOIL_RAW.wet), // 79
+  maxCritical: soilPercent(SOIL_RAW.flooded), // 86
+  unit: '%',
+};
+// The watering window: soil from minOptimal up to here is "ready for water" (calm: the right moment)
+const SOIL_READY_BELOW = soilPercent(SOIL_RAW.ready); // 23
 
 // PROTOTYPE: relative LDR % bands (NOT lux)
 const RELATIVE_LIGHT: RelativeLightBand[] = [
@@ -37,6 +65,9 @@ export const FICUS: SpeciesProfile = {
   temperature: TEMPERATURE,
   humidity: HUMIDITY,
   soilMoisture: SOIL,
+  // The wet-to-dry cycle (calibration + care guidance, see SOIL_SCALE): the watering window is calm, thirst
+  // starts past it; the mood follows where the soil is in its cycle
+  soilCycle: { readyBelow: SOIL_READY_BELOW, scale: SOIL_SCALE },
   relativeLight: RELATIVE_LIGHT,
   radiation: { minCritical: 20, minWarning: 80, minOptimal: 200, maxOptimal: 550, maxWarning: 750, maxCritical: 1100, unit: 'W/m²' },
   vpd: { minCritical: 0.1, minWarning: 0.4, minOptimal: 0.75, maxOptimal: 1.3, maxWarning: 1.85, maxCritical: 2.6, unit: 'kPa' },
@@ -87,8 +118,9 @@ export const FICUS: SpeciesProfile = {
   // Hysteresis: enter at one value after a while, leave at a different value after a while.
   // A few minutes past a threshold never changes the tree's state on its own.
   latches: {
-    thirsty: { direction: 'below', enter: SOIL.minWarning, exit: SOIL.minWarning + 5, enterAfterMin: 30 * MIN, exitAfterMin: 5 * MIN },
-    very_dry: { direction: 'below', enter: SOIL.minCritical, exit: SOIL.minCritical + 5, enterAfterMin: 2 * HOUR, exitAfterMin: 5 * MIN },
+    // Past the watering window (raw 3400) for half an hour; lets go once back inside it (raw ~3300)
+    thirsty: { direction: 'below', enter: SOIL.minOptimal, exit: SOIL.minOptimal + 3, enterAfterMin: 30 * MIN, exitAfterMin: 5 * MIN },
+    very_dry: { direction: 'below', enter: SOIL.minCritical, exit: SOIL.minCritical + 3, enterAfterMin: 2 * HOUR, exitAfterMin: 5 * MIN },
     too_wet: { direction: 'above', enter: SOIL.maxWarning, exit: SOIL.maxWarning - 5, enterAfterMin: 12 * HOUR, exitAfterMin: 30 * MIN },
     hot: { direction: 'above', enter: TEMPERATURE.maxWarning, exit: TEMPERATURE.maxWarning - 2, enterAfterMin: 30 * MIN, exitAfterMin: 20 * MIN },
     cold: { direction: 'below', enter: TEMPERATURE.minWarning, exit: TEMPERATURE.minWarning + 2, enterAfterMin: 45 * MIN, exitAfterMin: 20 * MIN },

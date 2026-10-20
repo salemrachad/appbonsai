@@ -125,6 +125,33 @@ const SKY_WORDS: Record<string, string> = {
 };
 const GREY_SKIES = ['overcast', 'fog', 'drizzle', 'rain', 'heavy_rain', 'snow', 'thunderstorm'];
 
+// Where the soil is in its wet-to-dry cycle, with the raw value the owner thinks in
+// (a reading to the nearest 10; the window's edges to the nearest 50, as the owner's guidance gives them)
+const rawOf = (i: WhyInput, pct: number, step = 10) => {
+  const { dryRaw, wetRaw } = i.species.soilCycle.scale;
+  return Math.round((dryRaw - (pct / 100) * (dryRaw - wetRaw)) / step) * step;
+};
+function cycleWords(i: WhyInput): string {
+  const soil = i.perception.readings.soilMoisture;
+  if (soil === null) return '';
+  const s = i.species.soilMoisture;
+  const ready = i.species.soilCycle.readyBelow;
+  const at = `${Math.round(soil)} % (raw about ${rawOf(i, soil)})`;
+  const window = `raw ${rawOf(i, ready, 50)}–${rawOf(i, s.minOptimal, 50)}`;
+  switch (i.behaviour.soilCycle) {
+    case 'ready':
+      return `The soil has dried to ${at}: inside the watering window (${window}), the right moment to water thoroughly. A ficus likes a wet-to-dry cycle; past raw ${rawOf(i, s.minOptimal, 50)} it would start to be thirsty.`;
+    case 'fresh':
+      return `It was watered not long ago: the soil is at ${at}, and will dry over the next days. That is the cycle a ficus likes.`;
+    case 'drying':
+      return `The soil is at ${at}, drying as it should. Wait to water until it reaches the window (${window}).`;
+    case 'saturated':
+      return `The soil is still saturated at ${at}. A ficus shouldn't stay that wet for long; let it dry before the next drink.`;
+    default:
+      return '';
+  }
+}
+
 // ---- the cards ----
 
 function nowCard(i: WhyInput): WhyCard {
@@ -144,9 +171,12 @@ function nowCard(i: WhyInput): WhyCard {
   if (c === 'sensor_uncertain') {
     title = 'Not sure right now';
     body = `It can't trust its readings at the moment${h.dataIssues[0] ? ` (${h.dataIssues[0].toLowerCase()})` : ''}. Rather than guess, it keeps the last state it was sure of until the readings make sense again.`;
+  } else if ((c === 'comfortable' || c === 'thriving') && b.soilCycle === 'ready') {
+    title = 'Ready for water';
+    body = `${cycleWords(i)} Its air and light are within what a ficus likes.`;
   } else if (c === 'comfortable') {
     title = `Comfortable since ${hhmm(since)}`;
-    body = 'Its soil, air and light are all within what a ficus likes.';
+    body = `Its soil, air and light are all within what a ficus likes. ${cycleWords(i)}`;
     if (b.afterglow && b.previousState) body += ` It came out of being ${CONDITION_LABELS[b.previousState].toLowerCase()} not long ago, so it is still a little subdued.`;
   } else if (c === 'thriving') {
     body = 'No stress at all, and its vitality has stayed above 90 for two hours or more: that is when it counts as thriving.';

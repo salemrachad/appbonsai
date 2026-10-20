@@ -107,7 +107,8 @@ async function run() {
       b.weather = weatherFor(i);
       await b.collector.pollWeather();
     }
-    soil = Math.max(0, soil - (i < 1800 ? 1.6 : 0.4) / 60);
+    // Dries 2 %/h for 30 h (62 → ~2 %): the watering window (~19 h), thirsty (~22 h), very dry (~28 h), then watered
+    soil = Math.max(0, soil - (i < 1800 ? 2 : 0.4) / 60);
     await b.poll(reading(i));
     if ((i + 1) % 60 === 0) checkpoints.push(checkpoint(`h${(i + 1) / 60}`));
     else fold();

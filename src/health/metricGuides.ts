@@ -6,13 +6,18 @@ import type { MetricGuide, MetricId, MetricTone } from './healthTypes';
 
 type Labels = [string, string, string, string, string, string, string];
 export const BAND_LABELS: Record<Exclude<MetricId, 'light'>, Labels> = {
-  soil: ['Very Dry', 'Thirsty', 'Okay', 'Good', 'Moist', 'Wet', 'Waterlogged'],
+  soil: ['Very Dry', 'Very thirsty', 'Thirsty', 'Good', 'Very wet', 'Wet', 'Waterlogged'],
   temperature: ['Freezing risk', 'Cold', 'Cool', 'Good', 'Warm', 'Hot', 'Too hot'],
   humidity: ['Very dry air', 'Dry air', 'Slightly dry', 'Good', 'Humid', 'Very humid', 'Saturated'],
   vpd: ['Very low', 'Low', 'Slightly low', 'Good', 'Slightly high', 'High', 'Very high'],
 };
 const TONES: MetricTone[] = ['alert', 'caution', 'info', 'good', 'info', 'caution', 'alert'];
 
+// A soil % back to the raw value on the scale the thresholds were set on
+const rawOf = (species: SpeciesProfile, percent: number) => {
+  const { dryRaw, wetRaw } = species.soilCycle.scale;
+  return Math.round((dryRaw - (percent / 100) * (dryRaw - wetRaw)) / 50) * 50; // to the nearest 50, as the guidance gives them
+};
 const dur = (min: number) => (min >= 60 ? `${Math.round((min / 60) * 10) / 10}h` : `${min} min`);
 const fmt = (n: number) => String(Math.round(n * 10) / 10);
 const toF = (c: number) => (c * 9) / 5 + 32;
@@ -46,6 +51,7 @@ export function metricGuide(
         best: `${s.minOptimal}–${s.maxOptimal}%`,
         bands: rangeBands(s, BAND_LABELS.soil, '%', opts.value),
         notes: [
+          `A wet-to-dry cycle: let it dry, then water thoroughly once it reaches ${s.minOptimal}–${species.soilCycle.readyBelow}% (raw ${rawOf(species, species.soilCycle.readyBelow)}–${rawOf(species, s.minOptimal)}), the right moment. Never keep it saturated, never let it dry out completely.`,
           latchLine('Thirsty', L.thirsty, '%'),
           latchLine('Very dry', L.very_dry, '%'),
           latchLine('Too wet', L.too_wet, '%'),

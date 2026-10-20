@@ -89,11 +89,11 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
 {
   const s = new Sim();
   s.run(at(9), 60, () => ({ soil: 60 }));
-  const one = s.step(at(10), { soil: 15 });
+  const one = s.step(at(10), { soil: 5 });
   check('A1 one dry reading is not critical', !['very_dry', 'thirsty'].includes(one.h.condition), show(one));
-  const thirty = s.run(at(10, 1), 31, () => ({ soil: 15 }));
+  const thirty = s.run(at(10, 1), 31, () => ({ soil: 5 }));
   check('A2 thirsty after ~30 min', thirty.h.condition === 'thirsty', show(thirty));
-  const twoh = s.run(at(10, 32), 100, () => ({ soil: 15 }));
+  const twoh = s.run(at(10, 32), 100, () => ({ soil: 5 }));
   check('A3 very_dry only after ~2h', twoh.h.condition === 'very_dry', show(twoh));
   console.log('   vitality path:', one.h.vitality, '→', thirty.h.vitality, '→', twoh.h.vitality);
 
@@ -369,7 +369,7 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   const hotOnly = hot.run(at(10), 3 * 60, () => ({ soil: 60, temp: 35 }));
   const both = new Sim();
   both.run(at(9), 60, () => ({ soil: 60 }));
-  const hd = both.run(at(10), 3 * 60, () => ({ soil: 28, temp: 35 }));
+  const hd = both.run(at(10), 3 * 60, () => ({ soil: 14, temp: 35 }));
   check('F1 sustained heat + dry soil → hot_and_dry', hd.h.condition === 'hot_and_dry', show(hd));
   check('F2 stronger than heat alone', hd.h.vitality < hotOnly.h.vitality - 5, `hot only ${show(hotOnly)} vs ${show(hd)}`);
   check('F3 stronger expression', hd.b.expressionIntensity > hotOnly.b.expressionIntensity, `${hotOnly.b.expressionIntensity} vs ${hd.b.expressionIntensity}`);
@@ -378,7 +378,7 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
 // G. Watering while thirsty → relief
 {
   const s = new Sim();
-  s.run(at(9), 90, () => ({ soil: 28 }));
+  s.run(at(9), 90, () => ({ soil: 14 }));
   check('G0 thirsty before watering', s.health.condition === 'thirsty', show({ h: s.health }));
   s.water(at(10, 30), 28, 72);
   const o = s.step(at(10, 31), { soil: 72 });
@@ -508,11 +508,11 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   const s = new Sim();
   s.run(at(9), 60, () => ({ soil: 60 }));
   s.transitions = 0;
-  const o = s.run(at(10), 6 * 60, (i) => ({ soil: i % 2 ? 34.9 : 35.1 }));
-  check('K hovering 34.9/35.1 for 6h: ≤1 transition', s.transitions <= 1, `${s.transitions} transitions, ends ${show(o)}`);
+  const o = s.run(at(10), 6 * 60, (i) => ({ soil: i % 2 ? 16.9 : 17.1 }));
+  check('K hovering 16.9/17.1 for 6h: ≤1 transition', s.transitions <= 1, `${s.transitions} transitions, ends ${show(o)}`);
   s.transitions = 0;
-  const o2 = s.run(at(16), 60, (i) => ({ soil: i % 2 ? 36 : 39 }));
-  check('K2 between enter (35) and exit (40): stays thirsty', o2.h.condition === 'thirsty' && s.transitions === 0, show(o2));
+  const o2 = s.run(at(16), 60, (i) => ({ soil: i % 2 ? 18 : 19 }));
+  check('K2 between enter (17) and exit (20): stays thirsty', o2.h.condition === 'thirsty' && s.transitions === 0, show(o2));
 }
 
 // HK. The weekly hike: the best forecast day of the week, moved by the forecast until it arrives, then locked
@@ -657,6 +657,37 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   }
 }
 
+// CY. The wet-to-dry cycle (the owner's watering guidance, raw 4000 dry → 500 wet): water at raw 3200–3400;
+// the window is calm, thirst starts past it; the mood follows where the soil is in its cycle
+{
+  const { soilPercent, soilRaw } = await import('../src/species/ficus');
+  const { explainTree } = await import('../src/explain/why');
+  const s = FICUS.soilMoisture;
+  check('CY1 the thresholds are the raw anchors on the 4000/500 scale (3400 thirsty, 3200 ready, 3700 very dry, 1500 saturated)',
+    soilPercent(4000) === 0 && soilPercent(500) === 100 && s.minOptimal === soilPercent(3400) && FICUS.soilCycle.readyBelow === soilPercent(3200) && s.minCritical === soilPercent(3700) && s.maxOptimal === soilPercent(1500) && FICUS.latches.thirsty.enter === soilPercent(3400) && soilRaw(soilPercent(2800)) === 2810,
+    `thirsty < ${s.minOptimal} %, ready < ${FICUS.soilCycle.readyBelow} %, very dry < ${s.minCritical} %, saturated ≤ ${s.maxOptimal} %; raw 2800 ≈ ${soilPercent(2800)} %`);
+  const w = new Sim();
+  w.run(at(9), 60, () => ({ soil: 60 }));
+  const ready = w.run(at(10), 90, () => ({ soil: 20 }));
+  const soilMetric = ready.h.metrics.find((m) => m.id === 'soil')!;
+  check('CY2 the watering window (raw ~3300): calm, not thirsty; patient, "ready for water", no concern',
+    ['comfortable', 'thriving'].includes(ready.h.condition) && ready.b.soilCycle === 'ready' && ready.b.messageIntent === 'ready_for_water' && !ready.b.concern && soilMetric.status === 'Ready for water' && /drink|water/.test(ready.x.message.text),
+    `${show(ready)} · ${ready.b.mood} · ${soilMetric.status} · "${ready.x.message.text}"`);
+  const past = w.run(at(11, 30), 60, () => ({ soil: 14 }));
+  check('CY3 past the window (raw ~3510) for half an hour: thirsty', past.h.condition === 'thirsty', show(past));
+  // The mood follows the cycle: a fresh drink warms, drying settles, the window is a quiet expectancy
+  const nudge = (o: ReturnType<Sim['run']>) => o.b.moodState.influences.find((x) => x.source === 'soil');
+  const fresh = new Sim();
+  fresh.run(at(9), 60, () => ({ soil: 60 }));
+  const dryingO = fresh.run(at(10), 30, () => ({ soil: 50 }));
+  const fd = nudge(dryingO);
+  const rd = nudge(ready);
+  check('CY4 the mood follows the cycle: drying as it should (a little warmer), ready (livelier, waiting)', !!fd && fd.v > 0 && /drying as it should/.test(fd.why) && !!rd && rd.a > 0 && /ready/.test(rd.why), `drying: ${fd?.why} (${fd?.v}) · ready: ${rd?.why} (a ${rd?.a})`);
+  const cards = explainTree({ perception: ready.p, health: ready.h, behaviour: ready.b, expression: ready.x, species: FICUS, now: at(11, 30) });
+  const now = cards.find((c) => c.id === 'now')!;
+  check('CY5 the Why speaks the cycle in raw values (the window raw 3200–3400)', now.title === 'Ready for water' && /raw 3200–3400/.test(now.body) && /raw about 3300/.test(now.body), `${now.title}: ${now.body}`);
+}
+
 // WH. "Why": the narrator explains every state in plain words from the engines' own conclusions
 {
   const { explainTree } = await import('../src/explain/why');
@@ -675,12 +706,12 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   check('WH1 every preset is explained: a "now" card, and no undefined, NaN, null or code identifiers in the words', bad.length === 0, bad.map((r) => `${r.id}: ${r.cards.map((c) => `${c.title} / ${c.body}`).join(' | ')}`).join(' ‖ ') || `${all.length} presets`);
   const dry = new Sim();
   dry.run(at(9), 60, () => ({ soil: 60 }));
-  const thirsty = dry.run(at(10), 60, () => ({ soil: 30 }));
+  const thirsty = dry.run(at(10), 60, () => ({ soil: 14 }));
   const now1 = why(thirsty, at(11)).find((c) => c.id === 'now')!;
-  check('WH2 thirsty: names the soil now and the species thresholds (35 to enter, 40 to let go)', thirsty.h.condition === 'thirsty' && /30 %/.test(now1.body) && /35 %/.test(now1.body) && /40 %/.test(now1.body), `${now1.title}: ${now1.body}`);
+  check('WH2 thirsty: names the soil now and the species thresholds (17 to enter, 20 to let go)', thirsty.h.condition === 'thirsty' && /14 %/.test(now1.body) && /17 %/.test(now1.body) && /20 %/.test(now1.body), `${now1.title}: ${now1.body}`);
   const pend = new Sim();
   pend.run(at(9), 60, () => ({ soil: 60 }));
-  const crossing = pend.run(at(10), 10, () => ({ soil: 33 }));
+  const crossing = pend.run(at(10), 10, () => ({ soil: 16 }));
   const watching = why(crossing, at(10, 10)).find((c) => c.id === 'watching');
   check('WH3 a threshold crossed but not for long enough: what it is watching, and how long until it counts', crossing.h.condition === 'comfortable' && !!watching && /thirsty/.test(watching.body) && /more/.test(watching.body), watching?.body ?? 'none');
   const out = new Sim();

@@ -15,6 +15,7 @@ type Lines = string[];
 export const MESSAGE_CATALOG: Record<string, Lines> = {
   joy: ["I'm thriving. Everything feels just right. 🌿", 'Bright, steady, happy. 🌿', 'This is a good day to grow. 🌱'],
   content: ['I feel comfortable and content. 🍃', 'All calm here. 🍃', "I'm doing well. 🍃", 'A quiet, comfortable moment. 🍃'],
+  ready_for_water: ['Ready for a drink whenever you are. 💧', 'My soil has dried nicely. A good moment to water. 💧', 'Dry enough now. This is the right time for water. 💧'],
   afterglow: ['Feeling more like myself again. 🍃', 'Back to calm. That feels good. 🍃', 'Settled again, finally. 🍃'],
   watchful: ["I'm okay for now, but {concern}. 🍃", 'Mostly fine, though {concern}. 🍃', 'Nothing serious yet, but {concern}. 🍃'],
 
@@ -61,6 +62,7 @@ const TIPS: Partial<Record<MessageIntent, string>> = {
   joy: 'All measured conditions have been in the comfort zone for a while.',
   content: 'Conditions are steady and within a healthy range.',
   afterglow: 'Conditions are good again; the tree is still settling after the last stress.',
+  ready_for_water: 'The soil has dried through its cycle to the watering window (raw about 3200–3400). Water thoroughly now, until it drains; then let it dry again.',
   watchful: "Not a problem yet; I'll say so if it lasts.",
   thirst: 'Check the top 2 cm of soil and water thoroughly if dry.',
   very_dry: 'Water slowly and deeply; a very dry pot can shed water at first.',

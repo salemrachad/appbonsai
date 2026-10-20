@@ -64,7 +64,7 @@ async function main() {
   {
     const b = new Bench();
     await b.boot();
-    await b.run(45, () => ({ soil: 30 }));
+    await b.run(45, () => ({ soil: 14 }));
     const before = b.state().health.condition;
     await b.poll({ soil: 75 });
     await b.poll({ soil: 76 });
@@ -76,7 +76,7 @@ async function main() {
     check('W5 real watering: exactly one event (second pour = same session)', w.length === 1, `${w.length} events`);
     check(
       'W5 evidence stored',
-      m?.source === 'sensor' && m.moistureBefore === 30 && m.moistureAfter === 86 && m.rawBefore != null && m.rawAfter != null && m.confirmationReadings === 1 && m.detectionMethod === 'single_jump' && m.accumulatedRise === 46 && m.risingReadings === 1,
+      m?.source === 'sensor' && m.moistureBefore === 14 && m.moistureAfter === 86 && m.rawBefore != null && m.rawAfter != null && m.confirmationReadings === 1 && m.detectionMethod === 'single_jump' && m.accumulatedRise === 62 && m.risingReadings === 1,
       JSON.stringify(m)
     );
     check('W5 condition before recorded (thirsty)', before === 'thirsty' && m?.conditionBefore === 'thirsty', `${before} / ${m?.conditionBefore}`);
@@ -197,12 +197,12 @@ async function main() {
   {
     const b = new Bench();
     await b.boot();
-    await b.run(100, () => ({ soil: 30 }));
+    await b.run(100, () => ({ soil: 14 }));
     const dryBefore = b.state().health.stress.dryHours;
     const vBefore = b.state().health.vitality;
     await b.run(3, () => null);
     const during = b.state().health;
-    await b.run(3, () => ({ soil: 30 }));
+    await b.run(3, () => ({ soil: 14 }));
     const eps = b.episodes();
     check('C1 Wi-Fi outage while thirsty: state held + overlay', during.condition === 'thirsty' && during.modifiers.includes('sensor_uncertain') && during.observation.status === 'unobserved', `${during.condition} +${during.modifiers}`);
     check('C1b vitality frozen during the outage', during.breakdown.frozen && during.vitality === vBefore);
@@ -216,7 +216,7 @@ async function main() {
   {
     const b = new Bench();
     await b.boot();
-    await b.run(45, () => ({ soil: 30 }));
+    await b.run(45, () => ({ soil: 14 }));
     await b.run(30, () => ({ soil: 70 }));
     const rec = b.state().health;
     await b.run(10, () => null);
@@ -232,7 +232,7 @@ async function main() {
   {
     const b = new Bench();
     await b.boot();
-    await b.run(100, () => ({ soil: 30 }));
+    await b.run(100, () => ({ soil: 14 }));
     const before = b.state().health;
     const openBefore = b.db.openEpisode();
     b.collector.stop();
@@ -250,7 +250,7 @@ async function main() {
   {
     const b = new Bench();
     await b.boot();
-    await b.run(45, () => ({ soil: 30 }));
+    await b.run(45, () => ({ soil: 14 }));
     await b.run(40, () => ({ soil: 70 }));
     const before = b.state().health;
     b.collector.stop();
@@ -265,7 +265,7 @@ async function main() {
   {
     const b = new Bench();
     await b.boot();
-    await b.run(100, () => ({ soil: 30 }));
+    await b.run(100, () => ({ soil: 14 }));
     const before = b.state().health;
     b.collector.stop();
     b.clock += 8 * HOUR; // PC off overnight
@@ -283,7 +283,7 @@ async function main() {
   {
     const b = new Bench();
     await b.boot();
-    await b.run(100, () => ({ soil: 30 }));
+    await b.run(100, () => ({ soil: 14 }));
     await b.run(40, () => null);
     const long = b.state().health;
     await b.run(5, () => ({ soil: 30 }));
@@ -382,14 +382,14 @@ async function main() {
     const b = new Bench();
     b.usePush();
     await b.boot();
-    b.pushRun(100, () => ({ soil: 30 }));
+    b.pushRun(100, () => ({ soil: 14 }));
     b.pushRun(1, () => null);
     const quiet = b.collector.collectorStatus();
     b.pushRun(1, () => null);
     const overdue = b.collector.collectorStatus();
     b.pushRun(38, () => null);
     const long = b.state().health;
-    b.pushRun(5, () => ({ soil: 30 }));
+    b.pushRun(5, () => ({ soil: 14 }));
     check('PU7 one missed minute is within the grace', quiet.lastError === null && quiet.consecutiveFailures === 0);
     check('PU7b an overdue push counts as a failed poll', overdue.lastError !== null && overdue.consecutiveFailures === 1, `${overdue.lastError}`);
     check('PU7c device off > 30 min: sensor_uncertain becomes primary (as in pull mode)', long.condition === 'sensor_uncertain', long.condition);
@@ -400,15 +400,15 @@ async function main() {
     const b = new Bench();
     b.usePush();
     await b.boot();
-    b.pushRun(100, () => ({ soil: 30 }));
-    b.pushRun(20, () => ({ soil: 29 }), { offline: true }); // Wi-Fi down: measured and kept
+    b.pushRun(100, () => ({ soil: 14 }));
+    b.pushRun(20, () => ({ soil: 13 }), { offline: true }); // Wi-Fi down: measured and kept
     const held = b.state().health;
-    const res = b.push({ soil: 29 });
+    const res = b.push({ soil: 13 });
     const rows = b.db.telemetrySince(null, START + 100 * MIN + 1);
     const spaced = rows.every((r, i) => i === 0 || r.timestamp - rows[i - 1].timestamp === MIN);
     check('PU8 Wi-Fi outage: held as uncertain while nothing arrives', held.modifiers.includes('sensor_uncertain') || held.condition === 'sensor_uncertain', `${held.condition} +${held.modifiers}`);
     check('PU8b the buffered readings arrive in one request, each at the minute it was measured', res?.body.ok === true && res.body.accepted === 21 && rows.length === 21 && spaced, `${rows.length} rows, spaced ${spaced}, ${JSON.stringify(res?.body)}`);
-    check('PU8c the live state continues from the newest', b.state().health.condition === 'thirsty' && b.state().perception.readings.soilMoisture === 29, cond(b));
+    check('PU8c the live state continues from the newest', b.state().health.condition === 'thirsty' && b.state().perception.readings.soilMoisture === 13, cond(b));
     check('PU8d the outage stays unobserved time (not rewritten as thirst)', b.state().health.stress.dryHours < held.stress.dryHours + 0.1, `${held.stress.dryHours.toFixed(2)}h → ${b.state().health.stress.dryHours.toFixed(2)}h`);
   }
 
@@ -775,7 +775,7 @@ async function main() {
     const c = new Bench();
     await c.boot();
     await c.run(60, () => ({ soil: 60 }));
-    await c.run(120, () => ({ soil: 30 }));
+    await c.run(120, () => ({ soil: 14 }));
     const live = c.state().health;
     c.db.setMeta('health_memory', { engineVersion: 'older-engine', source: 'esp32_sensor', memory: c.db.getMeta<any>('health_memory').memory });
     const evs = c.db.eventsSince(0).length;

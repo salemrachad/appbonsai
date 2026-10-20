@@ -2,6 +2,7 @@ import type { HealthCondition, HealthModifier } from '../health/healthTypes';
 import type { PlantEventType } from '../history/historyTypes';
 import type { Season } from '../perception/season';
 import type { SeasonRule } from '../species/types';
+import type { SoilCyclePhase } from './soilCycle';
 import type { YogaPlan } from './yoga';
 import type { HikePlan } from './hike';
 
@@ -28,6 +29,7 @@ export type MessageIntent =
   | 'joy'
   | 'content'
   | 'afterglow' // comfortable again shortly after a stress
+  | 'ready_for_water' // comfortable, the soil dried through its cycle to the watering window: the right moment
   | 'watchful' // fine overall, but one reading is outside its comfort range (not a condition yet)
   | 'thirst'
   | 'very_dry'
@@ -267,7 +269,7 @@ export interface MoodMemory {
   at: number;
 }
 export interface MoodInfluence {
-  source: 'health' | 'environment' | 'petting' | 'care' | 'visitors' | 'weather';
+  source: 'health' | 'environment' | 'soil' | 'petting' | 'care' | 'visitors' | 'weather';
   v: number; // valence contribution
   a: number; // arousal contribution
   why: string;
@@ -503,6 +505,7 @@ export interface PlantBehaviourState {
   twilight: { event: 'sunrise' | 'sunset' | null; minutes: number | null };
   hike?: HikePlan; // the week's hike pick (about the people, nothing reads it back; absent without a forecast)
   yoga?: YogaPlan; // the week's two yoga days (about the people, nothing reads it back; absent without a forecast)
+  soilCycle?: SoilCyclePhase | null; // where the soil is in its wet-to-dry cycle (behaviour/soilCycle.ts)
   dream?: DreamState; // the night's dream (art: nothing reads it back; absent from older saved states)
   reasons: string[]; // why the engine chose this behaviour (developer panel)
   evaluatedAt: number;

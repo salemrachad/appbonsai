@@ -68,12 +68,12 @@ async function main() {
     const l = new Listener(b);
     await l.run(60, () => day());
     l.reset();
-    await l.run(40, () => ({ soil: 30 }));
+    await l.run(40, () => ({ soil: 14 }));
     const thirstLines = l.spoken.filter((s) => s.key.startsWith('thirst'));
     check('S2 becoming thirsty: one mild line', thirstLines.length === 1 && thirstLines[0].key === 'thirst:mild', l.keys());
     const early = b.state();
     l.reset();
-    await l.run(5 * 60, () => ({ soil: 30 }));
+    await l.run(5 * 60, () => ({ soil: 14 }));
     const late = b.state();
     check('S3 thirsty 5h: escalates mild → moderate → strong', l.keys().includes('thirst:moderate') && l.keys().includes('thirst:strong'), l.keys());
     check('S3b not repeated every poll (≤ 3 lines in 5h)', l.spoken.length <= 3, `${l.spoken.length} lines in ${l.polls} polls`);
@@ -155,7 +155,7 @@ async function main() {
     b.clock = at(16, 18, 0);
     await b.boot();
     const l = new Listener(b);
-    await l.run(150, (i) => ({ soil: 30, light: i < 100 ? 30 : 0 })); // thirsty into the evening
+    await l.run(150, (i) => ({ soil: 14, light: i < 100 ? 30 : 0 })); // thirsty into the evening
     b.collector.logEvent('watering', 'late watering', b.clock);
     await l.run(9 * 60, () => ({ soil: 70, light: 0 }));
     l.reset();
@@ -204,7 +204,7 @@ async function main() {
   {
     const b = new Bench();
     await b.boot();
-    await b.run(100, () => ({ soil: 30 }));
+    await b.run(100, () => ({ soil: 14 }));
     const s = b.state();
     const input = { health: s.health, perception: s.perception, episodes: b.db.episodesSince(0), events: [], species: (await import('../src/species')).ACTIVE_SPECIES, now: b.clock };
     const before = evaluateBehaviour(input);
@@ -227,7 +227,7 @@ async function main() {
     await calm.run(6 * 60, () => day());
     const hard = new Bench();
     await hard.boot();
-    await hard.run(200, () => ({ soil: 15 })); // very dry
+    await hard.run(200, () => ({ soil: 5 })); // very dry
     await hard.run(7 * 60, () => ({ soil: 70 })); // recover
     const a = calm.state();
     const z = hard.state();
@@ -245,7 +245,7 @@ async function main() {
     const petted = new Bench();
     await plain.boot();
     await petted.boot();
-    const script = (i: number): Reading => (i < 60 ? day() : i < 240 ? { soil: 30 } : { soil: 65 });
+    const script = (i: number): Reading => (i < 60 ? day() : i < 240 ? { soil: 14 } : { soil: 65 });
     for (let i = 0; i < 300; i++) {
       await plain.poll(script(i));
       if (i % 7 === 0) petted.collector.recordInteraction({ kind: 'pet', startedAt: petted.clock - 40_000, endedAt: petted.clock, count: 4, activeMs: 30_000 });
@@ -280,7 +280,7 @@ async function main() {
     await b.boot();
     await b.run(60, () => day());
     const calm = b.state().expression.touch;
-    await b.run(60, () => ({ soil: 30 }));
+    await b.run(60, () => ({ soil: 14 }));
     const thirsty = b.state();
     await b.run(5, () => null);
     const unsure = b.state();
@@ -343,7 +343,7 @@ async function main() {
       c1.familiarity >= 0.8 && c0.familiarity === 0 && c1.kind === c0.kind && c1.give > c0.give && c1.give <= Math.min(1, c0.give * 1.25 + 0.01) && c1.stiffness < c0.stiffness,
       `give ${c0.give} → ${c1.give}, stiffness ${c0.stiffness} → ${c1.stiffness}`
     );
-    const [t0, t1] = await both(60, () => ({ soil: 30 }));
+    const [t0, t1] = await both(60, () => ({ soil: 14 }));
     check('F5 thirsty: identical answer at full familiarity', JSON.stringify(t0) === JSON.stringify(t1) && t1.kind === 'dry_rustle', `${t1.kind} f${t1.familiarity}`);
     const [u0, u1] = await both(5, () => null);
     check('F6 no trustworthy data: identical muted answer at full familiarity', JSON.stringify(u0) === JSON.stringify(u1) && u1.kind === 'muted');
@@ -378,7 +378,7 @@ async function main() {
       const b = new Bench();
       b.weather = code === null ? null : { code, temp, gusts: 60 };
       await b.boot();
-      await b.run(240, (i) => (i < 120 ? day() : { soil: 30 }));
+      await b.run(240, (i) => (i < 120 ? day() : { soil: 14 }));
       await b.collector.pollWeather(); // the bench has no weather timer: refresh it (it goes stale after an hour)
       return b.state();
     };
@@ -519,7 +519,7 @@ async function main() {
     const lt = new Listener(t);
     await lt.run(30, () => day());
     lt.reset();
-    await lt.run(120, () => ({ soil: 30 }));
+    await lt.run(120, () => ({ soil: 14 }));
     check('O5 a thirsty tree talks about its thirst, not the weather', !lt.spoken.some((s) => /rain/i.test(s.text)), lt.keys());
 
     const { weatherSpells } = await import('../src/history/diary');
@@ -995,7 +995,7 @@ async function main() {
     const lt = new Listener(t);
     await lt.run(60, () => day());
     lt.reset();
-    await lt.run(6 * 60, () => ({ soil: 30 }));
+    await lt.run(6 * 60, () => ({ soil: 14 }));
     check('T4 thirsty: no thoughts of the day', !lt.spoken.some((x) => x.reason.startsWith('a thought')) && t.state().behaviour.voice.budget === 0, lt.keys());
 
     // Energy decides how much it has to say: summer thriving vs winter rest (pure)
@@ -1074,7 +1074,7 @@ async function main() {
       thoughtsIf({ readings: { soilMoisture: 60 }, lastWateredAgo: 5 * HOUR }).includes('settled_after_drink') &&
         !thoughtsIf({ readings: { soilMoisture: 60 }, lastWateredAgo: HOUR }).includes('settled_after_drink') &&
         !thoughtsIf({ readings: { soilMoisture: 60 }, lastWateredAgo: 30 * HOUR }).includes('settled_after_drink') &&
-        !thoughtsIf({ readings: { soilMoisture: 30 }, lastWateredAgo: 5 * HOUR }).includes('settled_after_drink')
+        !thoughtsIf({ readings: { soilMoisture: 14 }, lastWateredAgo: 5 * HOUR }).includes('settled_after_drink')
     );
   }
 
@@ -1432,7 +1432,7 @@ async function main() {
     const calm = calmB.state();
     const dryB = new Bench();
     await dryB.boot();
-    await dryB.run(120, (i) => (i < 30 ? day() : { soil: 28 }));
+    await dryB.run(120, (i) => (i < 30 ? day() : { soil: 14 }));
     const dry = dryB.state();
     type St = typeof calm;
     const now = calm.behaviour.evaluatedAt;

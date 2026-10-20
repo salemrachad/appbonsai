@@ -49,7 +49,7 @@ Its history (**caretaker-reported**, not recorded in the database):
 - Organic, moisture-retentive soil; watering, fertilizing and seasonal change have all been part of its care.
 
 The lesson this history teaches, and the core of the design: **a plant's condition cannot be read from one
-sensor value. Its history matters.** A soil reading of 35 % means different things depending on what it was
+sensor value. Its history matters.** A soil reading of 20 % means different things depending on what it was
 before, how long it has been dry, a recent watering, temperature, season, whether the probe is trustworthy, and
 how this particular pot is calibrated.
 
@@ -65,6 +65,7 @@ how this particular pot is calibrated.
 | **Seasonal** growth and water demand change. | science | [Partial] Season is perceived (`perception/season.ts`) and expressed in all three layers, but deliberately **does not change health or thresholds**: `seasons[*].waterNeed` is informational only. |
 | Pruning response follows **apical dominance and bud activation**, and shows over days to weeks. | science | [Partial] Pruning gives a 3-day "calm" and a 21-day context window; pruning in the growing season gets a "new shoots" reaction. No model of bud break timing or where shoots appear. |
 | A visible response can lag an event by **days or weeks**. | science | [Partial] Care context fades over 2–21 days (`perception/careContext.ts`). Nothing schedules a *later* visible response (e.g. new leaves weeks after moving to brighter light). |
+| A ficus wants a **wet-to-dry cycle**: watered thoroughly, left to dry, watered again when slightly dry about 1 cm down; never kept saturated, never dried out. | care guidance + calibration | [Implemented, 2026-10-20] The owner's guidance in raw FC-28 values (4000 bone dry, ~1500-2000 saturated, water at 3200-3400) sets every soil threshold on the calibration dry 4000 → 0 %, wet 500 → 100 % (`ficus.ts` `SOIL_SCALE`). The watering window (raw 3200-3400, 23-17 %) is a calm "ready for water", not a stress; thirst starts past raw 3400, very dry past 3700; the mood follows where the soil is in its cycle (`behaviour/soilCycle.ts`). Scenarios CY1-CY5. |
 | **Missing or unreliable data is not good health.** | science + design | [Implemented] Stale or suspect data freezes latches and vitality and shows `sensor_uncertain` ("Last known · Paused"); suspect sensors are excluded from health (`telemetry/dataQuality.ts`, continuity policy in CLAUDE.md). |
 | Thresholds here are local and provisional. | calibration | [Open] Every soil/light number in `ficus.ts` is marked PROTOTYPE and still needs tuning against real dry/wet pot readings and real balcony light. |
 
@@ -477,7 +478,7 @@ never as the tree's own speech, which stays sparse and in its voice (`messages.t
   recalculated, and no engine or server reads it.
 - **Third person, plain words, only true things:** a card appears only when there is something to say. The
   thresholds come from the species profile, so it says exactly what the engines do: "When the soil stays below
-  35 % for 30 minutes, it counts as thirsty; it lets go once the soil is back above 40 % for 5 minutes."
+  17 % for 30 minutes, it counts as thirsty; it lets go once the soil is back above 20 % for 5 minutes."
 - **The cards, most important first:**
   - how it is now and why, with its stage of recovery;
   - what it is watching (a line crossed, not for long enough yet, and how long until it counts);

@@ -70,7 +70,9 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
       value: r.soilMoisture,
       display: `${r.soilMoisture}%`,
       unit: '%',
-      ...band(r.soilMoisture, s, ['Very Dry', 'Thirsty', 'Okay', 'Good', 'Moist', 'Wet', 'Waterlogged']),
+      ...band(r.soilMoisture, s, ['Very Dry', 'Very thirsty', 'Thirsty', 'Good', 'Very wet', 'Wet', 'Waterlogged']),
+      // The watering window: dried through its cycle to the right moment (calm, never a concern)
+      ...(r.soilMoisture >= s.minOptimal && r.soilMoisture < species.soilCycle.readyBelow ? { status: 'Ready for water', tone: 'info' as const } : {}),
       idealRange: `${s.minOptimal}–${s.maxOptimal}%`,
       estimated,
     });

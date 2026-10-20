@@ -26,6 +26,7 @@ import type {
 import { evaluateMood } from './mood';
 import { evaluateCanopy } from './canopy';
 import { evaluateDreams } from './dreams';
+import { soilCyclePhase } from './soilCycle';
 import { evaluateDragonfly } from './dragonfly';
 import { evaluateSloth } from './sloth';
 import { evaluateLucy, lucyDayVisits } from './lucy';
@@ -442,6 +443,9 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
 
   // ---- Mood ----
   const concern = condition === 'comfortable' ? findConcern(health) : null;
+  // Where the soil is in its wet-to-dry cycle: the watering window is a calm, patient moment, not a stress
+  const soilCycle = soilCyclePhase(perception.readings.soilMoisture, species, events, now);
+  const ready = (condition === 'comfortable' || condition === 'thriving') && !concern && soilCycle === 'ready';
   let mood: Mood;
   if (condition === 'sensor_uncertain') mood = 'confused';
   else if (condition === 'sleeping') mood = 'sleepy';
@@ -452,6 +456,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   else if (STRESS_MOOD[condition]) mood = STRESS_MOOD[condition]![tier];
   else if (concern) mood = health.metrics.some((m) => m.tone === 'alert') ? 'uneasy' : 'watchful';
   else if (care.recentMove && care.recentMove.ageHours < 6 && condition === 'comfortable') mood = 'watchful'; // taking in the new spot
+  else if (ready && condition === 'comfortable') mood = 'patient'; // dried to the watering window: waiting for its drink, calmly
   else if (afterglow && glow < 0.5) mood = 'relieved';
   else if (energy < 0.45) mood = 'tired';
   else mood = 'content';
@@ -484,7 +489,8 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
 
   // ---- Message intent (structured; wording is chosen later) ----
   let messageIntent: MessageIntent = INTENT[condition];
-  if (condition === 'comfortable') messageIntent = concern ? 'watchful' : afterglow ? 'afterglow' : 'content';
+  if (condition === 'comfortable') messageIntent = concern ? 'watchful' : afterglow ? 'afterglow' : ready ? 'ready_for_water' : 'content';
+  if (condition === 'thriving' && ready) messageIntent = 'ready_for_water'; // thriving, and dried to the right moment for water
   if (reaction) messageIntent = reaction.kind;
 
   // ---- Time-of-day line (spoken at most once a day; the speech policy decides) ----
@@ -604,6 +610,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     twilight,
     ...(hike ? { hike } : {}),
     ...(yoga ? { yoga } : {}),
+    soilCycle,
     dream,
     reasons,
     evaluatedAt: now,

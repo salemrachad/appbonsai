@@ -1,4 +1,5 @@
 import { APP_CONFIG } from '../config/appConfig';
+import { soilCyclePhase } from './soilCycle';
 import type { HealthCondition, HealthModifier, Severity } from '../health/healthTypes';
 import { CONDITION_SEVERITY, SEVERITY_RANK, STRESS_CONDITIONS } from '../health/statePriority';
 import type { Interaction, PlantEvent } from '../history/historyTypes';
@@ -129,6 +130,21 @@ function care(i: MoodInput): MoodInfluence | null {
   return v < 0.005 ? null : { source: 'care', v: r2(v), a: 0, why: `cared for ${Math.round((i.now - last.timestamp) / MIN)} min ago` };
 }
 
+// The soil's wet-to-dry cycle: a fresh drink warms, drying as it should settles, the watering window is a quiet
+// expectancy, soil that stays saturated weighs a little (the health latches handle real thirst or waterlogging)
+function soil(i: MoodInput): MoodInfluence | null {
+  const C = APP_CONFIG.mood.cycle;
+  const phase = soilCyclePhase(i.perception.readings.soilMoisture, i.species, i.events, i.now);
+  const part: Record<string, [number, number, string] | undefined> = {
+    fresh: [...(C.fresh as [number, number]), 'a fresh drink in its roots'],
+    drying: [...(C.drying as [number, number]), 'its soil drying as it should'],
+    ready: [...(C.ready as [number, number]), 'ready for its next drink'],
+    saturated: [...(C.saturated as [number, number]), 'its soil still saturated'],
+  };
+  const p = phase ? part[phase] : undefined;
+  return p ? capped('soil', [p], C.cap) : null;
+}
+
 function visitors(i: MoodInput): MoodInfluence | null {
   const V = APP_CONFIG.mood.visitors;
   const h = i.habitat;
@@ -167,7 +183,7 @@ export function evaluateMood(i: MoodInput): MoodState {
   // The anchor, then the nudges (each capped), clamped into the band health allows
   const [bv, ba] = MOOD_POINT[i.base];
   const influences: MoodInfluence[] = [{ source: 'health', v: bv, a: ba, why: `${i.base} (${severity === 'none' ? 'calm' : `${severity} stress`})` }];
-  for (const x of [environment(i), petting(i, severity), care(i), visitors(i), weather(i, calm)]) if (x) influences.push(x);
+  for (const x of [environment(i), soil(i), petting(i, severity), care(i), visitors(i), weather(i, calm)]) if (x) influences.push(x);
   const target = {
     valence: r2(clamp(influences.reduce((s, x) => s + x.v, 0), floor, ceiling)),
     arousal: r2(clamp(influences.reduce((s, x) => s + x.a, 0), 0, aMax)),

@@ -343,6 +343,8 @@ export const APP_CONFIG = {
     environment: { cap: { v: 0.12, a: 0.15 }, swingTemp: 4, swingHum: 15, unsettled: [-0.06, 0.08], light: [0.04, 0.06], dim: [0, -0.05], warmth: [0.03, 0], sunrise: [0, 0.05], sunset: [0, -0.05], season: 0.3 },
     petting: { windowMin: 180, tauMin: 45, strokesFull: 10, v: 0.15, a: 0.03, moderateShare: 0.4 },
     care: { hours: 6, tauHours: 3, v: 0.05 },
+    // The soil's wet-to-dry cycle (behaviour/soilCycle.ts): the mood follows it, gently (v, a)
+    cycle: { cap: { v: 0.06, a: 0.06 }, fresh: [0.06, 0.04], drying: [0.02, -0.02], ready: [0, 0.06], saturated: [-0.03, 0] },
     visitors: { cap: 0.1, squirrel: [0.06, 0.04], dragonfly: [0.04, 0.05], sloth: [0.05, -0.04], lucy: [0.05, -0.06] }, // Lucy calms more than she cheers
     weather: { rain: [0.03, -0.05], thunderstorm: [-0.05, 0.08], snow: [0.02, -0.04], clear: [0, 0.03], fog: [0, -0.03], windy: [0, 0.04] },
   },

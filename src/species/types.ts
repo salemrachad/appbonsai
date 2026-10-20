@@ -76,6 +76,9 @@ export interface SpeciesProfile {
   temperature: ComfortRange; // °C
   humidity: ComfortRange; // % RH
   soilMoisture: ComfortRange; // % from the probe (PROTOTYPE, locally calibrated)
+  // The wet-to-dry cycle: soil from soilMoisture.minOptimal up to readyBelow is the watering window (calm);
+  // the raw scale the % thresholds were set on (calibration)
+  soilCycle: { readyBelow: number; scale: { dryRaw: number; wetRaw: number } };
   relativeLight: RelativeLightBand[]; // ESP32 LDR %, darkest → brightest (PROTOTYPE, relative)
   radiation: ComfortRange; // W/m², weather-estimate mode only
   vpd: ComfortRange; // kPa (shown in diagnostics; not part of vitality)
