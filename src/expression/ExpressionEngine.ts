@@ -508,6 +508,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     hikeDetail: b.hike?.detail ?? null,
     dream: b.dream?.lastNight?.told ?? null,
     dreamWith: b.dream?.lastNight?.toldWith ?? null,
+    yogaDays: b.yoga ? `${b.yoga.nextWeek ? 'next ' : ''}${b.yoga.days.map(weekdayName).join(' and ')}` : null,
     hikeDays: b.hike?.options?.length ? `${b.hike.nextWeek ? 'next ' : ''}${b.hike.options.map(weekdayName).join(' or ')}` : null,
   });
   let tip = rendered.tip;
@@ -595,6 +596,7 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
     encounters: h?.encounters ?? [],
     drey,
     ...(b.hike ? { hike: { boots: b.hike.today, plan: b.hike } } : {}),
+    ...(b.yoga ? { yoga: { mats: b.yoga.today && !b.hike?.today } } : {}),
     atmosphere: {
       theme: night ? 'night' : 'day',
       phase: perception.sun.phase,

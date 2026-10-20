@@ -156,6 +156,7 @@ export interface LucyInput {
   condition: HealthCondition;
   modifiers: HealthModifier[];
   hike?: { today: boolean; detail?: HikeDetail | null } | null;
+  yogaToday?: boolean; // the mats are out by the stand: she sometimes lies on the open one
   // The barometer falling fast outside for a while (perception's latch): she feels a storm coming
   weatherComing?: { since: number } | null;
   now: number;
@@ -357,7 +358,9 @@ export function evaluateLucy(input: LucyInput): LucyState {
   const settle = lucySettle(found.startedAt, arrival);
   // Close to a struggling tree, or through a storm, she stays awake and watches over it
   const awake = close || found.kind === 'storm' || found.kind === 'check';
-  const rest = lucyRest(found.id, found.kind, arrival, close);
+  // A yoga day: the open mat (right of the stand) is a new place to lie on, now and then
+  const onMat = !!input.yogaToday && found.kind === 'day' && !close && !arrival.cold && roll(`${found.id}:mat`) < APP_CONFIG.yoga.matChance;
+  const rest = onMat ? 'floor_right' : lucyRest(found.id, found.kind, arrival, close);
   // Hike day: the boots stand right of the stand, so she keeps to the rest of the floor
   const route = lucyRoute(found, { settle, rest, awake, close, avoid: input.hike?.today ? ['floor_right'] : [] });
   const stop = lucyStopAt(route, now);

@@ -122,6 +122,9 @@ export const DAY_LINES: Record<DayLine, Lines> = {
   hike_chosen: ['{day} it is! 🥾', "Hike on {day}, noted. I'll have the boots ready. 🥾", "You chose {day}. I'll keep an eye on its forecast. 🥾"],
   hike_moved: ['The forecast changed: the hike moves to {day}. 🥾', 'New plan: {day} looks better for the hike now. 🥾', 'Change of plans, the hike is on {day}. 🥾'],
   hike_today: ['Today is hike day! Your boots are ready. 🥾', 'Hike day. Enjoy the trail, both of you. 🥾', 'A good day for the hills. Have a lovely hike. 🥾'],
+  // Yoga days ({yogaDays}: "Tuesday and Friday"): the two gloomiest days ahead, for us and the tree
+  yoga_picked: ['Yoga this week on {yogaDays}, the greyest days. 🧘', 'I looked at the week: {yogaDays} look the heaviest. Yoga then, together. 🧘', 'The two hardest days ahead are {yogaDays}. Mats out then. 🧘'],
+  yoga_today: ['Yoga day. A grey one, a good day to stretch together. 🧘', 'The mats are out. Let us breathe through this one. 🧘', 'A heavy day out there. Yoga lifts us. 🧘'],
   // Last night's dream ({dream}: its words, DREAM_WORDS), told once on waking; _again: it came back
   morning_dream: ['I dreamt of {dream}.', 'Good morning. I dreamt of {dream} last night.', 'A night of dreams: {dream}.'],
   morning_dream_again: ['I dreamt of {dream} again.', '{Dream} again, in my dreams.', 'Good morning. {Dream} came back in my dreams.'],
@@ -334,6 +337,7 @@ export interface RenderInput {
   hikeDays?: string | null; // the two days on offer, "Saturday or Thursday"
   hikeDetail?: HikeDetail | null; // the hike day's best hours (said with the choice and on the day)
   dream?: DreamMotif | null; // last night's dream, for the morning dream lines
+  yogaDays?: string | null; // the week's two yoga days in words, "Tuesday and Friday"
   dreamWith?: DreamMotif | null; // the motif it was dreamt together with (a combined scene)
 }
 
@@ -361,6 +365,7 @@ export function renderMessage(r: RenderInput): { text: string; tip: string } {
       .replace('{day}', r.hikeDay ?? 'one day this week')
       .replace('{days}', r.hikeDays ?? r.hikeDay ?? 'one day this week')
       .replace('{dream}', dream)
+      .replace('{yogaDays}', r.yogaDays ?? 'two days this week')
       .replace('{Dream}', `${dream[0].toUpperCase()}${dream.slice(1)}`);
     text = `${line} ${text}`;
   }

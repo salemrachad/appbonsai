@@ -465,6 +465,30 @@ read it.
 - **Tested:** `npm run test:scenarios` HK1–HK12.
 - **Open:** preferring weekends, and remembering hikes that happened in the diary.
 
+### Yoga days [Implemented, V1]
+
+"Yoga lifts us up." Twice a week the tree picks the two worst days ahead, for its people and for itself, and
+on those days everyone does yoga together by the pot (`behaviour/yoga.ts`, numbers in `APP_CONFIG.yoga`;
+evidence class *art*). Like the hike, it is about the people and never changes the tree.
+
+- **The gloom of a day** (from the same daily forecast as the hike): for us, 100 minus the hike score (rain,
+  a storm, a cold or hot high, gusts); for the tree, a forecast high above its comfort (the greenhouse heats
+  more), a low below it, a dark sky (little light for the leaves), and the day its soil is forecast to reach
+  thirsty if nobody waters (its dry-down at medium/high confidence). Behaviour Debug shows every day's parts.
+- **The picks:** the two gloomiest remaining days of the Monday-Sunday week, never the hike day (a hike
+  chosen on a yoga day moves yoga). Each follows the forecast until its day arrives, then it holds; today is
+  never made a yoga day mid-day by a new forecast. Kept beside the hike's weeks in `hike_memory.yoga`.
+- **Art:** on a yoga day, all day, two mats where the boots stand on hike day: a sage one rolled out flat, a
+  dusty-rose one rolled up on end (`avatar/YogaMats.tsx`). Never with the boots.
+- **Lucy:** the open mat is a new place to lie: on about a third of her yoga-day visits she settles on it.
+  Never on other days.
+- **Words:** in the evening the two days are announced ("The two hardest days ahead are Wednesday and Friday.
+  Mats out then."), again when the forecast moves one; on the day, "Yoga day. A grey one, a good day to
+  stretch together." Diary: "Yoga by the tree".
+- **Never** health, vitality, mood, energy or the visitors' engines (YG6).
+- **Preview:** Developer -> Hike & yoga -> Yoga, or `#yoga=today` / `#yoga=picked`. Tested: `npm run
+  test:scenarios` YG1-YG8.
+
 ### Visitors and habitat (the squirrel) [Implemented, V1]
 
 A squirrel that visits the digital tree is **art, not biology**, and not a pet. It is shown only because

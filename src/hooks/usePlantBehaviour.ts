@@ -12,6 +12,7 @@ import { APP_CONFIG } from '../config/appConfig';
 import type { OutsideSky } from '../telemetry/outsideWeather';
 import type { HikeForecast, HourForecast } from '../telemetry/hikeForecast';
 import { addDays, chooseHikeDay, withHikeDefaults, dateKey, INITIAL_HIKE_MEMORY, planHike, weekOf, type HikeMemory, type HikePlan } from '../behaviour/hike';
+import type { YogaPlan } from '../behaviour/yoga';
 import type { PlantHealthState } from '../health/healthTypes';
 import { midSeasonState, type Season } from '../perception/season';
 import { ACTIVE_SPECIES } from '../species';
@@ -45,12 +46,14 @@ export type WeatherPreview = OutsideSky | 'windy' | 'hazy';
 export type HikePreview = 'announced' | 'moved' | 'today';
 // A dream preview shows the image of one motif drifting by the crown (real dreams need a night and a day
 // lived before it); restless: as when asleep under a stress.
+// A yoga preview: today a yoga day (the mats; Lucy may lie on the open one), or the week's two days announced.
+export type YogaPreview = 'today' | 'picked';
 export type DreamPreview = { motif: DreamMotif; with?: DreamMotif | null; restless: boolean };
 
 export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previews: DevPreviews, latitude: number | null = null) {
-  const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth, lucy: previewLucy, hike: previewHike, hikeChoice: previewHikeChoice, dream: previewDream } = previews;
+  const { season: previewSeason, visitor: previewVisitor, weather: previewWeather, drey: previewDrey, canopy: previewCanopy, twilight: previewTwilight, dragonfly: previewDragonfly, sloth: previewSloth, lucy: previewLucy, hike: previewHike, hikeChoice: previewHikeChoice, dream: previewDream, yoga: previewYoga } = previews;
   return useMemo<{ behaviour: PlantBehaviourState | null; expression: ExpressionState | null }>(() => {
-    let r = evaluate(snapshot, display, previewSeason, latitude, previewTwilight, previewHike, previewHikeChoice);
+    let r = evaluate(snapshot, display, previewSeason, latitude, previewTwilight, previewHike, previewHikeChoice, previewYoga);
     if (previewVisitor?.mode === 'traces' && r.expression) {
       r = { behaviour: r.behaviour, expression: { ...r.expression, visitor: null, squirrelTraces: previewVisitor.traces ?? 'nibbled_leaf' } };
     } else if (previewVisitor && previewVisitor.mode !== 'traces' && r.expression && r.behaviour) {
@@ -159,13 +162,13 @@ export function usePlantBehaviour(snapshot: LivingSnapshot | null, display: Plan
       r = { behaviour: r.behaviour, expression: { ...r.expression, atmosphere: { ...r.expression.atmosphere, weather, twilight } } };
     }
     return r;
-  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy, previewTwilight, previewDragonfly, previewSloth, previewLucy, previewHike, previewHikeChoice, previewDream]);
+  }, [snapshot, display, previewSeason, latitude, previewVisitor, previewWeather, previewDrey, previewCanopy, previewTwilight, previewDragonfly, previewSloth, previewLucy, previewHike, previewHikeChoice, previewDream, previewYoga]);
 }
 
-function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previewSeason: Season | null, latitude: number | null, previewTwilight: TwilightPreview | null = null, previewHike: HikePreview | null = null, previewHikeChoice: string | null = null) {
+function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | null, previewSeason: Season | null, latitude: number | null, previewTwilight: TwilightPreview | null = null, previewHike: HikePreview | null = null, previewHikeChoice: string | null = null, previewYoga: YogaPreview | null = null) {
   {
     if (!snapshot || !display) return { behaviour: null, expression: null };
-    if ((!display.isOverride && !previewSeason && !previewTwilight && !previewHike) || !snapshot.perception) return { behaviour: snapshot.behaviour, expression: snapshot.expression };
+    if ((!display.isOverride && !previewSeason && !previewTwilight && !previewHike && !previewYoga) || !snapshot.perception) return { behaviour: snapshot.behaviour, expression: snapshot.expression };
     const now = Date.now();
     let perception = previewSeason
       ? { ...snapshot.perception, season: midSeasonState(previewSeason, latitude) }
@@ -188,9 +191,20 @@ function evaluate(snapshot: LivingSnapshot | null, display: PlantHealthState | n
       now,
       // The live pick stays, unless a hike is previewed
       hike: previewHike ? sampleHikePlan(previewHike, now, previewHikeChoice) : withHikeDefaults(snapshot.behaviour?.hike) ?? null,
+      // A yoga preview: two days of this week, today among them for 'today'
+      yoga: previewYoga ? sampleYogaPlan(previewYoga, now) : snapshot.behaviour?.yoga ?? null,
     });
     return { behaviour, expression: expressBehaviour({ behaviour, health: display, perception, now }) };
   }
+}
+
+// A sample yoga week: today and another day ('today'), or two days later this week ('picked')
+function sampleYogaPlan(p: YogaPreview, now: number): YogaPlan {
+  const today = dateKey(now);
+  const week = weekOf(today);
+  const later = [1, 2, 3, 4, 5, 6].map((n) => addDays(today, n)).filter((d) => weekOf(d) === week);
+  const days = p === 'today' ? [today, later[1] ?? addDays(today, 2)].sort() : later.length >= 2 ? [later[0], later[2] ?? later[1]] : [addDays(today, 1), addDays(today, 3)];
+  return { week, days, today: days.includes(today), nextWeek: false, movedFrom: null, week7: Array(7).fill(null) };
 }
 
 // A sample day hour by hour: warming from the morning low to the afternoon high; the fine day turns showery

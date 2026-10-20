@@ -2,6 +2,7 @@ import type { HealthCondition, HealthModifier } from '../health/healthTypes';
 import type { PlantEventType } from '../history/historyTypes';
 import type { Season } from '../perception/season';
 import type { SeasonRule } from '../species/types';
+import type { YogaPlan } from './yoga';
 import type { HikePlan } from './hike';
 
 // Moods drive the face (subtly) on top of the condition's look; see expression/ExpressionEngine.ts.
@@ -94,6 +95,9 @@ export type DayLine =
   | 'hike_moved'
   | 'hike_chosen'
   | 'hike_today'
+  // Yoga days (behaviour/yoga.ts): the week's two announced (once per pick), the day itself
+  | 'yoga_picked'
+  | 'yoga_today'
   // Last night's dream (behaviour/dreams.ts), told once on waking; _again: it came back
   | 'morning_dream'
   | 'morning_dream_again';
@@ -498,6 +502,7 @@ export interface PlantBehaviourState {
   // Where the day is relative to the real sunrise / sunset (null outside their windows)
   twilight: { event: 'sunrise' | 'sunset' | null; minutes: number | null };
   hike?: HikePlan; // the week's hike pick (about the people, nothing reads it back; absent without a forecast)
+  yoga?: YogaPlan; // the week's two yoga days (about the people, nothing reads it back; absent without a forecast)
   dream?: DreamState; // the night's dream (art: nothing reads it back; absent from older saved states)
   reasons: string[]; // why the engine chose this behaviour (developer panel)
   evaluatedAt: number;

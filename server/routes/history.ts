@@ -8,6 +8,7 @@ import { recentTelemetry, recentWeather } from '../rowCache';
 import { encounterDiary, type Window } from '../../src/behaviour/encounters';
 import { habitatDiary, seasonEnergyAt } from '../../src/behaviour/habitat';
 import { dreamDiary } from '../../src/behaviour/dreams';
+import { yogaDiary } from '../../src/behaviour/yoga';
 import { toSample } from '../../src/perception/PerceptionEngine';
 import { fromRecord } from '../collector';
 import { buildDiary, saidItems } from '../../src/history/diary';
@@ -82,7 +83,7 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const said = db.utterancesSince(since);
   const daySamples = toSamples(telemetrySince(from));
   const days_ = [...dayMoments(daySamples, ACTIVE_SPECIES, now, said, from), ...daySummaries(daySamples, episodesSince(from), eventsSince(from), ACTIVE_SPECIES, now, from)].filter((i) => i.at >= since);
-  return [...buildDiary(episodesSince(since), eventsSince(since), APP_CONFIG.history.episodeGapMs, weatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...lucy, ...encounters, ...dreams].sort((a, b) => b.at - a.at);
+  return [...buildDiary(episodesSince(since), eventsSince(since), APP_CONFIG.history.episodeGapMs, weatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...lucy, ...encounters, ...dreams, ...yogaDiary(collector.yogaDays(), since, now)].sort((a, b) => b.at - a.at);
 }
 
 export function historyRoutes(db: AppDatabase, collector: LivingCollector): Router {

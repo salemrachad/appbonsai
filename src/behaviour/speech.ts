@@ -92,7 +92,7 @@ export function stableVariant(seed: string, count: number): number {
 // (the sun's real moments are news the same way: the sun just rose, or is about to set)
 // (and so is the week's hike: a new pick, a pick the forecast moved, the day itself)
 const weatherNews = (b: PlantBehaviourState, m: MessageMemory, now: number) =>
-  !!b.dayLine && /^(weather_|sunrise_|sunset_|hike_)/.test(b.dayLine) && m.dayLinesSaid[b.dayLine] !== lineStamp(b, now);
+  !!b.dayLine && /^(weather_|sunrise_|sunset_|hike_|yoga_)/.test(b.dayLine) && m.dayLinesSaid[b.dayLine] !== lineStamp(b, now);
 
 // When a day line counts as said: season lines once per season, a hike pick once per picked day (the
 // people's choice once per chosen day), the others once per day
@@ -101,6 +101,8 @@ const lineStamp = (b: PlantBehaviourState, now: number) =>
     ? b.season.key
     : (b.dayLine === 'hike_picked' || b.dayLine === 'hike_moved' || b.dayLine === 'hike_chosen') && b.hike
     ? `${b.hike.week}:${b.hike.chosen ? 'chosen:' : ''}${b.hike.day}`
+    : b.dayLine === 'yoga_picked' && b.yoga
+    ? `${b.yoga.week}:${b.yoga.days.join(',')}` // again when the forecast moves a day
     : localDate(now);
 
 const localDate = dayKey; // the tree's day (its timezone): once-a-day lines
@@ -169,6 +171,8 @@ export function decideSpeech({
     speakNow = true;
     reason = b.dayLine!.startsWith('weather_')
       ? `outside: ${b.dayLine!.replace('weather_', '').replace(/_/g, ' ')}`
+      : b.dayLine!.startsWith('yoga_')
+      ? `yoga: ${b.dayLine!.replace('yoga_', '')} (${b.yoga?.days.join(', ') ?? '?'})`
       : b.dayLine!.startsWith('hike_')
       ? `the hike: ${b.dayLine!.replace('hike_', '')} (${b.hike?.day ?? '?'})`
       : `the sun: ${b.dayLine!.replace(/_/g, ' ')}`;

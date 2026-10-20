@@ -35,6 +35,7 @@ import { evaluateVoice } from './voice';
 import { evaluateHabitat, seasonEnergyAt } from './habitat';
 import { computeRelationship } from './relationship';
 import type { HikePlan } from './hike';
+import type { YogaPlan } from './yoga';
 import { clockAt, HOUR, hourOf, MIN } from '../lib/time';
 
 const THIRST: HealthCondition[] = ['thirsty', 'very_dry', 'hot_and_dry'];
@@ -59,6 +60,7 @@ export interface BehaviourInput {
   wanderers?: { sloth?: SlothMemory; history?: { sloth: Window[]; dragonfly: Window[] } };
   moodMemory?: MoodMemory | null; // where the mood was (persisted by the collector): it drifts from there
   hike?: HikePlan | null; // the week's hike pick (the collector plans it from the forecast): a day line, the boots
+  yoga?: YogaPlan | null; // the week's two yoga days (the collector plans them): the mats, a day line, Lucy
   dreams?: DreamRecord[]; // the stored nights of the last weeks (the collector keeps them): what tonight is made of
 }
 
@@ -287,7 +289,7 @@ const isStressEpisode = (e: BehaviourEpisode) => seriousStress(e.condition) || e
 
 // "Given what is happening, what happened recently, and how the human has cared for the tree,
 // how should the companion behave?" Deterministic: history, duration, context, relationship.
-export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, moodMemory = null, hike = null, dreams = [] }: BehaviourInput): PlantBehaviourState {
+export function evaluateBehaviour({ health, perception, episodes, events, interactions = [], species, now, location, wanderers, moodMemory = null, hike = null, yoga = null, dreams = [] }: BehaviourInput): PlantBehaviourState {
   const reasons: string[] = [];
   const condition = health.condition;
 
@@ -429,6 +431,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     condition,
     modifiers: health.modifiers,
     hike: hike ? { today: hike.today, detail: hike.detail ?? null } : null,
+    yogaToday: !!yoga?.today,
     weatherComing: perception.outside?.weatherComing ?? null,
     now,
   });
@@ -516,6 +519,12 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (!dayLine && hike && perception.sun.isDay && CALM.includes(condition) && !reaction) {
     dayLine = hike.today ? 'hike_today' : hike.chosen ? 'hike_chosen' : hike.movedFrom ? 'hike_moved' : 'hike_picked';
   }
+  // Yoga: the day itself (before the hike's announcements, never over hike day), and its two days announced
+  // in the evening (the hike's picks have the morning and the day)
+  if (yoga && perception.sun.isDay && CALM.includes(condition) && !reaction && !hike?.today) {
+    if (yoga.today && (!dayLine || dayLine.startsWith('hike_'))) dayLine = 'yoga_today';
+    else if (tod === 'evening' && (!dayLine || dayLine.startsWith('hike_'))) dayLine = 'yoga_picked';
+  }
   if (dayLine) reasons.push(`Time of day: ${dayLine.replace(/_/g, ' ')}`);
 
   // ---- Care line (once a day while the context lasts; not during serious stress) ----
@@ -594,6 +603,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     voice,
     twilight,
     ...(hike ? { hike } : {}),
+    ...(yoga ? { yoga } : {}),
     dream,
     reasons,
     evaluatedAt: now,

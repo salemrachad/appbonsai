@@ -4,7 +4,7 @@ import { SEASONS, type Season } from '../perception/season';
 import { OUTSIDE_SKIES } from '../telemetry/outsideWeather';
 import { DREAM_WORDS, dreamScene } from '../behaviour/messages';
 import type { DreamMotif } from '../behaviour/behaviourTypes';
-import type { CanopyPreview, DragonflyPreview, DreamPreview, DreyPreview, HikePreview, LucyPreview, SlothPreview, TwilightPreview, VisitorPreview, WeatherPreview } from './usePlantBehaviour';
+import type { CanopyPreview, DragonflyPreview, DreamPreview, YogaPreview, DreyPreview, HikePreview, LucyPreview, SlothPreview, TwilightPreview, VisitorPreview, WeatherPreview } from './usePlantBehaviour';
 
 // Every developer preview in one place: what is previewed, how the URL hash starts one, the toast when one
 // changes and the line Home shows while previewing. Previews only change what is shown; nothing is written.
@@ -22,10 +22,11 @@ export interface DevPreviews {
   hike: HikePreview | null; // the week's hike pick (announced, moved, or today with the boots)
   hikeChoice: string | null; // a day clicked on the hike calendar while previewing (not in the hash)
   dream: DreamPreview | null; // the dream drifting by the crown (one motif)
+  yoga: YogaPreview | null; // a yoga day (the mats), or the week's two days announced
 }
 export type SetPreview = <K extends keyof DevPreviews>(key: K, value: DevPreviews[K]) => void;
 
-export const NO_PREVIEWS: DevPreviews = { preset: null, season: null, visitor: null, sloth: null, lucy: null, dragonfly: null, twilight: null, canopy: null, drey: null, weather: null, hike: null, hikeChoice: null, dream: null };
+export const NO_PREVIEWS: DevPreviews = { preset: null, season: null, visitor: null, sloth: null, lucy: null, dragonfly: null, twilight: null, canopy: null, drey: null, weather: null, hike: null, hikeChoice: null, dream: null, yoga: null };
 
 // The URL hash can start any combination, e.g. #preview=very_dry&season=winter&visitor=hiding:crown (handy for screenshots)
 export function previewsFromHash(hash: string): DevPreviews {
@@ -97,6 +98,11 @@ export function previewsFromHash(hash: string): DevPreviews {
       return r ? (r[1] as HikePreview) : null;
     })(),
     hikeChoice: null,
+    // #yoga=today (the mats) or #yoga=picked (the week's two days announced)
+    yoga: (() => {
+      const r = m(/yoga=(today|picked)/);
+      return r ? (r[1] as YogaPreview) : null;
+    })(),
     // #dream=rain, #dream=squirrel+rain (a combined scene) or #dream=restless:frost: a dream by the crown
     dream: (() => {
       const r = m(/dream=(restless:)?([a-z_]+)(?:\+([a-z_]+))?/);
@@ -135,6 +141,8 @@ const toastFor = <K extends keyof DevPreviews>(key: K, v: DevPreviews[K]): strin
       return v ? `Outside: ${(v as string).replace('_', ' ')}` : 'Back to the real weather';
     case 'hike':
       return v ? (v === 'today' ? 'Hike day: boots out' : `Hike ${v}`) : 'Back to the real hike plan';
+    case 'yoga':
+      return v ? (v === 'today' ? 'Yoga day: mats out' : 'Yoga days announced') : 'Back to the real yoga days';
     case 'dream': {
       const d = v as DreamPreview | null;
       return d ? `Dreaming of ${dreamScene(d.motif, d.with)}${d.restless ? ' (restless)' : ''}` : 'Back to real dreams';
@@ -162,6 +170,7 @@ function labelOf(p: DevPreviews): string | null {
       p.twilight && `${p.twilight.event === 'sunrise' ? 'Sunrise' : 'Sunset'} ${p.twilight.minutes >= 0 ? '+' : ''}${p.twilight.minutes} min`,
       p.weather && `Outside: ${p.weather.replace('_', ' ')}`,
       p.hike && (p.hike === 'today' ? 'Hike day' : `Hike ${p.hike}`),
+      p.yoga && (p.yoga === 'today' ? 'Yoga day' : 'Yoga days announced'),
       p.dream && `Dreaming of ${dreamScene(p.dream.motif, p.dream.with)}${p.dream.restless ? ' (restless)' : ''}`,
     ]
       .filter(Boolean)

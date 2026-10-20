@@ -319,6 +319,8 @@ export interface ExpressionState {
   // The week's hike (from behaviour.hike): the plan Home announces, and on the day two pairs of hiking
   // boots by the pot (theirs). Absent without a forecast.
   hike?: { boots: boolean; plan: HikePlan };
+  // A yoga day (behaviour.yoga): two mats where the boots stand on hike day, one open, one rolled. All day
+  yoga?: { mats: boolean };
   atmosphere: {
     theme: 'day' | 'night';
     phase: string;

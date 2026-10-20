@@ -1,5 +1,6 @@
 import type { CollectorStatus, LivingSnapshot } from '../../src/api/types';
 import { evaluateBehaviour } from '../../src/behaviour/BehaviourEngine';
+import { planYoga, thirstyOutlook, yogaDaysOf } from '../../src/behaviour/yoga';
 import type { DreamRecord, PlantBehaviourState, SlothMemory } from '../../src/behaviour/behaviourTypes';
 import { slothLife } from '../../src/behaviour/sloth';
 import { DRAGONFLY } from '../../src/behaviour/dragonfly';
@@ -308,6 +309,11 @@ export class LivingCollector {
     const history = { sloth: slothDays.flatMap((d) => d.windows), dragonfly: dragonflyDays.flatMap((d) => d.windows) };
     this.slothCache = { key, memory, history };
     return { sloth: memory, history };
+  }
+
+  // The yoga days so far (the diary)
+  yogaDays(): string[] {
+    return yogaDaysOf(this.hikeMemory, this.now());
   }
 
   // The tree's last weeks of nights (the `dreams` table): what tonight's dream is weighed against. Kept with
@@ -713,9 +719,11 @@ export class LivingCollector {
     const interactions = this.db.interactionsSince(now - 30 * DAY);
     // The week's hike pick: follows the forecast until its day arrives, then locks (about the people)
     const hike = planHike(this.hikeMemory, now);
-    if (hike.memory !== this.hikeMemory) {
-      this.hikeMemory = hike.memory;
-      this.meta.set('hike_memory', hike.memory);
+    // Yoga: the week's two gloomiest days (for the people and the tree), never the hike day (about the people)
+    const yoga = planYoga(hike.memory, ACTIVE_SPECIES, thirstyOutlook(perception, ACTIVE_SPECIES, now), now);
+    if (yoga.memory !== this.hikeMemory) {
+      this.hikeMemory = yoga.memory;
+      this.meta.set('hike_memory', yoga.memory);
     }
     const behaviour = evaluateBehaviour({
       health,
@@ -729,6 +737,7 @@ export class LivingCollector {
       wanderers: this.wanderersMemory(now, perception.history.cadenceMs),
       moodMemory: this.meta.get('mood_memory'),
       hike: hike.plan,
+      yoga: yoga.plan,
       dreams: this.pastDreams(now),
     });
     this.meta.set('mood_memory', behaviour.moodState.memory);

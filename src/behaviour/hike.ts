@@ -1,6 +1,7 @@
 import { APP_CONFIG } from '../config/appConfig';
 import type { DayForecast, HikeForecast, HourForecast } from '../telemetry/hikeForecast';
 import { dateKey as treeDateKey } from '../lib/time';
+import type { YogaPick } from './yoga';
 
 // The weekly hike: once a week the tree picks the day with the best forecast for its people's hike.
 // About the people, never the tree: health and the habitat never read it; the tree announces the pick
@@ -67,6 +68,7 @@ export interface HikeMemory {
   version: 1;
   forecast: HikeForecast | null;
   weeks: Record<string, WeekPick>; // by the week's Monday
+  yoga?: Record<string, YogaPick>; // the week's two yoga days (behaviour/yoga.ts), by the week's Monday
 }
 
 export const INITIAL_HIKE_MEMORY: HikeMemory = { version: 1, forecast: null, weeks: {} };

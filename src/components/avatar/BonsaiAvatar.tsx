@@ -7,6 +7,7 @@ import { PetSession, usePetting } from './usePetting';
 import { Dragonfly, dragonflyAt, useDragonflyFlight } from './Dragonfly';
 import { Sloth, slothAt, slothRiderAt } from './Sloth';
 import { Dream, DreamDefs, DreamEcho } from './Dream';
+import { YogaMats } from './YogaMats';
 import { HikingBoots } from './HikingBoots';
 import { Lucy, LucyPillow, SPOT as LUCY_SPOT } from './Lucy';
 import { Drey, SquirrelTraces, useVisitorPlay, Visitor, visitorAt } from './Visitor';
@@ -373,6 +374,8 @@ const BonsaiAvatarView: React.FC<BonsaiAvatarProps> = ({ expression, onClick, on
         </g>
         {/* Hike day: two pairs of hiking boots on the ground by the stand */}
         <HikingBoots show={!!expression?.hike?.boots} />
+        {/* Yoga day: two mats in the same place (never on hike day) */}
+        <YogaMats show={!!expression?.yoga?.mats && !expression?.hike?.boots} />
         {/* Lucy's pillow: always there, on the floor left of the stand */}
         <LucyPillow />
 

@@ -4,7 +4,7 @@ import { DEV_PRESETS } from '../../health/developerOverrides';
 import type { DevPreviews, SetPreview } from '../../hooks/useDevPreviews';
 import { DREAM_WORDS } from '../../behaviour/messages';
 import type { DreamMotif } from '../../behaviour/behaviourTypes';
-import type { CanopyPreview, DragonflyPreview, DreamPreview, HikePreview, LucyPreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
+import type { CanopyPreview, DragonflyPreview, DreamPreview, YogaPreview, HikePreview, LucyPreview, SlothPreview, DreyPreview, TwilightPreview, VisitorPreview, WeatherPreview } from '../../hooks/usePlantBehaviour';
 import { SEASONS, type Season } from '../../perception/season';
 
 interface StateTesterProps {
@@ -152,7 +152,7 @@ const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, ch
 // Preview any health state, time, weather and visitor. Presentation only: telemetry, the database, care
 // events and episodes are untouched. Grouped: tree health · time & season · outside · the tree over time · visitors.
 export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, onClearPreviews }) => {
-  const { preset: activePresetId, season: activeSeason, visitor: activeVisitor, drey: activeDrey, canopy: activeCanopy, twilight: activeTwilight, dragonfly: activeDragonfly, sloth: activeSloth, lucy: activeLucy, weather: activeWeather, hike: activeHike, dream: activeDream } = previews;
+  const { preset: activePresetId, season: activeSeason, visitor: activeVisitor, drey: activeDrey, canopy: activeCanopy, twilight: activeTwilight, dragonfly: activeDragonfly, sloth: activeSloth, lucy: activeLucy, weather: activeWeather, hike: activeHike, dream: activeDream, yoga: activeYoga } = previews;
   const onSelectPreset = (v: string | null) => onPreview('preset', v);
   const onSelectSeason = (v: Season | null) => onPreview('season', v);
   const onSelectVisitor = (v: VisitorPreview | null) => onPreview('visitor', v);
@@ -172,7 +172,7 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
     onPreview('dream', v);
     if (v && !activePresetId) onPreview('preset', 'sleeping');
   };
-  const anyActive = !!(activeDream || activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeLucy || activeWeather || activeHike);
+  const anyActive = !!(activeYoga || activeDream || activePresetId || activeSeason || activeVisitor || activeDrey || activeCanopy || activeTwilight || activeDragonfly || activeSloth || activeLucy || activeWeather || activeHike);
   const resetAll = onClearPreviews;
   return (
     <div id="developer-test-mode" className="w-full bg-[#FAF8F5]/95 p-3.5 rounded-2xl border-2 border-[#D8D2C9] shadow-md space-y-2.5">
@@ -253,11 +253,18 @@ export const StateTester: React.FC<StateTesterProps> = ({ previews, onPreview, o
       </Group>
 
       {/* The week's hike: the real planner on a sample forecast (the announcement, a moved pick, the boots) */}
-      <Group title="Hike" icon="🥾" active={!!activeHike}>
+      <Group title="Hike & yoga" icon="🥾" active={!!activeHike || !!activeYoga}>
         <Row label="Plan">
           {HIKE_PREVIEWS.map((h) => (
             <button key={h.id ?? 'live'} id={`test-hike-btn-${h.id ?? 'live'}`} onClick={() => onSelectHike(h.id)} className={chip(activeHike === h.id)}>
               {h.label}
+            </button>
+          ))}
+        </Row>
+        <Row label="Yoga">
+          {([null, 'picked', 'today'] as (YogaPreview | null)[]).map((y) => (
+            <button key={y ?? 'live'} onClick={() => onPreview('yoga', y)} className={chip(activeYoga === y)}>
+              {y === null ? 'Live' : y === 'today' ? '🧘 Yoga day' : 'Days announced'}
             </button>
           ))}
         </Row>

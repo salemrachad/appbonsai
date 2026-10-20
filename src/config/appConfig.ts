@@ -433,6 +433,16 @@ export const APP_CONFIG = {
     maxJumpPerMinute: { temperature: 8, humidity: 35 },
   },
 
+  // Yoga days (behaviour/yoga.ts): the week's two gloomiest days, for the people and the tree. Art.
+  yoga: {
+    daysPerWeek: 2,
+    perDegreeHot: 2, // per °C of forecast high above the ficus optimum (the greenhouse heats more)
+    perDegreeCold: 2, // per °C of forecast low below its warning
+    darkSky: { clear: 0, partly_cloudy: 0, overcast: 6, fog: 10, drizzle: 8, rain: 10, heavy_rain: 14, snow: 12, thunderstorm: 14 } as Record<string, number>, // little light for the leaves
+    thirstyDay: 15, // the day its soil is forecast to reach thirsty if nobody waters
+    matChance: 0.35, // a yoga-day visit: she lies down on the open mat
+  },
+
   // Dreams (behaviour/dreams.ts): the day digested at night, from what the tree really lived. Art, provisional.
   dreams: {
     afterSunsetMin: 45, // the night (and its first sleep cycle) begins this long after sunset

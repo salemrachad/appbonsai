@@ -606,6 +606,55 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   const told = say(chosenDay, offer.sp.memory, at(11));
   check('HK12 the plan carries the best hours (not the 24 hours); the tree says them with the choice', !!chosenDay.detail && chosenDay.forecast.hours === undefined && told.x.message.text.includes('Best from'), told.x.message.text);
   check('HK10b previews offer two days and take a click', pv?.options.length === 2 && pvChosen?.chosen === true && pvChosen.day === pv.options[1], `${pv?.options} → ${pvChosen?.day}`);
+
+  // YG. Yoga days: the week's two gloomiest days (for us and the tree), never the hike day; they follow the
+  // forecast until their day, then lock. About the people: the tree's state never depends on them
+  {
+    const { planYoga, yogaGloom } = await import('../src/behaviour/yoga');
+    const { evaluateLucy, lucyDay } = await import('../src/behaviour/lucy');
+    const grim: Record<string, Partial<DayForecast>> = {
+      '2026-06-17': { sky: 'thunderstorm', code: 95, rainChance: 90, rainMm: 12, gustsMax: 60 },
+      '2026-06-19': { sky: 'heavy_rain', code: 65, rainChance: 80, rainMm: 8 },
+      '2026-06-20': {}, // the hike's
+    };
+    const yMem = (o: Record<string, Partial<DayForecast>>): HikeMemory => planHike({ ...INITIAL_HIKE_MEMORY, forecast: week(o) }, dayAt(15)).memory;
+    const y1 = planYoga(yMem(grim), FICUS, null, dayAt(15));
+    check('YG1 the two gloomiest days of the week are picked', JSON.stringify(y1.plan?.days) === '["2026-06-17","2026-06-19"]' && !y1.plan!.today, `${y1.plan?.days}`);
+    const hikeOn17 = chooseHikeDay(y1.memory, '2026-06-17', dayAt(15))!;
+    const y2 = planYoga(planHike(hikeOn17, dayAt(15)).memory, FICUS, null, dayAt(15));
+    check('YG2 never on the hike day: a hike chosen on a yoga day moves yoga', !!y2.plan && !y2.plan.days.includes('2026-06-17') && y2.plan.movedFrom === '2026-06-17', `${y2.plan?.days} (moved from ${y2.plan?.movedFrom})`);
+    // The forecast changes: before its day a pick moves; on its day it holds
+    const clearer = { ...grim, '2026-06-19': {}, '2026-06-18': { sky: 'heavy_rain' as const, code: 65, rainChance: 85, rainMm: 9 } };
+    const before = planYoga({ ...y1.memory, forecast: week(clearer) }, FICUS, null, dayAt(16));
+    const onDay = planYoga({ ...y1.memory, forecast: week({ ...grim, '2026-06-17': {} }) }, FICUS, null, dayAt(17));
+    check('YG3 a pick follows the forecast until its day, then holds', JSON.stringify(before.plan?.days) === '["2026-06-17","2026-06-18"]' && onDay.plan!.days.includes('2026-06-17') && onDay.plan!.today, `moved → ${before.plan?.days} · on the day, cleared: ${onDay.plan?.days}`);
+    // The tree's part: the same day for us, but hot for the greenhouse, or the day its soil is forecast thirsty
+    const plainDays = { '2026-06-20': {} };
+    const hot = planYoga(yMem({ ...plainDays, '2026-06-16': { tMax: 36, rainChance: 40, code: 3, sky: 'overcast' } }), FICUS, '2026-06-18', dayAt(15));
+    const g16 = yogaGloom(week({ '2026-06-16': { tMax: 36, rainChance: 40, code: 3, sky: 'overcast' } }).days[1], FICUS, null);
+    check('YG4 the tree counts: its hot day and its forecast thirsty day are the gloomiest', JSON.stringify(hot.plan?.days) === '["2026-06-16","2026-06-18"]' && g16.tree.heat > 0, `${hot.plan?.days} · 16th: ${JSON.stringify(g16)}`);
+    check('YG5 no forecast: no yoga', planYoga(INITIAL_HIKE_MEMORY, FICUS, null, dayAt(15)).plan === null);
+    // Mats and lines: only on its day, never with the boots; the tree's state identical with or without yoga
+    const yp = (d: string[], today: boolean) => ({ week: '2026-06-15', days: d, today, nextWeek: false, movedFrom: null, week7: [] });
+    const yogaB = evaluateBehaviour({ health: o.h, perception: o.p, episodes: [], events: [], species: FICUS, now: at(10), yoga: yp(['2026-06-15', '2026-06-19'], true) });
+    const noYoga = evaluateBehaviour({ health: o.h, perception: o.p, episodes: [], events: [], species: FICUS, now: at(10) });
+    const xy = expressBehaviour({ behaviour: yogaB, health: o.h, perception: o.p, now: at(10) });
+    const xn = expressBehaviour({ behaviour: evaluateBehaviour({ health: o.h, perception: o.p, episodes: [], events: [], species: FICUS, now: at(10), yoga: yp(['2026-06-17', '2026-06-19'], false) }), health: o.h, perception: o.p, now: at(10) });
+    const xh = expressBehaviour({ behaviour: evaluateBehaviour({ health: o.h, perception: o.p, episodes: [], events: [], species: FICUS, now: at(10), hike: plan({ day: '2026-06-15', today: true }), yoga: yp(['2026-06-15'], true) }), health: o.h, perception: o.p, now: at(10) });
+    const same = (b: typeof yogaB) => JSON.stringify({ mood: b.moodState.valence, energy: b.energy, intent: b.messageIntent, condition: b.primaryState });
+    check('YG6 the mats on its day only, never with the boots; the yoga-day line; the tree unchanged', xy.yoga?.mats === true && xn.yoga?.mats === false && xh.yoga?.mats === false && xh.hike?.boots === true && yogaB.dayLine === 'yoga_today' && same(yogaB) === same(noYoga), `${yogaB.dayLine}`);
+    const ann = evaluateBehaviour({ health: o.h, perception: { ...o.p, sun: { ...o.p.sun, sunset: at(19) } }, episodes: [], events: [], species: FICUS, now: at(17, 30), yoga: yp(['2026-06-17', '2026-06-19'], false) });
+    const annX = expressBehaviour({ behaviour: ann, health: o.h, perception: o.p, speech: decideSpeech({ behaviour: ann, severity: o.h.severity, memory: INITIAL_MESSAGE_MEMORY, now: at(17, 30) }).decision, now: at(17, 30) });
+    check('YG7 announced in the evening with its weekdays', ann.dayLine === 'yoga_picked' && annX.message.text.includes('Wednesday and Friday'), annX.message.text);
+    // Lucy: on yoga days she sometimes lies on the open mat; never on other days
+    const rests = (yoga: boolean) =>
+      Array.from({ length: 20 }, (_, k) => dayAt(1 + k)).flatMap((t) =>
+        lucyDay(t).visits.filter((v) => v.kind === 'day').map((v) => evaluateLucy({ outsideToday: [], rainEndedAt: null, condition: 'comfortable', modifiers: [], hike: null, yogaToday: yoga, weatherComing: null, now: v.startedAt + 10 * 60000 }).visit?.rest)
+      );
+    const onMat = rests(true).filter((r) => r === 'floor_right').length;
+    const all = rests(true).length;
+    check('YG8 Lucy lies on the open mat on some yoga-day visits, never otherwise', onMat > all * 0.15 && onMat < all * 0.6 && !rests(false).includes('floor_right'), `${onMat}/${all} visits on the mat`);
+  }
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');

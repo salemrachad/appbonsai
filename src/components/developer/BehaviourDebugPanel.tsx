@@ -140,6 +140,15 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
         </Section>
       )}
 
+      {b.yoga && (
+        <Section title="Yoga days (about the people · never the tree)">
+          <Row label="This week" value={`${b.yoga.nextWeek ? 'next week: ' : ''}${b.yoga.days.join(', ')}${b.yoga.today ? ' · today: mats out' : ''}${b.yoga.movedFrom ? ` · moved from ${b.yoga.movedFrom}` : ''}`} strong />
+          {b.yoga.week7.map((g) =>
+            g ? <Row key={g.date} label={g.date} value={`gloom ${g.gloom} = us ${g.us} + heat ${g.tree.heat} + cold ${g.tree.cold} + dark ${g.tree.dark} + thirsty ${g.tree.thirsty}${b.yoga!.days.includes(g.date) ? ' ← yoga' : ''}`} tone={b.yoga!.days.includes(g.date) ? undefined : 'muted'} /> : null
+          )}
+        </Section>
+      )}
+
       {b.dream && (
         <Section title="Dreams (the night · art, never health)">
           <p className="sans text-[10.5px] text-[#2D332A]/55">
