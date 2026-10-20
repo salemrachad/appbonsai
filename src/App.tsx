@@ -283,6 +283,8 @@ export default function App() {
         onChooseHike={chooseHike}
         diaryKey={diaryKey}
         onOpenDiary={() => setPanel('history')}
+        perception={perception}
+        behaviour={behaviour}
         // Inside vs outside only with the real sensor (in weather mode the 'inside' values ARE the outside estimate)
         inside={perception?.source === 'esp32_sensor' ? { temperature: perception.readings.temperature, humidity: perception.readings.humidity } : { temperature: null, humidity: null }}
       />

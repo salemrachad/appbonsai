@@ -465,6 +465,37 @@ read it.
 - **Tested:** `npm run test:scenarios` HK1–HK12.
 - **Open:** preferring weekends, and remembering hikes that happened in the diary.
 
+### "Why": the tree explained [Implemented, V1]
+
+Beside the tree, in its own column on the left, a gentle narrator explains why the tree is the way it is
+(`src/explain/why.ts` writes it, `components/scene/WhyColumn.tsx` shows it). It is generous trust with the
+people who care for it: the reasoning that only the developer panels showed, in plain words. It answers §8's
+question (should the epidermal and diffraction text be visible?): yes, as an explanation beside the tree,
+never as the tree's own speech, which stays sparse and in its voice (`messages.ts`).
+
+- **Read, never decided:** built in the browser from the state the engines already concluded. Nothing is
+  recalculated, and no engine or server reads it.
+- **Third person, plain words, only true things:** a card appears only when there is something to say. The
+  thresholds come from the species profile, so it says exactly what the engines do: "When the soil stays below
+  35 % for 30 minutes, it counts as thirsty; it lets go once the soil is back above 40 % for 5 minutes."
+- **The cards, most important first:**
+  - how it is now and why, with its stage of recovery;
+  - what it is watching (a line crossed, not for long enough yet, and how long until it counts);
+  - its vitality, where it is heading, and what helps or holds it back;
+  - its mood, and what lifts or weighs on it within what its health allows;
+  - what you see on it, and why;
+  - what came before (a care reaction's meaning, afterglow, the relationship, the canopy);
+  - tonight's dream, or last night's;
+  - around it (the sky, the sun, the season, the visitors and why they come, the hike, yoga);
+  - how sure all this is. When the data is in doubt, this card goes first.
+- **The numbers on tap:** each card opens its exact figures (latch rules, component scores and weights, the
+  mood's nudges).
+- **The column:** its own on wide screens, scrolling and folding to a slim tab (localStorage
+  `appbonsai_why_open_v1`); on narrower screens a "Why?" button opens it as a drawer. During a developer preview
+  it explains what is shown, and says so.
+- **Tested:** `npm run test:scenarios` WH1-WH6 (every preset explained; no stray code words; the thresholds; a
+  crossing being watched; doubt first; a dream).
+
 ### Yoga days [Implemented, V1]
 
 "Yoga lifts us up." Twice a week the tree picks the two worst days ahead, for its people and for itself, and
@@ -838,7 +869,7 @@ The owner's **Living Art V1 audit** listed the gaps below. **The audit document 
 - How to represent slow responses (bud break, new leaves, leaf drop) that appear days to weeks after a cause, without inventing them?
 - What per-tree baselines are worth learning, and over what window?
 - How should weeks of stability, or long neglect, be expressed differently from hours of it?
-- Should the epidermal/diffraction text be visible to the viewer (e.g. on tap), or stay implicit in the look?
+- ~~Should the epidermal/diffraction text be visible to the viewer?~~ Answered 2026-10-20: yes, as the narrator's "Why" column beside the tree (see "Why").
 - Should attention ever be voiced, and how, without guilt about absence or rewarding compulsive petting?
 - What other interactions belong in `interactions` (visits, looking closely, a real-tree check-in), and which of
   them are really care (a real observation of leaves or pests) that should become a `plant_events` type instead?

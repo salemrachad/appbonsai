@@ -657,5 +657,52 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   }
 }
 
+// WH. "Why": the narrator explains every state in plain words from the engines' own conclusions
+{
+  const { explainTree } = await import('../src/explain/why');
+  const why = (o: { h: PlantHealthState; p: ReturnType<Sim['run']>['p']; b: ReturnType<Sim['run']>['b']; x: ReturnType<Sim['run']>['x'] }, now: number) =>
+    explainTree({ perception: o.p, health: o.h, behaviour: o.b, expression: o.x, species: FICUS, now });
+  const clean = (cards: ReturnType<typeof why>) => cards.every((c) => !/undefined|NaN|\bnull\b|\w_\w/.test(`${c.title} ${c.body}`) && c.title.length > 0 && c.body.length > 10);
+  const s = new Sim();
+  const calm = s.run(at(9), 30, () => ({ soil: 60 }));
+  const all = DEV_PRESETS.map((p) => {
+    const h = applyDeveloperOverride(calm.h, p, FICUS);
+    const b = evaluateBehaviour({ health: h, perception: calm.p, episodes: [], events: [], species: FICUS, now: at(10) });
+    const x = expressBehaviour({ behaviour: b, health: h, perception: calm.p, now: at(10) });
+    return { id: p.id, cards: why({ h, p: calm.p, b, x }, at(10)) };
+  });
+  const bad = all.filter((r) => !r.cards.some((c) => c.id === 'now') || !clean(r.cards));
+  check('WH1 every preset is explained: a "now" card, and no undefined, NaN, null or code identifiers in the words', bad.length === 0, bad.map((r) => `${r.id}: ${r.cards.map((c) => `${c.title} / ${c.body}`).join(' | ')}`).join(' ‖ ') || `${all.length} presets`);
+  const dry = new Sim();
+  dry.run(at(9), 60, () => ({ soil: 60 }));
+  const thirsty = dry.run(at(10), 60, () => ({ soil: 30 }));
+  const now1 = why(thirsty, at(11)).find((c) => c.id === 'now')!;
+  check('WH2 thirsty: names the soil now and the species thresholds (35 to enter, 40 to let go)', thirsty.h.condition === 'thirsty' && /30 %/.test(now1.body) && /35 %/.test(now1.body) && /40 %/.test(now1.body), `${now1.title}: ${now1.body}`);
+  const pend = new Sim();
+  pend.run(at(9), 60, () => ({ soil: 60 }));
+  const crossing = pend.run(at(10), 10, () => ({ soil: 33 }));
+  const watching = why(crossing, at(10, 10)).find((c) => c.id === 'watching');
+  check('WH3 a threshold crossed but not for long enough: what it is watching, and how long until it counts', crossing.h.condition === 'comfortable' && !!watching && /thirsty/.test(watching.body) && /more/.test(watching.body), watching?.body ?? 'none');
+  const out = new Sim();
+  out.run(at(9), 60, () => ({ soil: 60 }));
+  const stale = out.run(at(10), 40, () => null);
+  const staleCards = why(stale, at(10, 40));
+  check('WH4 no trustworthy data: "how sure" comes first and says it is held, not guessed', staleCards[0].id === 'trust' && /held, not guessed|can't trust/.test(staleCards.map((c) => c.body).join(' ')), staleCards[0].body);
+  const sleepH = applyDeveloperOverride(calm.h, DEV_PRESETS.find((p) => p.id === 'sleeping')!, FICUS);
+  const sleepB = evaluateBehaviour({ health: sleepH, perception: calm.p, episodes: [], events: [], species: FICUS, now: at(10) });
+  const dreamB = {
+    ...sleepB,
+    dream: {
+      night: { key: 'n', startsAt: at(9), endsAt: at(12) }, asleep: true, phase: 'dreaming' as const, motif: 'rain' as const, with: 'squirrel' as const, phaseEndsAt: at(10, 20), restless: false, cast: [],
+      tonight: { night: 'n', startsAt: at(9), endsAt: at(12), composedAt: at(9), motifs: [{ motif: 'rain' as const, salience: 0.85, source: 'care' as const, role: 'day' as const, why: 'after the long thirst' }], phases: [], cast: [], outcome: null },
+      lastNight: null, recurring: [], compose: null, finish: null, why: '',
+    },
+  };
+  const night = why({ h: sleepH, p: calm.p, b: dreamB, x: expressBehaviour({ behaviour: dreamB, health: sleepH, perception: calm.p, now: at(10) }) }, at(10)).find((c) => c.id === 'night');
+  check('WH5 a night with a dream: what it dreams of, and what tonight is made of', !!night && /the squirrel in the rain/.test(night.body) && /after the long thirst/.test(night.body), night?.body ?? 'none');
+  const calmCards = why(calm, at(10));
+  check('WH6 a calm day: comfortable, its vitality, its mood, how sure; every card has its figures', calmCards[0].id === 'now' && ['vitality', 'mood', 'trust'].every((id) => calmCards.some((c) => c.id === id)) && calmCards.every((c) => c.details.length > 0) && clean(calmCards), calmCards.map((c) => c.title).join(' · '));
+}
+
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exitCode = fails ? 1 : 0;

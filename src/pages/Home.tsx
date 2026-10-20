@@ -4,6 +4,9 @@ import { HikePanel } from '../components/scene/HikePanel';
 import { OutsidePanel } from '../components/scene/OutsidePanel';
 import { TreeDiary } from '../components/scene/TreeDiary';
 import { WeatherForeground } from '../components/scene/WeatherForeground';
+import { WhyColumn } from '../components/scene/WhyColumn';
+import type { PlantBehaviourState } from '../behaviour/behaviourTypes';
+import type { PerceptionState } from '../perception/perceptionTypes';
 import type { PetSession } from '../components/avatar/usePetting';
 import { SensorCardGrid } from '../components/sensors/SensorCard';
 import { VitalityGauge } from '../components/VitalityGauge';
@@ -27,14 +30,19 @@ interface HomeProps {
   onChooseHike?: (day: string) => void; // a day chosen on the hike calendar
   diaryKey?: string; // changes when the diary has something new (the Home diary reloads)
   onOpenDiary?: () => void; // the full diary (History)
+  // "Why": the explanation column on the left (written from the same state, src/explain/why.ts)
+  perception?: PerceptionState | null;
+  behaviour?: PlantBehaviourState | null;
 }
 
 // The companion screen: shows what the engines concluded, never recalculates it.
-export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null, hikePreview = false, onChooseHike, diaryKey, onOpenDiary }) => {
+export const Home: React.FC<HomeProps> = ({ health, expression, offlineMessage, devPresetLabel, onReturnToLive, onOpenDetails, onPetSession, outside = null, inside = { temperature: null, humidity: null }, air = null, hikePreview = false, onChooseHike, diaryKey, onOpenDiary, perception = null, behaviour = null }) => {
   const msg = expression?.message;
 
   return (
-    <main className="relative z-10 flex-1 min-h-0 w-full max-w-6xl mx-auto px-8 py-6 grid grid-cols-1 md:grid-cols-2 gap-10 items-center overflow-y-auto md:overflow-hidden">
+    <main className="relative z-10 flex-1 min-h-0 w-full max-w-6xl xl:max-w-[88rem] mx-auto px-8 py-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[18rem_1fr_1fr] xl:grid-rows-[minmax(0,1fr)] gap-10 xl:gap-8 items-center overflow-y-auto md:overflow-hidden">
+      {/* Why the tree is like this: a narrator's explanation, its own scrolling column on the left */}
+      <WhyColumn perception={perception} health={health} behaviour={behaviour} expression={expression} previewing={!!devPresetLabel} />
       <div className="relative h-full min-h-[320px] flex items-center justify-center">
         <BonsaiAvatar className="w-full h-full max-h-[620px]" expression={expression} onPetSession={onPetSession} />
         {/* Outside weather in front of the tree (fog drifting across it, rain falling past it) */}
