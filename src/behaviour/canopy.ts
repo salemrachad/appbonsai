@@ -5,17 +5,20 @@ import type { SpeciesProfile } from '../species';
 import type { CanopyState } from './behaviourTypes';
 import { DAY, HOUR } from '../lib/time';
 
-// The canopy: how full the tree's foliage looks, from its LAST WEEKS (evidence class "inference").
+// The canopy: how full the tree's foliage looks, from its LAST WEEKS.
 // A ficus answers a long stress by dropping leaves, often drops some after being moved, and refills over
-// weeks at the pace of the season. The app can't count the real leaves: this is an interpretation of the
-// stored history, drawn by the avatar only. Health, vitality, mood and the habitat never read it.
-// Derived from episodes and care events (nothing stored), deterministic.
+// weeks at the pace of the season. Without photos this is an interpretation of the stored history (evidence
+// class "inference"); with a readable daily photo it starts from what the photo measured (observation) and the
+// same rules only carry it forward until the next photo. Drawn by the avatar only; health, vitality, mood and
+// the habitat never read it (the photos' leaf drop reaches health on its own, health/leaves.ts).
+// Derived from episodes, care events and photos (nothing stored), deterministic.
 //
+//   the latest readable photo                    the starting point (and the photos before it, the trend)
 //   a stress past its grace period (primary)    thins it, per observed hour (critical fastest)
 //   a move to a new spot                         a small dip spread over the days after it
 //   calm, recovering, asleep                     refills toward full (time constant × growth phase)
 //   unsure data, gaps, unobserved time           held
-//   never below the floor: the app can't know the real tree is bare
+//   never below the floor (or what the last photo showed, if lower): the rules alone can't know it is barer
 
 const REGROWS: HealthCondition[] = ['comfortable', 'thriving', 'recovering', 'sleeping', 'very_bright'];
 
@@ -25,16 +28,22 @@ export interface CanopyInput {
   growth: SpeciesProfile['seasons'][keyof SpeciesProfile['seasons']]['growth']; // current growth phase
   species: SpeciesProfile;
   now: number;
+  photos?: { at: number; fullness: number; yellow?: number }[]; // readable daily photos, oldest first (perception.leaves.measured)
 }
 
-export function evaluateCanopy({ episodes, events, growth, species, now }: CanopyInput): CanopyState {
+export function evaluateCanopy({ episodes, events, growth, species, now, photos = [] }: CanopyInput): CanopyState {
   const c = species.canopy;
-  const from = now - c.windowDays * DAY;
+  const window = now - c.windowDays * DAY;
+  const seen = photos.filter((p) => p.at <= now && p.at >= window);
+  const anchor = seen.at(-1) ?? null;
+  // With a photo: the rules run only from it (what came before is what the photos showed)
+  const from = anchor ? anchor.at : window;
+  const floor = anchor ? Math.min(c.floor, anchor.fullness) : c.floor;
   const tau = c.regrowDays * DAY / c.growthFactor[growth];
   const moves = events.filter((e) => e.type === 'moved_location' && e.timestamp > from - c.moveDipDays * DAY && e.timestamp <= now).map((e) => e.timestamp);
-  let full = 1;
+  let full = anchor ? Math.min(1, anchor.fullness) : 1;
   let thinnedBy: HealthCondition | null = null;
-  const history: { t: number; full: number }[] = [];
+  const history: { t: number; full: number }[] = seen.map((p) => ({ t: p.at, full: Math.min(1, p.fullness) }));
   const sorted = [...episodes].filter((e) => (e.endedAt ?? now) > from && e.startedAt <= now).sort((a, b) => a.startedAt - b.startedAt);
   for (const e of sorted) {
     const start = Math.max(e.startedAt, from);
@@ -67,13 +76,13 @@ export function evaluateCanopy({ episodes, events, growth, species, now }: Canop
         const overlap = Math.max(0, Math.min(t1, m + c.moveDipDays * DAY) - Math.max(t0, m));
         if (overlap > 0) full -= c.moveDip * (overlap / (c.moveDipDays * DAY));
       }
-      full = Math.max(c.floor, Math.min(1, full));
+      full = Math.max(floor, Math.min(1, full));
       history.push({ t: t1, full });
     }
   }
 
   const at = (t: number) => {
-    let v = 1;
+    let v = history[0] && anchor ? history[0].full : 1; // before the first photo: as it showed
     for (const h of history) {
       if (h.t > t) break;
       v = h.full;
@@ -86,11 +95,14 @@ export function evaluateCanopy({ episodes, events, growth, species, now }: Canop
   // Fresh tips show while it is coming back: the recent rise, as long as there is still a gap
   const refilling = full < 0.985 ? round2(Math.min(1, Math.max(0, (full - lowest) * c.refillVisibility))) : 0;
   const reasons: string[] = [];
+  if (anchor) reasons.push(`measured ${Math.round(anchor.fullness * 100)}% in the photo of ${Math.round((now - anchor.at) / DAY * 10) / 10} days ago`);
   if (full < 0.985) {
     reasons.push(`${Math.round(full * 100)}% full${thinnedBy ? ` (thinned by ${thinnedBy.replace(/_/g, ' ')})` : ''}${moves.length ? ', settling after a move' : ''}`);
     reasons.push(trend === 'refilling' ? `refilling (${growth} season: time constant ${Math.round(tau / DAY)} days)` : trend === 'thinning' ? 'still thinning' : 'holding');
   } else reasons.push('full canopy');
-  return { fullness: round2(full), refilling, trend, reasons };
+  // The photo's yellow leaves show for a while after it was taken
+  const yellow = anchor?.yellow && now - anchor.at <= species.photo.yellowShownDays * DAY ? round2(anchor.yellow) : undefined;
+  return { fullness: round2(full), refilling, trend, reasons, ...(anchor && { measured: { at: anchor.at, fullness: anchor.fullness } }), ...(yellow && { yellow }) };
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;

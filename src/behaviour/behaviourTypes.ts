@@ -100,6 +100,8 @@ export type DayLine =
   // Yoga days (behaviour/yoga.ts): the week's two announced (once per pick), the day itself
   | 'yoga_picked'
   | 'yoga_today'
+  // The daily photo (src/vision/): no photo yet today, said in the evening once photos have begun
+  | 'photo_reminder'
   // Last night's dream (behaviour/dreams.ts), told once on waking; _again: it came back
   | 'morning_dream'
   | 'morning_dream_again';
@@ -361,10 +363,12 @@ export interface VoiceState {
 
 // The canopy over the last weeks (inference, drawn only): never read by health, mood or the habitat
 export interface CanopyState {
-  fullness: number; // 0.6-1: share of the foliage showing
+  fullness: number; // 0-1 (0.6-1 without photos): share of the foliage showing
   refilling: number; // 0-1: share of the gap coming back as fresh tips
   trend: 'thinning' | 'refilling' | 'steady';
   reasons: string[]; // developer panel
+  measured?: { at: number; fullness: number }; // the daily photo it starts from (absent: inferred from the history)
+  yellow?: number; // share of yellowing leaves in that photo, while recent (species.photo.yellowShownDays)
 }
 
 // ---- Dreams (behaviour/dreams.ts): the day digested at night (art). Health, mood, energy and the

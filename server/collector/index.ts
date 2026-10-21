@@ -496,6 +496,8 @@ export class LivingCollector {
     return perceive({
       outside,
       soilBreaks: context?.soilBreaks ?? this.soilBreaks(),
+      // The daily photos of the last weeks (the real leaves: the canopy, shedding)
+      photos: this.db.photosSince(now - APP_CONFIG.photos.windowDays * DAY),
       // Today's skies: a grey day explains dim light (also on replay, from the stored observations)
       outsideToday: skies.filter((o) => o.at >= since && o.at <= now + 15 * 60_000),
       outsideRecent: skies.filter((o) => o.at >= recentSince && o.at <= now),
@@ -848,6 +850,11 @@ export class LivingCollector {
     if (wateredAt !== null) this.store.watered(wateredAt);
     this.evaluate(this.now());
     return event;
+  }
+
+  // A photo added, changed or removed: the canopy (and any shedding) follows it now
+  photosChanged() {
+    if (this.state) this.evaluate(this.now());
   }
 
   deleteEvent(id: number): boolean {

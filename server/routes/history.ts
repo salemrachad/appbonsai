@@ -13,6 +13,7 @@ import { toSample } from '../../src/perception/PerceptionEngine';
 import { fromRecord } from '../collector';
 import { buildDiary, saidItems } from '../../src/history/diary';
 import { daySummaries } from '../../src/history/daySummary';
+import { photoDiary } from '../../src/history/photoDiary';
 import { dayMoments, dayStartOf } from '../../src/history/moments';
 import { ACTIVE_SPECIES } from '../../src/species';
 import type { DailySummary, DiaryItem } from '../../src/history/historyTypes';
@@ -28,7 +29,7 @@ const clampNum = (v: unknown, lo: number, hi: number, dflt: number) => Math.min(
 // GET /api/history?hours=24 (raw rows) · /hourly?hours=24 · /daily?days=7 · /diary?days=3 · /episodes?days=30 · /weather?hours=24
 // The plant diary for the last `days` days as of `now`, newest first (GET /api/history/diary; tests pass the
 // bench clock). Episodes, care, outside weather, the visitors, what the tree said, the moments of each day and
-// the finished days in short.
+// the finished days in short, and the daily photos (two weeks before: the change since the photo before).
 export function diaryFor(db: AppDatabase, collector: LivingCollector, days: number, now: number): DiaryItem[] {
   const since = now - days * DAY;
   const source = () => (collector.getSettings().settings.dataSource === 'weather_estimate' ? 'weather_estimate' : 'esp32_sensor');
@@ -83,7 +84,7 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const said = db.utterancesSince(since);
   const daySamples = toSamples(telemetrySince(from));
   const days_ = [...dayMoments(daySamples, ACTIVE_SPECIES, now, said, from), ...daySummaries(daySamples, episodesSince(from), eventsSince(from), ACTIVE_SPECIES, now, from)].filter((i) => i.at >= since);
-  return [...buildDiary(episodesSince(since), eventsSince(since), APP_CONFIG.history.episodeGapMs, weatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...lucy, ...encounters, ...dreams, ...yogaDiary(collector.yogaDays(), since, now)].sort((a, b) => b.at - a.at);
+  return [...buildDiary(episodesSince(since), eventsSince(since), APP_CONFIG.history.episodeGapMs, weatherSince(since)), ...saidItems(said), ...days_, ...visitors, ...dragonflies, ...sloths, ...lucy, ...encounters, ...dreams, ...yogaDiary(collector.yogaDays(), since, now), ...photoDiary(db.photosSince(since - 14 * DAY), since, now)].sort((a, b) => b.at - a.at);
 }
 
 export function historyRoutes(db: AppDatabase, collector: LivingCollector): Router {

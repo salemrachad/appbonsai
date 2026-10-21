@@ -531,7 +531,13 @@ export function expressBehaviour({ behaviour: b, health, perception, speech, now
   if (r?.kind === 'watering_relief' || r?.kind === 'watering_gentle_ack') scene = 'renewal';
   const night = DARK_SCENES.includes(scene);
   const calmScene = scene === 'calm' || scene === 'golden' || scene === 'night' || scene === 'renewal';
-  const avatar: AvatarPresentation = { ...look, effects: [...effects], canopy: { fullness: b.canopy?.fullness ?? 1, refilling: b.canopy?.refilling ?? 0 } };
+  // With a daily photo: the canopy as measured, and the yellow leaves it showed (absent without photos)
+  const yellow = b.canopy?.yellow;
+  const avatar: AvatarPresentation = {
+    ...look,
+    effects: [...effects],
+    canopy: { fullness: b.canopy?.fullness ?? 1, refilling: b.canopy?.refilling ?? 0, ...(yellow !== undefined && { yellow }), ...(b.canopy?.measured && { measured: true }) },
+  };
   const h = b.habitat;
   const visitor: VisitorPresentation | null =
     h?.visit && h.presence !== 'none'
@@ -661,8 +667,10 @@ function describeBody(a: AvatarPresentation, b: PlantBehaviourState, droop: numb
   if (a.effects.length) out.push(`effects: ${a.effects.join(', ')}`);
   if (a.canopy.fullness < 0.985) {
     const thin = a.canopy.fullness < 0.75 ? 'canopy thin' : 'canopy a little thin';
-    out.push(`${thin} after a hard stretch${a.canopy.refilling > 0.05 ? ', refilling with fresh tips' : ''} (${Math.round(a.canopy.fullness * 100)}%)`);
-  }
+    const why = a.canopy.measured ? ', as the photo shows' : ' after a hard stretch';
+    out.push(`${thin}${why}${a.canopy.refilling > 0.05 ? ', refilling with fresh tips' : ''} (${Math.round(a.canopy.fullness * 100)}%)`);
+  } else if (a.canopy.measured) out.push('a full canopy, as the photo shows');
+  if (a.canopy.yellow !== undefined && a.canopy.yellow >= 0.05) out.push(`${a.canopy.yellow >= 0.15 ? 'several' : 'a few'} yellow leaves, as in the photo`);
   const lu = b.habitat.lucy?.visit;
   if (lu) out.push(`Lucy ${{ walking: 'walking about', sitting: 'sitting', down: 'lying down', sleeping: 'asleep' }[lu.pose]} ${{ floor_left: 'on the floor', pillow: 'on her pillow', by_pot: 'by the pot', pot_front: 'in front of the pot', pot_right: 'by the pot', floor_right: 'right of the stand' }[lu.spot]}${lu.cue ? ` (${lu.cue.replace('_', ' ')})` : ''}`);
   else if (b.habitat.lucy?.presence === 'away_hiking') out.push('her pillow empty: Lucy is out on the hike');

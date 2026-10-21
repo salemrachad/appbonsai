@@ -2,6 +2,7 @@ import type { BehaviourEpisode, HourlyBucket, Interaction, InteractionKind, Plan
 import type { HealthCondition, Severity } from '../src/health/healthTypes';
 import type { OutsideObservation } from '../src/telemetry/outsideWeather';
 import type { DreamOutcome, DreamRecord } from '../src/behaviour/behaviourTypes';
+import type { PhotoAnalysis, PhotoRecord, Roi } from '../src/vision/visionTypes';
 import { MIGRATIONS, SCHEMA_SQL, SCHEMA_VERSION } from './schema';
 
 // Thin data-access layer: plain SQLite SQL, no ORM, over a driver. On the laptop the driver is node:sqlite
@@ -26,7 +27,8 @@ export interface SqlDriver {
 
 // A whole tree's data, to move it to another server (scripts/cloudMigrate.ts → POST /api/admin/restore).
 // The tree's own id stays with the server it lands on; its devices are moved to that tree.
-export const DUMP_TABLES = ['telemetry', 'plant_events', 'behaviour_episodes', 'calibration_history', 'interactions', 'outside_weather', 'devices', 'utterances', 'dreams'] as const;
+// (photos: their rows; the images stay in the photo store, which npm run cf:backup copies on its own)
+export const DUMP_TABLES = ['telemetry', 'plant_events', 'behaviour_episodes', 'calibration_history', 'interactions', 'outside_weather', 'devices', 'utterances', 'dreams', 'photos'] as const;
 export interface DatabaseDump {
   schemaVersion: number;
   tables: Record<(typeof DUMP_TABLES)[number], Row[]>;
@@ -139,6 +141,23 @@ const toEpisode = (r: Row): BehaviourEpisode => ({
   engineVersion: r.engine_version,
 });
 
+// A photo row with where its image is kept (the API leaves the key out)
+export type StoredPhoto = PhotoRecord & { imageKey: string; bytes: number };
+
+const toPhoto = (r: Row): StoredPhoto => ({
+  id: r.id,
+  takenAt: r.taken_at,
+  uploadedAt: r.uploaded_at,
+  imageKey: r.image_key,
+  width: r.width,
+  height: r.height,
+  bytes: r.bytes,
+  isReference: r.is_reference === 1,
+  roi: json<Roi | null>(r.roi_json, null),
+  analysis: json<PhotoAnalysis | null>(r.analysis_json, null),
+  note: r.note ?? null,
+});
+
 export interface DeviceRecord {
   id: string;
   treeId: string | null; // the tree it measures (a replaced device keeps the tree's history)
@@ -225,9 +244,9 @@ export class AppDatabase {
   // state snapshot (the stream asks every 15 s): kept as one window per table, read again after any write to it.
   // Same rows, same order as the query each time (the window is that query's result, filtered).
   private windows = new Map<string, { start: number; rows: Row[] }>();
-  private windowOf(table: string, since: number, query: string): Row[] {
+  private windowOf(table: string, since: number, query: string | ((since: number) => Row[])): Row[] {
     let w = this.windows.get(table);
-    if (!w || since < w.start) this.windows.set(table, (w = { start: since, rows: this.sql.all(query, since) }));
+    if (!w || since < w.start) this.windows.set(table, (w = { start: since, rows: typeof query === 'string' ? this.sql.all(query, since) : query(since) }));
     return w.rows;
   }
 
@@ -613,6 +632,50 @@ export class AppDatabase {
       const d = json(r.dream_json, { motifs: [], phases: [], cast: [], alsoRan: [] });
       return { night: r.night, startsAt: r.starts_at, endsAt: r.ends_at, composedAt: r.composed_at, motifs: d.motifs ?? [], phases: d.phases ?? [], cast: d.cast ?? [], alsoRan: d.alsoRan ?? [], outcome: json(r.outcome_json, null) };
     });
+  }
+
+  // ---- daily photos (the image is in the photo store under imageKey) ----
+  insertPhoto(p: Omit<StoredPhoto, 'id'>): StoredPhoto {
+    const r = this.get(
+      'INSERT INTO photos (taken_at, uploaded_at, image_key, width, height, bytes, is_reference, roi_json, analysis_json, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *',
+      p.takenAt, p.uploadedAt, p.imageKey, p.width, p.height, p.bytes, p.isReference ? 1 : 0, p.roi ? JSON.stringify(p.roi) : null, p.analysis ? JSON.stringify(p.analysis) : null, p.note
+    )!;
+    if (p.isReference) this.setReferencePhoto(Number(r.id));
+    return toPhoto(this.get('SELECT * FROM photos WHERE id = ?', r.id)!);
+  }
+  getPhoto(id: number): StoredPhoto | null {
+    const r = this.get('SELECT * FROM photos WHERE id = ?', id);
+    return r ? toPhoto(r) : null;
+  }
+  // One reference at a time: the newly marked one
+  setReferencePhoto(id: number) {
+    this.all('UPDATE photos SET is_reference = CASE WHEN id = ? THEN 1 ELSE 0 END WHERE is_reference = 1 OR id = ?', id, id);
+  }
+  updatePhoto(id: number, change: { roi?: Roi | null; analysis?: PhotoAnalysis | null; note?: string | null }): StoredPhoto | null {
+    const r = this.get('SELECT * FROM photos WHERE id = ?', id);
+    if (!r) return null;
+    const roi = 'roi' in change ? (change.roi ? JSON.stringify(change.roi) : null) : r.roi_json;
+    const analysis = 'analysis' in change ? (change.analysis ? JSON.stringify(change.analysis) : null) : r.analysis_json;
+    const note = 'note' in change ? change.note ?? null : r.note;
+    return toPhoto(this.get('UPDATE photos SET roi_json = ?, analysis_json = ?, note = ? WHERE id = ? RETURNING *', roi, analysis, note, id)!);
+  }
+  deletePhoto(id: number): StoredPhoto | null {
+    const r = this.get('DELETE FROM photos WHERE id = ? RETURNING *', id);
+    return r ? toPhoto(r) : null;
+  }
+  // The photos taken since `since`, newest first, and the reference however old it is (fullness is measured
+  // against it). Read every evaluation: a window kept in memory, read again after any write to photos, through
+  // the indexes (a Durable Object bills rows read)
+  photosSince(since: number): StoredPhoto[] {
+    const rows = this.windowOf('photos', since, (start) => [
+      ...this.sql.all('SELECT * FROM photos INDEXED BY idx_photos_taken WHERE taken_at >= ? ORDER BY taken_at DESC', start),
+      ...this.sql.all('SELECT * FROM photos INDEXED BY idx_photos_reference WHERE is_reference = 1 AND taken_at < ? ORDER BY taken_at DESC LIMIT 1', start),
+    ]);
+    return rows.filter((r) => r.taken_at >= since || r.is_reference === 1).map(toPhoto);
+  }
+  // Every photo, newest first (the gallery and cf:backup: a few hundred rows a year, read on demand only)
+  allPhotos(limit = 2000): StoredPhoto[] {
+    return this.all('SELECT * FROM photos ORDER BY taken_at DESC LIMIT ?', limit).map(toPhoto);
   }
 
   // ---- behaviour episodes ----

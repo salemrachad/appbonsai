@@ -13,6 +13,7 @@ interface SettingsViewProps {
   onUpdateSettings: (newSettings: TreeSettings) => void;
   onRefreshTelemetry: () => void;
   serverStatus?: ServerStatus | null;
+  onOpenPhotos?: () => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -20,6 +21,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onUpdateSettings,
   onRefreshTelemetry,
   serverStatus,
+  onOpenPhotos,
 }) => {
   const [treeName, setTreeName] = useState(settings.treeName);
   const [species, setSpecies] = useState(settings.species);
@@ -315,8 +317,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setTelemetryIntervalMs={setTelemetryIntervalMs}
       />
 
-      {/* SECTION 5: VISUAL HEALTH & FUTURE CAMERA */}
-      <VisualHealthCard />
+      {/* SECTION 5: DAILY PHOTOS (the phone is the camera) */}
+      <VisualHealthCard onOpenPhotos={onOpenPhotos} />
 
       {/* SAVE BUTTON & ATTRIBUTION */}
       <div className="space-y-4 pt-2">

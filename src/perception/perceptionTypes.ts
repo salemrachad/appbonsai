@@ -7,6 +7,7 @@ import type { CareContext } from './careContext';
 import type { DailyLight } from './dailyLight';
 import type { SeasonState } from './season';
 import type { SunState } from './sun';
+import type { LeafObservation } from '../vision/visionTypes';
 
 // One past moment as perceived: what was measured, and whether daylight was expected then.
 export interface PerceptionSample {
@@ -77,4 +78,7 @@ export interface PerceptionState {
   // Inside (the ESP32) vs outside air, compared by the water it actually holds (RH depends on temperature).
   // Facts for the Outside panel only; health never reads it. null without the real sensor or fresh weather.
   air: AirComparison | null;
+  // The real leaves, from the daily photos (evidence class "observation"): the canopy is anchored on them and a
+  // drop between photos is shedding (health). Absent without a reference photo and a readable one.
+  leaves?: LeafObservation;
 }

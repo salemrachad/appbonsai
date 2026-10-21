@@ -157,7 +157,8 @@ export const PadLeaves: React.FC<{
   const leaves = useMemo(() => leavesFor(pad), [pad]);
   const curl = foliage === 'curled' ? 0.45 : foliage === 'parched' || foliage === 'scorched' ? 0.7 : 1;
   // How many leaves show the season: a share of the pad, growing and fading with the yearly cycle
-  const yellowShare = effects.includes('yellow_leaves') ? 0.11 : 0.13 * seasonal.yellowing;
+  // (or, with a daily photo, the share of yellow leaves it showed, if more)
+  const yellowShare = Math.max(effects.includes('yellow_leaves') ? 0.11 : 0.13 * seasonal.yellowing, canopy.yellow ?? 0);
   const freshShare = effects.includes('new_leaves') ? 0.28 : 0.32 * seasonal.newGrowth;
   const beads = effects.includes('condensation') || foliage === 'dewy';
   // A humid night: larger dew beads on more leaves, each glinting at its own pace

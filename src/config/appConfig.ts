@@ -466,5 +466,23 @@ export const APP_CONFIG = {
     liveReadingsKept: 60, // bottom live-sensor strip
   },
 
+  // Daily photos of the real tree (src/vision/, server/routes/photos.ts). Colours per leaf are biology
+  // (species.photo); these are the image handling and the limits of a readable photo (PROTOTYPE).
+  photos: {
+    analyzerVersion: 1, // bump when measure.ts changes what it measures
+    uploadLongSide: 1600, // px: the stored JPEG (about 250 KB)
+    jpegQuality: 0.85,
+    analysisLongSide: 480, // px: measured at this size (fast, and noise averages out)
+    maxBytes: 3.5 * 1024 * 1024, // one image (sent as base64 JSON, under the API's 5 MB body limit)
+    minPixelSum: 60, // R+G+B below this: too dark to tell a colour
+    minBrightness: 35, // mean luma in the crown box (0-255)
+    minSharpness: 1.5, // mean |Laplacian| of luma…
+    sharpnessVsReference: 0.4, // …and at least this share of the reference's
+    minAlignment: 0.4, // framing correlation with the reference (edge maps)
+    minFoliage: 0.03, // fewer leaf pixels in the crown box: the box missed the tree
+    signature: { w: 32, h: 24 }, // edge map size for the framing check
+    windowDays: 30, // photos perception reads (the canopy's window)
+  },
+
   engineVersion: 'living-2.0',
 } as const;

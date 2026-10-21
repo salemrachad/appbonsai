@@ -115,6 +115,19 @@ export const FICUS: SpeciesProfile = {
     refillVisibility: 4,
   },
 
+  // OBSERVATION / PROTOTYPE: reading the daily photo. Green leaves by excess green and hue; yellowing leaves
+  // (ficus yellows before it drops) and dry brown ones by hue, saturated enough not to be the grey bark or the
+  // pot. A measured drop of 8 % or more between photos within a week is shedding: a ficus drops leaves days
+  // after a stress, so it is a sign of the last weeks, a small fading vitality dip, never the condition.
+  // To be checked against this tree's real photos (light in the greenhouse, the pot's colour).
+  photo: {
+    green: { minExg: 0.06, minHue: 65, maxHue: 175, minSat: 0.12 },
+    yellow: { minHue: 38, maxHue: 65, minSat: 0.35, minValue: 0.35 },
+    brown: { minHue: 12, maxHue: 38, minSat: 0.45, minValue: 0.18, maxValue: 0.75 },
+    shedding: { minDrop: 0.08, compareDays: 7, pointsPerDrop: 40, maxPoints: 8, fadeDays: 7 },
+    yellowShownDays: 14,
+  },
+
   // Hysteresis: enter at one value after a while, leave at a different value after a while.
   // A few minutes past a threshold never changes the tree's state on its own.
   latches: {

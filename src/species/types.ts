@@ -125,6 +125,25 @@ export interface SpeciesProfile {
     refillVisibility: number; // rise × this = share of the gap shown as fresh tips
   };
 
+  // The daily photo (OBSERVATION / PROTOTYPE): what counts as a green, yellow or dry brown leaf pixel, and what
+  // a drop in the measured canopy between photos means for health. See src/vision/measure.ts, health/leaves.ts.
+  photo: {
+    // Chromaticity: exg = (2G − R − B) / (R + G + B), so the light's brightness matters less. Hue in degrees,
+    // saturation and value 0-1 (HSV)
+    green: { minExg: number; minHue: number; maxHue: number; minSat: number };
+    yellow: { minHue: number; maxHue: number; minSat: number; minValue: number };
+    brown: { minHue: number; maxHue: number; minSat: number; minValue: number; maxValue: number }; // saturated: not the grey bark
+    // Leaf drop seen between photos: the latest readable photo against the fullest one in the days before it
+    shedding: {
+      minDrop: number; // fullness lost (0-1) that counts as shedding
+      compareDays: number; // the earlier photo within this many days before the latest
+      pointsPerDrop: number; // vitality points per 1.0 of fullness lost…
+      maxPoints: number; // …at most
+      fadeDays: number; // the dip fades over this many days after the photo (no new photo, no new news)
+    };
+    yellowShownDays: number; // the photo's yellow leaves show on the avatar this long after it was taken
+  };
+
   // Hysteresis: how conditions are entered and left.
   latches: Record<LatchId, LatchRule>;
 

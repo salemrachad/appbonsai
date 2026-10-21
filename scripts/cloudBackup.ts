@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { assemble, type NightlyBackup } from '../server/backup';
-import { call, callGzip, t } from './cloudApi';
+import { call, callBytes, callGzip, t } from './cloudApi';
 
 // npm run cf:backup [-- --nightly | --now]
 // A copy of the tree on Cloudflare in backups/ (gitignored), to keep somewhere outside Cloudflare (Google Drive).
@@ -10,6 +10,8 @@ import { call, callGzip, t } from './cloudApi';
 //   --nightly  rebuild the tree from the nightly backups in KV instead, and compare it with the live tree: the
 //              proof that the nightly backups can bring it back
 //   --now      make a nightly backup now (e.g. before a risky change), then list them
+// The whole tree (nothing) also copies the daily photos' images into backups/photos/ (only the new ones; the
+// rows saying what each showed are in the dump).
 // Restoring a file: npm run cf:migrate -- migrate --file backups/<file> (into an empty tree).
 
 const mode = process.argv[2] ?? '';
@@ -24,6 +26,25 @@ function save(name: string, dump: unknown) {
   console.log(`saved ${file} (${Math.round(body.length / 1024)} KB)`);
 }
 
+// The daily photos' images, one file each (named by the photo's id and time), only those not copied yet
+async function savePhotos(rows: { id: number; taken_at: number }[]) {
+  const dir = path.join('backups', 'photos');
+  fs.mkdirSync(dir, { recursive: true });
+  let copied = 0;
+  let missing = 0;
+  for (const r of rows) {
+    const file = path.join(dir, `${new Date(r.taken_at).toISOString().slice(0, 10)}-photo-${r.id}.jpg`);
+    if (fs.existsSync(file)) continue;
+    const bytes = await callBytes(`/photos/${r.id}/image`);
+    if (!bytes) missing++;
+    else {
+      fs.writeFileSync(file, bytes);
+      copied++;
+    }
+  }
+  console.log(`photos: ${rows.length} in the tree, ${copied} new copied to ${dir}${missing ? `, ${missing} missing from the photo store` : ''}`);
+}
+
 async function listNightly() {
   const keys: { name: string; metadata: any }[] = await call('/admin/backups');
   // The latest series (a restore starts a new one)
@@ -36,6 +57,7 @@ try {
     const dump = await call('/admin/dump');
     console.log(`the tree now: ${counts(dump)}`);
     save(`appbonsai-${day}.json.gz`, dump);
+    await savePhotos(dump.tables.photos ?? []);
   } else if (mode === '--nightly') {
     const { all, latest } = await listNightly();
     if (!latest.length) throw new Error('No nightly backups yet');

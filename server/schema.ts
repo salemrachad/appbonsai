@@ -1,7 +1,7 @@
 // SQLite schema for the local Appbonsai database (data/appbonsai.db).
 // All timestamps are INTEGER milliseconds since the Unix epoch (UTC).
 
-export const SCHEMA_VERSION = 11; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather, 7: devices, 8: trees + devices.tree_id, 9: utterances, 10: pressure + air quality on outside_weather, 11: dreams
+export const SCHEMA_VERSION = 12; // 4: interactions, 5: outside_weather (both created by SCHEMA_SQL), 6: sunrise/sunset on outside_weather, 7: devices, 8: trees + devices.tree_id, 9: utterances, 10: pressure + air quality on outside_weather, 11: dreams, 12: photos
 
 export const SCHEMA_SQL = `
 -- Raw observations: the permanent truth. Health can be re-evaluated from these later.
@@ -147,6 +147,25 @@ CREATE TABLE IF NOT EXISTS dreams (
   engine_version TEXT   NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_dreams_starts ON dreams(starts_at);
+
+-- Daily photos of the real tree (taken with the phone, measured in the browser: src/vision/). The image itself
+-- is in the photo store (KV on Cloudflare, data/photos/ on the laptop) under image_key; this row is what it
+-- showed. Perception reads the readable ones of the last weeks (perception.leaves).
+CREATE TABLE IF NOT EXISTS photos (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  taken_at      INTEGER NOT NULL,
+  uploaded_at   INTEGER NOT NULL,
+  image_key     TEXT    NOT NULL,                -- in the photo store
+  width         INTEGER NOT NULL,
+  height        INTEGER NOT NULL,
+  bytes         INTEGER NOT NULL,
+  is_reference  INTEGER NOT NULL DEFAULT 0,      -- the tree at its fullest: fullness is measured against it
+  roi_json      TEXT,                            -- the crown box (on the reference)
+  analysis_json TEXT,                            -- PhotoAnalysis (null: not measured)
+  note          TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_photos_taken ON photos(taken_at);
+CREATE INDEX IF NOT EXISTS idx_photos_reference ON photos(is_reference, taken_at);
 
 -- Small key/value store: schema version, collector settings.
 CREATE TABLE IF NOT EXISTS meta (

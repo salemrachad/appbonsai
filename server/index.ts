@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { BackendInfo } from '../src/api/types';
 import { APP_CONFIG } from '../src/config/appConfig';
 import { apiApp } from './app';
+import { filePhotoStore, photoDirFor } from './filePhotoStore';
 import { LivingCollector } from './collector';
 import { corsForLocalNetwork } from './cors';
 import { openDatabase } from './nodeSqlite';
@@ -37,7 +38,7 @@ const backend: BackendInfo = { mode, hostname: hostname(), host, port, dbPath: d
 const app = express();
 app.use(compression()); // gzip: the bundle and /api/current are ~4× smaller on the phone
 app.use('/api', corsForLocalNetwork((process.env.APPBONSAI_CORS_ORIGINS ?? '').split(',')));
-app.use(apiApp(db, collector, { startedAt, backend }));
+app.use(apiApp(db, collector, { startedAt, backend, photos: filePhotoStore(photoDirFor(dbPath)) }));
 
 // Production: the built frontend (npm run build) from the same server, so the app and its API share an origin
 if (servesApp) {

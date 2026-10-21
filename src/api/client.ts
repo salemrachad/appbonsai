@@ -2,6 +2,7 @@ import type { BehaviourEpisode, DailySummary, DiaryItem, HourlyBucket, Interacti
 import type { TreeSettings } from '../settings/settings';
 import type { CalibrationSaveResult, CalibrationState, CaptureResult, LivingSnapshot, ServerStatus } from './types';
 import type { CaptureStats } from '../telemetry/calibration';
+import type { PhotoAnalysis, PhotoRecord, Roi } from '../vision/visionTypes';
 import { apiUrl, BACKEND } from '../config/backend';
 
 // Frontend → the Appbonsai server. Every API call goes through here, and the address comes only
@@ -81,6 +82,16 @@ export const api = {
   daily: (days = 7) => call<DailySummary[]>(`/history/daily?days=${days}`),
   diary: (days = 3) => call<DiaryItem[]>(`/history/diary?days=${days}`),
   episodes: (days = 30) => call<BehaviourEpisode[]>(`/history/episodes?days=${days}`),
+
+  // The daily photos (the JPEG as base64, already shrunk and measured in the browser)
+  photos: (days = 60) => call<{ photos: PhotoRecord[]; storage: boolean }>(`/photos?days=${days}`),
+  uploadPhoto: (p: { image: string; takenAt: number; width: number; height: number; analysis: PhotoAnalysis | null; roi?: Roi | null; isReference?: boolean; note?: string }) =>
+    call<PhotoRecord>('/photos', { method: 'POST', body: JSON.stringify(p), timeoutMs: 60000 }),
+  updatePhoto: (id: number, change: { isReference?: true; roi?: Roi | null; analysis?: PhotoAnalysis | null; note?: string | null }) =>
+    call<PhotoRecord>(`/photos/${id}`, { method: 'PATCH', body: JSON.stringify(change), timeoutMs: 15000 }),
+  deletePhoto: (id: number) => call<void>(`/photos/${id}`, { method: 'DELETE' }),
+  // For <img src> and for measuring again in the browser (same origin: the password goes along)
+  photoUrl: (id: number) => apiUrl(`/photos/${id}/image`),
 
   calibration: () => call<CalibrationState>('/calibration'),
   captureCalibration: (sensor: 'soil' | 'light') =>

@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MapPin, RefreshCw, History as HistoryIcon, Settings as SettingsIcon, X, Activity, Wrench } from 'lucide-react';
+import { MapPin, RefreshCw, History as HistoryIcon, Settings as SettingsIcon, X, Activity, Wrench, Camera } from 'lucide-react';
 import { api } from './api/client';
 import { BACKEND } from './config/backend';
 import type { DailySummary } from './history/historyTypes';
@@ -21,12 +21,13 @@ import { Toast, ToastMessage } from './components/Toast';
 import { Home } from './pages/Home';
 import { hhmm, hhmmss, setTreeTimeZone } from './lib/time';
 
-type Panel = 'history' | 'settings' | 'developer' | null;
+type Panel = 'history' | 'photos' | 'settings' | 'developer' | null;
 
 // Panels and the details modal load when first opened: the first screen is only the tree
 const named = <K extends string, M extends Record<K, React.ComponentType<any>>>(load: () => Promise<M>, name: K) =>
   lazy(() => load().then((m) => ({ default: m[name] })));
 const History = named(() => import('./pages/History'), 'History');
+const Photos = named(() => import('./pages/Photos'), 'Photos');
 const Settings = named(() => import('./pages/Settings'), 'Settings');
 const Developer = named(() => import('./pages/Developer'), 'Developer');
 const DetailView = named(() => import('./components/DetailView'), 'DetailView');
@@ -42,10 +43,10 @@ export default function App() {
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
-  // #history, #settings or #developer in the URL opens that panel (handy for bookmarks)
+  // #history, #photos, #settings or #developer in the URL opens that panel (handy for bookmarks)
   const [panel, setPanel] = useState<Panel>(() => {
     const h = typeof window !== 'undefined' ? window.location.hash.slice(1) : '';
-    return h === 'history' || h === 'settings' || h === 'developer' ? h : null;
+    return h === 'history' || h === 'photos' || h === 'settings' || h === 'developer' ? h : null;
   });
   const [showDetail, setShowDetail] = useState(false);
   // Calm confirmation toasts
@@ -260,6 +261,9 @@ export default function App() {
           <button onClick={() => setPanel('history')} className={iconButton} title="Diary">
             <HistoryIcon className="w-4 h-4" />
           </button>
+          <button onClick={() => setPanel('photos')} className={iconButton} title="Daily photos">
+            <Camera className="w-4 h-4" />
+          </button>
           <button onClick={() => setPanel('developer')} className={`${iconButton} ${devPresetId ? 'text-[#D49B53]' : ''}`} title="Developer tools">
             <Wrench className="w-4 h-4" />
           </button>
@@ -310,6 +314,8 @@ export default function App() {
             <Suspense fallback={panelLoading}>
             {panel === 'history' ? (
               <History treeName={settings.treeName} changeKey={diaryKey} onCareLogged={() => reload()} />
+            ) : panel === 'photos' ? (
+              <Photos onChanged={() => reload()} />
             ) : panel === 'developer' ? (
               <Developer
                 snapshot={snapshot}
@@ -329,6 +335,7 @@ export default function App() {
                 onRefreshTelemetry={refreshNow}
                 serverStatus={snapshot?.status ?? null}
                 onOpenDeveloper={() => setPanel('developer')}
+                onOpenPhotos={() => setPanel('photos')}
               />
             )}
             </Suspense>

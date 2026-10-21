@@ -123,7 +123,9 @@ export interface AvatarPresentation {
   // Where the tree is in its year (0-1 each): share of fresh leaves, yellowing leaves, leaves letting go
   seasonalLeaves: { newGrowth: number; yellowing: number; leafDrop: number };
   // The last weeks: how full the canopy is (0.6-1) and how much of the gap is coming back as fresh tips
-  canopy: { fullness: number; refilling: number };
+  // yellow: the share of yellowing leaves the daily photo showed; measured: the fullness comes from a photo (both
+  // absent without photos)
+  canopy: { fullness: number; refilling: number; yellow?: number; measured?: boolean };
   soil: 'moist' | 'dry' | 'wet' | 'frozen';
   gaze: Gaze;
   gesture: { kind: Gesture; everyMs: number } | null;

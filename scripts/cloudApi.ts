@@ -46,6 +46,14 @@ export async function callGzip(path: string): Promise<any> {
   return JSON.parse(gunzipSync(Buffer.from(await res.arrayBuffer())).toString('utf8'));
 }
 
+// A file from the server as bytes (a photo's image), null when it is not there
+export async function callBytes(path: string): Promise<Buffer | null> {
+  const res = await request(path);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
 // A backup file written by cf:backup (.json.gz) or plain .json
 export function readDumpFile(file: string): any {
   const bytes = fs.readFileSync(file);

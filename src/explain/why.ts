@@ -7,7 +7,7 @@ import { STRESS_CONDITIONS } from '../health/statePriority';
 import type { PerceptionState } from '../perception/perceptionTypes';
 import type { SpeciesProfile } from '../species';
 import type { LatchId, LatchRule } from '../species/types';
-import { HOUR, MIN, hhmm } from '../lib/time';
+import { DAY, HOUR, MIN, hhmm } from '../lib/time';
 
 // "Why": the tree explained to the people who care for it, by a gentle narrator (third person, plain words),
 // from the state the engines already concluded. It never decides anything: it reads health, behaviour,
@@ -252,6 +252,8 @@ function vitalityCard(i: WhyInput): WhyCard {
     if (low.length) parts.push(`${cap(list(low))} ${low.length > 1 ? 'are' : 'is'} holding it back.`);
     if (good.length) parts.push(`${cap(list(good))} ${good.length > 1 ? 'are' : 'is'} in good shape.`);
     if (cost >= 1) parts.push(`Lasting stress costs it about ${Math.round(cost)} points right now.`);
+    const shed = h.leaves?.shedding;
+    if (shed && shed.points >= 0.5) parts.push(`The photos show it has dropped leaves (about ${Math.round(shed.drop * 100)} % of its canopy within a week): a sign of what the last weeks cost it, worth about ${Math.round(shed.points)} points while it is fresh news.`);
   }
   return {
     id: 'vitality',
@@ -261,6 +263,7 @@ function vitalityCard(i: WhyInput): WhyCard {
     details: [
       ...bd.components.map((c) => `${c.label}: ${c.score ?? '–'} × ${c.weight} · ${c.note}`),
       ...bd.durationPenalties.map((p) => `−${num(p.points)} ${p.label} (${p.detail})`),
+      ...(bd.leafDropModifier ? [`−${num(bd.leafDropModifier)} leaf drop seen in the photos (${num(Math.round((h.leaves?.shedding?.drop ?? 0) * 100))} % of the canopy, fading over ${i.species.photo.shedding.fadeDays} days)`] : []),
       `base ${num(bd.weightedBase)} → target ${num(bd.target)} → now ${num(bd.final)}`,
     ],
   };
@@ -353,7 +356,16 @@ function beforeCard(i: WhyInput): WhyCard | null {
     parts.push(words[obs.id] ?? '');
   }
   const cn = b.canopy;
-  if (cn.fullness < 0.985) parts.push(`Its canopy is about ${Math.round(cn.fullness * 100)} % full after a hard stretch in the last weeks${cn.trend === 'refilling' ? ', and it is refilling with fresh tips' : cn.trend === 'thinning' ? ', and still thinning' : ''}.`);
+  const trend = cn.trend === 'refilling' ? ', and it is refilling with fresh tips' : cn.trend === 'thinning' ? ', and still thinning' : '';
+  if (cn.measured) {
+    const days = Math.floor((i.now - cn.measured.at) / DAY);
+    const when = days < 1 ? "today's photo" : days < 2 ? "yesterday's photo" : `the photo of ${days} days ago`;
+    parts.push(
+      `Its canopy is measured from ${when} (${Math.round(cn.measured.fullness * 100)} % of the reference photo)` +
+        (Math.abs(cn.fullness - cn.measured.fullness) >= 0.02 ? `; since then the last days carry it to about ${Math.round(cn.fullness * 100)} %${trend}.` : `${trend}.`)
+    );
+    if (cn.yellow && cn.yellow >= 0.05) parts.push(`The photo shows ${cn.yellow >= 0.15 ? 'several' : 'a few'} yellowing leaves: a ficus often yellows a leaf before letting it go.`);
+  } else if (cn.fullness < 0.985) parts.push(`Its canopy is about ${Math.round(cn.fullness * 100)} % full after a hard stretch in the last weeks${trend}. That is estimated from its history: a daily photo would measure it.`);
   details.push(...b.care.effects, ...cn.reasons);
   const text = parts.filter(Boolean);
   if (!text.length) return null;

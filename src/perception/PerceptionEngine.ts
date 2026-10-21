@@ -12,6 +12,8 @@ import { dryingCoupling, soilDryDown, temperatureExposure } from './environment'
 import { seasonState } from './season';
 import { sunState, sunTimes, type SunState } from './sun';
 import { addDays, HOUR, startOfDay } from '../lib/time';
+import { observeLeaves } from '../vision/leaves';
+import type { PhotoRecord } from '../vision/visionTypes';
 
 const EMPTY_READINGS: PerceivedReadings = {
   soilMoisture: null,
@@ -38,6 +40,7 @@ export interface PerceptionInput {
   outsideToday?: OutsideObservation[]; // today's outside observations: a grey sky explains dim light
   outsideRecent?: OutsideObservation[]; // the last 3 h of outside observations: the barometer's tendency
   soilBreaks?: number[]; // calibration changes / detection pauses: a dry-down segment never bridges them
+  photos?: PhotoRecord[]; // the daily photos of the last weeks (the real leaves)
 }
 
 // Inside vs outside air by dew point and absolute humidity. Only with the real inside sensor (in weather
@@ -149,6 +152,7 @@ export function perceive(input: PerceptionInput): PerceptionState {
   const cadenceMs = Math.max(APP_CONFIG.dataQuality.minStaleMs, pollMs * APP_CONFIG.dataQuality.staleAfterPolls);
   // Soil dry-down: one uninterrupted segment (never across a watering, calibration, gap or suspect sensor)
   const dryDown = soilDryDown({ samples: recent, events, breaks: input.soilBreaks ?? [], gapMs, soilSuspect: quality.suspect.soil, now });
+  const leaves = input.photos?.length ? observeLeaves(input.photos, now) : null;
   const light = computeDailyLight({ samples: recent, species, location, cadenceMs, movedAt: careContext.recentMove?.at ?? null, now, outside: input.outsideToday ?? [] });
 
   return {
@@ -192,5 +196,7 @@ export function perceive(input: PerceptionInput): PerceptionState {
     outside: outsideNow(input.outside ?? null, now, input.outsideToday ?? [], input.outsideRecent ?? []),
     outsideToday: input.outsideToday ?? [],
     air: compareAir(readings, latest?.source ?? null, outsideNow(input.outside ?? null, now)),
+    // Only with a reference and a readable photo (absent otherwise, so a tree without photos is as before)
+    ...(leaves && { leaves }),
   };
 }

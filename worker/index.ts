@@ -6,6 +6,7 @@ import { backupDueAt, backupKey, backupSaved, lastBackupAt, nextBackup } from '.
 import { LivingCollector } from '../server/collector';
 import { openDurableDatabase } from '../server/durableSqlite';
 import type { AppDatabase } from '../server/database';
+import type { PhotoStore } from '../server/photoStore';
 
 // Appbonsai on Cloudflare (docs/HOSTING.md):
 //   the front Worker   checks a password (except the ESP32's /api/ingest, which has its device token), then
@@ -21,6 +22,20 @@ interface Env {
   ASSETS: Fetcher; // the built app (dist/)
   APP_PASSWORD?: string; // wrangler secret put APP_PASSWORD
   BACKUPS?: KVNamespace; // nightly backups
+  PHOTOS?: KVNamespace; // the daily photos' images (absent in previews: no uploads there)
+}
+
+// The daily photos' images in KV (free: 1 GB, 1,000 writes a day; a photo is about 250 KB)
+function kvPhotoStore(kv: KVNamespace): PhotoStore {
+  return {
+    where: 'Cloudflare KV (PHOTOS)',
+    put: (key, bytes, contentType) => kv.put(key, bytes, { metadata: { contentType, bytes: bytes.length } }),
+    get: async (key) => {
+      const body = await kv.get(key, 'arrayBuffer');
+      return body ? new Uint8Array(body) : null;
+    },
+    delete: (key) => kv.delete(key),
+  };
 }
 
 const PORT = 8787; // a routing key inside the object's isolate, not a network port
@@ -68,6 +83,7 @@ export class TreeObject extends DurableObject<Env> {
         stream: false,
         backend: { mode: 'cloud', hostname: 'cloudflare', host: 'workers.dev', port: 443, dbPath: this.db.path, collector: 'this server', servesApp: true },
         restore: (apply) => this.replaceData(apply),
+        photos: this.env.PHOTOS ? kvPhotoStore(this.env.PHOTOS) : null,
       })
     );
     return collector;

@@ -352,8 +352,45 @@ moving to a brighter spot.
   highlights; while it refills, small fresh tips. The state and season looks stay on top.
 - **Preview:** Developer → Canopy, or `#canopy=0.7` / `#canopy=refilling`. Tested:
   `npm run test:behaviour` C1–C8.
-- **Limitation:** the current season's growth phase is used for the whole window. **Open:** calibrate
-  against photos of the real tree, and possibly let the caretaker note leaf drop.
+- **Limitation:** the current season's growth phase is used for the whole window.
+- **With daily photos** (next section, 2026-10-21) it is no longer only a guess: the latest readable photo is the
+  starting point (evidence class *observation*), and the rules above only carry it forward until the next photo.
+  The 60 % floor then becomes the lower of 60 % and what the photo showed. Without photos it works exactly as
+  before (PH17).
+
+### Daily photos: the real leaves [Implemented, V1]
+
+The owner's phone is the camera (no ESP32-CAM). One photo a day from the same spot; the app reads the leaves.
+
+- **Taking it:** the Photos panel (camera button in the header, `#photos`) opens the back camera with the
+  **reference photo as a faint ghost** over it, so every day is framed alike. Without camera access it uses the
+  phone's camera app or a saved photo (its file time is the photo's time). The browser shrinks it (a 1600 px
+  JPEG, which also drops the EXIF and its location) and measures it before uploading.
+- **The reference:** the first photo, the tree at its fullest. The owner draws a **crown box** on it (the leaves
+  only: not the pot, not the background). It can be replaced or its box redrawn; every photo is then measured again.
+- **Measuring** (`src/vision/measure.ts`, pure and deterministic; colour bands in `ficus.ts` `photo`, limits
+  in `APP_CONFIG.photos`, all PROTOTYPE): inside the crown box each pixel is a green leaf (excess green on
+  chromaticity, so the brightness of the light matters less, and a green hue), a yellowing one, or a dry brown
+  one (saturated, so not the grey bark or a dull pot). `foliage` = leaf pixels / box pixels; **fullness =
+  foliage / the reference's**. A photo that is too dark, blurry, framed differently (edge maps compared with
+  the reference) or has no leaves in the box is **kept but not measured**: as with the sensors, nothing is invented.
+- **What it means:**
+  - *Canopy:* anchored on the latest readable photo (above). Its yellow leaves show on the avatar for 14 days
+    (`avatar.canopy.yellow`, the same per-leaf yellowing as autumn's).
+  - *Health, shedding* (`health/leaves.ts`): a ficus drops leaves **days after** a stress, so the leaves tell
+    what the last weeks did, not how the tree is now (the sensors say that). A drop of 8 % or more between two
+    readable photos within a week is shedding: a vitality dip of drop × 40 points (at most 8), fading over the
+    7 days after the photo (`breakdown.leafDropModifier`). It never becomes the condition, takes no latch, and
+    moves neither mood nor energy directly.
+  - *Words:* a diary entry per photo (the canopy against the reference, yellow leaves, the change since the
+    photo before, or why it wasn't read, with a thumbnail); the Why says whether the canopy is measured or
+    estimated; the body description says "as the photo shows"; once photos have begun, an evening
+    `photo_reminder` on a calm day without one (the lowest priority).
+- **Where it lives:** the image in the photo store (Cloudflare KV `PHOTOS`, or `data/photos/` on the laptop),
+  the row (what it showed) in the `photos` table. Perception reads the last 30 days and the reference.
+- **Not yet:** making the drawn tree's *shape* follow the real one (its silhouette, where the gaps are); a
+  vision model's written notes (Cloudflare Workers AI's free tier could do it; never read by the engines).
+- **Tested:** `npm run test:photos` PH1–PH32 (synthetic photos, what they mean, the collector, the routes).
 
 ### Outside weather [Implemented, V1]
 
@@ -867,7 +904,8 @@ The owner's **Living Art V1 audit** listed the gaps below. **The audit document 
 - How to calibrate soil % and LDR % for this pot and balcony, and how to record the calibration's provenance?
 - Should uncertain watering candidates be stored (with low confidence) rather than discarded?
 - How should pests be modelled: an event, a condition the caretaker sets, or both? What should the tree show?
-- How to represent slow responses (bud break, new leaves, leaf drop) that appear days to weeks after a cause, without inventing them?
+- How to represent slow responses (bud break, new leaves, leaf drop) that appear days to weeks after a cause, without inventing them? (Leaf drop: partly answered 2026-10-21 by the daily photos, which measure it.)
+- How well do the photo colour bands fit this greenhouse's light and this pot? Check them against real photos.
 - What per-tree baselines are worth learning, and over what window?
 - How should weeks of stability, or long neglect, be expressed differently from hours of it?
 - ~~Should the epidermal/diffraction text be visible to the viewer?~~ Answered 2026-10-20: yes, as the narrator's "Why" column beside the tree (see "Why").

@@ -106,8 +106,8 @@ export interface DiaryItem {
   at: number;
   // weather: outside, context only; habitat: the visitors; said: the tree's own words (as it said them);
   // moment: a fact found in the day's readings; day_summary: the day in short, closing a finished day;
-  // dream: a night's dream as it was stored (behaviour/dreams.ts)
-  kind: 'episode_start' | 'episode_gap' | 'event' | 'weather' | 'habitat' | 'said' | 'moment' | 'day_summary' | 'dream';
+  // dream: a night's dream as it was stored (behaviour/dreams.ts); photo: a daily photo and what it showed
+  kind: 'episode_start' | 'episode_gap' | 'event' | 'weather' | 'habitat' | 'said' | 'moment' | 'day_summary' | 'dream' | 'photo';
   title: string;
   detail?: string;
   condition?: HealthCondition;
@@ -117,6 +117,7 @@ export interface DiaryItem {
   said?: 'state' | 'day_line' | 'care_line' | 'musing' | 'observation'; // what kind of line the tree said
   moment?: MomentKind;
   dream?: 'dreamt' | 'restless' | 'recurring';
+  photoId?: number; // kind photo: its thumbnail (GET /api/photos/:id/image)
 }
 
 // The moments of a day found in its readings (src/history/moments.ts)

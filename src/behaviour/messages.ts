@@ -127,6 +127,8 @@ export const DAY_LINES: Record<DayLine, Lines> = {
   // Yoga days ({yogaDays}: "Tuesday and Friday"): the two gloomiest days ahead, for us and the tree
   yoga_picked: ['Yoga this week on {yogaDays}, the greyest days. 🧘', 'I looked at the week: {yogaDays} look the heaviest. Yoga then, together. 🧘', 'The two hardest days ahead are {yogaDays}. Mats out then. 🧘'],
   yoga_today: ['Yoga day. A grey one, a good day to stretch together. 🧘', 'The mats are out. Let us breathe through this one. 🧘', 'A heavy day out there. Yoga lifts us. 🧘'],
+  // The daily photo, not taken yet today (said in the evening, calm days only)
+  photo_reminder: ['No photo of me today yet. One from the marked spot, while there is light? 📷', 'Evening light is soft. A good moment for my daily photo. 📷', 'Before the light goes: my photo for today? 📷'],
   // Last night's dream ({dream}: its words, DREAM_WORDS), told once on waking; _again: it came back
   morning_dream: ['I dreamt of {dream}.', 'Good morning. I dreamt of {dream} last night.', 'A night of dreams: {dream}.'],
   morning_dream_again: ['I dreamt of {dream} again.', '{Dream} again, in my dreams.', 'Good morning. {Dream} came back in my dreams.'],

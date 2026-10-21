@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Haze, Squirrel, Home, Sparkles, PawPrint, Dog, Users, MessageCircle, Sunrise, Droplets, Activity, CalendarCheck, MoonStar } from 'lucide-react';
+import { Droplet, Thermometer, AlertTriangle, Scissors, Sprout, Package, MapPin, StickyNote, Moon, Sun, Leaf, HelpCircle, X, CloudRain, CloudLightning, CloudSnow, CloudFog, Snowflake, Haze, Squirrel, Home, Sparkles, PawPrint, Dog, Users, MessageCircle, Sunrise, Droplets, Activity, CalendarCheck, MoonStar, Camera } from 'lucide-react';
 import type { HealthCondition } from '../health/healthTypes';
 import type { DailySummary, DiaryItem, MomentKind, PlantEventType, WeatherSpellKind } from '../history/historyTypes';
 import { hhmm } from '../lib/time';
+import { api } from '../api/client';
 
 interface HistoryViewProps {
   days: DailySummary[];
@@ -168,7 +169,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
                   </div>
                 );
               const { Icon, color } =
-                item.kind === 'dream'
+                item.kind === 'photo'
+                  ? { Icon: Camera, color: '#4A6741' }
+                  : item.kind === 'dream'
                   ? { Icon: MoonStar, color: '#7A6FB8' }
                   : item.kind === 'said'
                   ? { Icon: MessageCircle, color: '#4A6741' }
@@ -209,6 +212,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ days, diary, treeName,
                     )}
                     {item.detail && <span className="sans text-[11px] text-[#2D332A]/55">{item.detail}</span>}
                   </div>
+                  {item.kind === 'photo' && item.photoId !== undefined && (
+                    <img src={api.photoUrl(item.photoId)} alt="" loading="lazy" className="ml-auto w-12 h-12 rounded-lg object-cover shrink-0" />
+                  )}
                 </div>
               );
             })}

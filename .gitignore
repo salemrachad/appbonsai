@@ -12,6 +12,8 @@ coverage/
 /data/*.db-journal
 /data/*.db-wal
 /data/*.db-shm
+# The daily photos' images on the laptop (server/filePhotoStore.ts)
+/data/photos*/
 
 # Claude Code worktrees (isolated working copies of this repo)
 /.claude/worktrees/

@@ -14,6 +14,7 @@ import {
   STRESS_CONDITIONS,
 } from './statePriority';
 import { computeVitality, healthScores, qualitativeFor } from './vitality';
+import { interpretLeaves } from './leaves';
 import { HOUR, MIN } from '../lib/time';
 
 
@@ -232,6 +233,8 @@ export function evaluatePlantHealth({ perception: p, species, memory: stored, te
     else stresses.push({ condition: c, hours: obsH(c as LatchId) });
   }
   const components = healthScores(pm, species);
+  // The daily photos: leaves dropped since the photos before are shedding (a fading dip, never the condition)
+  const leaves = interpretLeaves(p.leaves, species, now);
   for (const c of components) {
     const suspect = (c.id === 'moisture' && p.quality.suspect.soil) || (c.id === 'light' && p.quality.suspect.light) || ((c.id === 'temperature' || c.id === 'humidity') && p.quality.suspect.air);
     if (suspect) c.note = 'left out — sensor reading looks suspicious';
@@ -244,6 +247,7 @@ export function evaluatePlantHealth({ perception: p, species, memory: stored, te
     frozen: !fresh,
     species,
     now,
+    leafDrop: leaves?.shedding?.points ?? 0,
   });
   const vitality = breakdown.final;
 
@@ -349,6 +353,7 @@ export function evaluatePlantHealth({ perception: p, species, memory: stored, te
     dataIssues: p.quality.issues,
     metrics: assessMetrics(p, species, tempUnit, { soil: environment.coupling.note ? [environment.coupling.note] : [] }),
     environment,
+    ...(leaves && { leaves }),
     stress,
     activeSince,
     observation,

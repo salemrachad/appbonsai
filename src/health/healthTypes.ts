@@ -1,5 +1,6 @@
 import type { LatchId } from '../species';
 import type { DataConfidence } from '../telemetry/dataQuality';
+import type { LeafHealth } from './leaves';
 
 export type HealthCondition =
   | 'thriving'
@@ -84,6 +85,7 @@ export interface VitalityBreakdown {
   smoothing: { tauHours: number; minutes: number; alpha: number } | null;
   final: number;
   frozen: boolean; // no fresh data: vitality kept as it was
+  leafDropModifier?: number; // points off for leaf drop seen in the daily photos (absent without)
 }
 
 export interface LatchDebug {
@@ -151,6 +153,7 @@ export interface PlantHealthState {
   dataIssues: string[];
   metrics: MetricAssessment[];
   environment?: HealthEnvironment; // derived metrics as Health reads them (coupling: diagnostic only)
+  leaves?: LeafHealth; // what the daily photos show (shedding: a fading vitality dip); absent without photos
   stress: StressSummary;
   activeSince: Partial<Record<HealthCondition, number>>; // when each active condition started
   observation: ObservationStatus;

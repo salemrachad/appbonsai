@@ -37,7 +37,7 @@ import { evaluateHabitat, seasonEnergyAt } from './habitat';
 import { computeRelationship } from './relationship';
 import type { HikePlan } from './hike';
 import type { YogaPlan } from './yoga';
-import { clockAt, HOUR, hourOf, MIN } from '../lib/time';
+import { clockAt, HOUR, hourOf, MIN, startOfDay } from '../lib/time';
 
 const THIRST: HealthCondition[] = ['thirsty', 'very_dry', 'hot_and_dry'];
 const CALM: HealthCondition[] = ['comfortable', 'thriving', 'recovering', 'very_bright'];
@@ -531,6 +531,10 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
     if (yoga.today && (!dayLine || dayLine.startsWith('hike_'))) dayLine = 'yoga_today';
     else if (tod === 'evening' && (!dayLine || dayLine.startsWith('hike_'))) dayLine = 'yoga_picked';
   }
+  // The daily photo: once someone has started taking them (a reference exists), a gentle evening reminder on a
+  // calm day without one yet (the lowest priority: any other line wins)
+  const leaves = perception.leaves;
+  if (!dayLine && leaves && tod === 'evening' && perception.sun.isDay && CALM.includes(condition) && !reaction && leaves.lastPhotoAt < startOfDay(now)) dayLine = 'photo_reminder';
   if (dayLine) reasons.push(`Time of day: ${dayLine.replace(/_/g, ' ')}`);
 
   // ---- Care line (once a day while the context lasts; not during serious stress) ----
@@ -554,7 +558,7 @@ export function evaluateBehaviour({ health, perception, episodes, events, intera
   if (health.modifiers.includes('sensor_uncertain')) reasons.push("Data overlay: biological state held while it can't be observed");
 
   // ---- Canopy over the last weeks (drawn only) ----
-  const canopy = evaluateCanopy({ episodes, events, growth: season.growth, species, now });
+  const canopy = evaluateCanopy({ episodes, events, growth: season.growth, species, now, photos: perception.leaves?.measured });
   // ---- The day's thoughts (grounded in today's data; the speech policy spaces them) ----
   const voice = evaluateVoice({ health, perception, species, intent: messageIntent, timeOfDay: tod, season, relationship, habitat, canopy, now });
   if (voice.budget > 0) reasons.push(`Voice: ${voice.why}`);

@@ -9,6 +9,8 @@ import { eventRoutes } from './routes/events';
 import { historyRoutes } from './routes/history';
 import { ingestRoutes } from './routes/ingest';
 import { interactionRoutes } from './routes/interactions';
+import { photoRoutes } from './routes/photos';
+import type { PhotoStore } from './photoStore';
 import { statusRoutes } from './routes/status';
 import { telemetryRoutes } from './routes/telemetry';
 
@@ -18,10 +20,11 @@ import { telemetryRoutes } from './routes/telemetry';
 // browser then polls /api/current with its ETag instead).
 // restore: given, POST /api/admin/restore takes a whole tree from another server (scripts/cloudMigrate.ts).
 // It runs apply() with the collector stopped and rebuilds the collector from the restored database after.
+// photos: where the daily photos' images are kept (null: no uploads, e.g. a Cloudflare preview).
 export function apiApp(
   db: AppDatabase,
   collector: LivingCollector,
-  opts: { startedAt: number; backend: BackendInfo; stream?: boolean; restore?: <T>(apply: () => T) => Promise<T> }
+  opts: { startedAt: number; backend: BackendInfo; stream?: boolean; restore?: <T>(apply: () => T) => Promise<T>; photos?: PhotoStore | null }
 ): express.Express {
   const app = express();
   app.use(jsonBody(5 * 1024 * 1024)); // browser history import can be a few MB
@@ -34,6 +37,7 @@ export function apiApp(
   api.use('/telemetry', telemetryRoutes(db, collector));
   api.use('/ingest', ingestRoutes(db, collector));
   api.use('/devices', deviceRoutes(db));
+  api.use('/photos', photoRoutes(db, collector, opts.photos ?? null));
   const restore = opts.restore;
   if (restore) {
     // The whole tree as one dump: npm run cf:backup (a copy to keep outside Cloudflare)

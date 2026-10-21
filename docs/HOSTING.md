@@ -169,6 +169,12 @@ live tree yet. The first one, 000001, was made by hand with `cf:backup -- --now`
 the Worker's logs (`npx wrangler tail`, or Observability) for whether the alarm runs `backup()` at all. Until
 then, make one by hand now and then.
 
+**The daily photos** (2026-10-21): the images are in their own KV namespace, binding `PHOTOS` (free: 1 GB,
+1,000 writes a day; a photo is about 250 KB, so about 90 MB a year). The rows saying what each photo showed are
+in the `photos` table, so they are in every dump and nightly backup. `npm run cf:backup` (no flag) also copies
+the images it hasn't copied yet into `backups/photos/`. Previews have no `PHOTOS` binding: uploads answer 503.
+A tree moved with `cf:migrate` takes its photo rows but not the images (copy them by hand if it ever matters).
+
 **Commands and routes** (all behind the password):
 
 | Command | What it does |

@@ -132,10 +132,11 @@ export interface VitalityInput {
   frozen: boolean; // no fresh data: keep vitality as it was
   species: SpeciesProfile;
   now: number;
+  leafDrop?: number; // points: leaf drop seen between the daily photos (health/leaves.ts), fading
 }
 
-// Steps 2-5: weighted base → duration penalties → recovery → gradual change.
-export function computeVitality({ components, stresses, recovery, previous, frozen, species, now }: VitalityInput): VitalityBreakdown {
+// Steps 2-5: weighted base → duration penalties → recovery (and leaf drop seen in photos) → gradual change.
+export function computeVitality({ components, stresses, recovery, previous, frozen, species, now, leafDrop = 0 }: VitalityInput): VitalityBreakdown {
   // 2. Weighted base of the available scores
   let sum = 0;
   let weight = 0;
@@ -175,7 +176,8 @@ export function computeVitality({ components, stresses, recovery, previous, froz
     recoveryModifier = Math.round(species.recovery.vitalityPenaltyBySeverity[recovery.severity] * remaining * 10) / 10;
   }
 
-  const target = clamp(weightedBase - penaltyTotal - recoveryModifier, 5, 100);
+  // 4b. Leaves dropped since the photos before (the last weeks showing): a small dip, fading after the photo
+  const target = clamp(weightedBase - penaltyTotal - recoveryModifier - leafDrop, 5, 100);
 
   // 5. Gradual change towards the target (declines faster than it recovers)
   let final: number;
@@ -204,6 +206,7 @@ export function computeVitality({ components, stresses, recovery, previous, froz
     smoothing,
     final: clamp(final, 5, 100),
     frozen,
+    ...(leafDrop > 0 && { leafDropModifier: leafDrop }), // only when photos show shedding
   };
 }
 
