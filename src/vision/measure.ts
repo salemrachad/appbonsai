@@ -6,8 +6,9 @@ import type { PhotoAnalysis, PhotoQuality, Rgba, Roi } from './visionTypes';
 // in the browser on the shrunk photo before it is uploaded, and by the tests on synthetic images.
 //
 //   leaves     inside the crown box, each pixel by its colour: green (excess green on chromaticity, so the
-//              brightness of the light matters less, and a green hue), yellowing, or dry brown (saturated
-//              enough not to be the grey bark). foliage = leaf pixels / box pixels.
+//              brightness of the light matters less, and a green hue), yellowing, or dry brown when the species
+//              counts it (ficus doesn't: a warm wall behind the crown reads as dead leaves).
+//              foliage = leaf pixels / box pixels.
 //   quality    too dark, blurry, framed differently from the reference (edge maps), or no leaves in the box:
 //              then the photo is kept but not measured, never guessed at.
 //
@@ -33,7 +34,7 @@ export function leafPixel(r: number, g: number, b: number, rules: ColourRules): 
   const Y = rules.yellow;
   if (hue >= Y.minHue && hue < Y.maxHue && sat >= Y.minSat && v >= Y.minValue) return 'yellow';
   const B = rules.brown;
-  if (hue >= B.minHue && hue < B.maxHue && sat >= B.minSat && v >= B.minValue && v <= B.maxValue) return 'brown';
+  if (B && hue >= B.minHue && hue < B.maxHue && sat >= B.minSat && v >= B.minValue && v <= B.maxValue) return 'brown';
   return null;
 }
 

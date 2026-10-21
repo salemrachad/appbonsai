@@ -132,7 +132,9 @@ export interface SpeciesProfile {
     // saturation and value 0-1 (HSV)
     green: { minExg: number; minHue: number; maxHue: number; minSat: number };
     yellow: { minHue: number; maxHue: number; minSat: number; minValue: number };
-    brown: { minHue: number; maxHue: number; minSat: number; minValue: number; maxValue: number }; // saturated: not the grey bark
+    // Dry brown leaves (saturated: not the grey bark). null = not counted: a warm stone wall, a terracotta pot or
+    // wood behind the crown can't be told from a dead leaf by colour
+    brown: { minHue: number; maxHue: number; minSat: number; minValue: number; maxValue: number } | null;
     // Leaf drop seen between photos: the latest readable photo against the fullest one in the days before it
     shedding: {
       minDrop: number; // fullness lost (0-1) that counts as shedding

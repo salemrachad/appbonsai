@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Pause, Play, Star, Trash2, Crop, Leaf } from 'lucide-react';
 import { api } from '../api/client';
+import { APP_CONFIG } from '../config/appConfig';
 import { CrownBoxEditor } from '../components/photos/CrownBoxEditor';
 import { Viewfinder } from '../components/photos/Viewfinder';
 import { loadImage, measureInBrowser, toUploadJpeg, type ImageSource } from '../vision/browserImage';
@@ -107,6 +108,20 @@ export const Photos: React.FC<PhotosPageProps> = ({ onChanged }) => {
       onChanged();
     }
   };
+
+  // Photos measured by older rules (APP_CONFIG.photos.analyzerVersion) are measured again, once, here
+  const upgraded = useRef(false);
+  useEffect(() => {
+    const ref = photos.find((p) => p.isReference);
+    if (upgraded.current || busy || !ref?.roi || !photos.some((p) => p.analysis && p.analysis.analyzerVersion < APP_CONFIG.photos.analyzerVersion)) return;
+    upgraded.current = true;
+    run('Measuring the photos again with the newer rules…', async () => {
+      const img = await loadImage(api.photoUrl(ref.id));
+      await api.updatePhoto(ref.id, { analysis: measureInBrowser(img, ref.roi!, null) });
+      await remeasure(ref, ref.roi!, photos);
+      setMessage('Measured again with the newer rules.');
+    });
+  }, [photos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A new photo from the camera: with a reference, measured against it and stored; without, it becomes the
   // reference once its crown box is drawn

@@ -70,11 +70,12 @@ async function main() {
     check('PH1 the reference: every crown pixel is a leaf, green; readable', ref.quality === 'ok' && Math.abs(ref.foliage - expected) < 0.002 && ref.green === 1 && ref.alignment === null, `${ref.foliage} vs ${expected.toFixed(4)}, ${JSON.stringify(ref)}`);
     check(
       'PH2 colours: green leaves, yellowing and dry leaves are leaves; the wall, the pot, the trunk and the window are not',
-      leafPixel(60, 130, 40, rules) === 'green' && leafPixel(220, 190, 60, rules) === 'yellow' && leafPixel(150, 90, 30, rules) === 'brown' &&
-        [[140, 135, 130], [110, 90, 80], [70, 55, 45], [205, 210, 215], [15, 22, 10]].every(([r, g, b]) => leafPixel(r, g, b, rules) === null)
+      leafPixel(60, 130, 40, rules) === 'green' && leafPixel(220, 190, 60, rules) === 'yellow' &&
+        // (and a warm sandstone wall: brown isn't counted, it can't be told from a dry leaf by colour)
+        [[140, 135, 130], [110, 90, 80], [70, 55, 45], [205, 210, 215], [15, 22, 10], [190, 140, 90], [170, 110, 60], [150, 90, 30]].every(([r, g, b]) => leafPixel(r, g, b, rules) === null)
     );
     const yellowed = measurePhoto({ img: photo({ colour: (x, y) => ((x * 7 + y * 3) % 10 < 2 ? [220, 190, 60] : (x * 7 + y * 3) % 10 === 2 ? [150, 90, 30] : null) }), roi: ROI, reference, rules });
-    check('PH3 yellowing counted among the leaves, cover unchanged', yellowed.quality === 'ok' && Math.abs(yellowed.yellow - 0.2) < 0.02 && Math.abs(yellowed.brown - 0.1) < 0.02 && Math.abs(yellowed.foliage - ref.foliage) < 0.002, JSON.stringify(yellowed));
+    check('PH3 yellowing counted among the leaves (a brown one is not a leaf)', yellowed.quality === 'ok' && Math.abs(yellowed.yellow - 0.2 / 0.9) < 0.02 && yellowed.brown === 0 && Math.abs(yellowed.foliage - ref.foliage * 0.9) < 0.003, JSON.stringify(yellowed));
     const half = measurePhoto({ img: photo({ leaves: (x) => x < 0.5 * W }), roi: ROI, reference, rules });
     const f = fullnessOf(half.foliage, ref.foliage);
     check('PH4 half the leaves gone: fullness about half, still framed alike', half.quality === 'ok' && f !== null && Math.abs(f - 0.5) < 0.03 && (half.alignment ?? 0) >= 0.4, `fullness ${f}, alignment ${half.alignment}`);

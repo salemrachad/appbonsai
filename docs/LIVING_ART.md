@@ -370,8 +370,10 @@ The owner's phone is the camera (no ESP32-CAM). One photo a day from the same sp
   only: not the pot, not the background). It can be replaced or its box redrawn; every photo is then measured again.
 - **Measuring** (`src/vision/measure.ts`, pure and deterministic; colour bands in `ficus.ts` `photo`, limits
   in `APP_CONFIG.photos`, all PROTOTYPE): inside the crown box each pixel is a green leaf (excess green on
-  chromaticity, so the brightness of the light matters less, and a green hue), a yellowing one, or a dry brown
-  one (saturated, so not the grey bark or a dull pot). `foliage` = leaf pixels / box pixels; **fullness =
+  chromaticity, so the brightness of the light matters less, and a green hue) or a yellowing one. Dry brown
+  leaves are not counted: on the first real photo (2026-10-21) the sandstone wall behind the crown read as 63 %
+  dead leaves, and colour alone can't tell them apart (analyzer v2; older photos are measured again when the
+  Photos panel opens). `foliage` = leaf pixels / box pixels; **fullness =
   foliage / the reference's**. A photo that is too dark, blurry, framed differently (edge maps compared with
   the reference) or has no leaves in the box is **kept but not measured**: as with the sensors, nothing is invented.
 - **What it means:**

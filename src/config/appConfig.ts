@@ -469,7 +469,7 @@ export const APP_CONFIG = {
   // Daily photos of the real tree (src/vision/, server/routes/photos.ts). Colours per leaf are biology
   // (species.photo); these are the image handling and the limits of a readable photo (PROTOTYPE).
   photos: {
-    analyzerVersion: 1, // bump when measure.ts changes what it measures
+    analyzerVersion: 2, // bump when measure.ts or the colour bands change: the Photos panel measures older photos again (2: brown off)
     uploadLongSide: 1600, // px: the stored JPEG (about 250 KB)
     jpegQuality: 0.85,
     analysisLongSide: 480, // px: measured at this size (fast, and noise averages out)
