@@ -21,9 +21,13 @@
   // One SQLite-backed Durable Object class (the free plan only has these)
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TreeObject"] }],
   // Nightly backups of the tree (server/backup.ts): KV, free without a card (1 GB, 1,000 writes a day)
-  "kv_namespaces": [{ "binding": "BACKUPS", "id": "c6e6e94df7a14f97a9f2d8df796e0bce" }],
+  // The daily photos' images (server/photoStore.ts): KV too, about 250 KB a photo
+  "kv_namespaces": [
+    { "binding": "BACKUPS", "id": "c6e6e94df7a14f97a9f2d8df796e0bce" },
+    { "binding": "PHOTOS", "id": "c4dbc053de6a4fe1b17ea1f402f3bbdb" }
+  ],
   // Feature branches (Workers Builds runs `npx wrangler preview`): each Preview gets its own TREE namespace
-  // and storage, so it starts as an empty tree and never sees production's. No BACKUPS on purpose: KV is not
+  // and storage, so it starts as an empty tree and never sees production's. No BACKUPS or PHOTOS on purpose: KV is not
   // isolated per Preview, and without the binding the object makes no backups. Its password is set apart:
   // npx wrangler preview base-config secret put APP_PASSWORD
   "previews": {
