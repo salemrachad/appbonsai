@@ -122,14 +122,15 @@ async function main() {
     b.clock = at(15, 19, 0);
     await b.boot();
     const l = new Listener(b);
-    await l.run(50, () => day(30));
+    // 21 °C: comfortable for the tree, too cool for the sloth (a night with it would be told as a dream)
+    await l.run(50, () => ({ ...day(30), temp: 21 }));
     l.reset();
-    await l.run(9 * 60, () => ({ soil: 60, light: 0 })); // 19:50 → 04:50
+    await l.run(9 * 60, () => ({ soil: 60, light: 0, temp: 21 })); // 19:50 → 04:50
     check('S7 sleeping all night: at most 2 lines', l.spoken.length <= 2, l.keys());
     check('S7b mostly silent', l.visiblePolls / l.polls < 0.1, `${Math.round((100 * l.visiblePolls) / l.polls)}% of polls`);
     check('S7c almost still while asleep', b.state().expression.motion.swayAmount <= 0.25 && b.state().expression.motion.blinkEveryMs === null);
     l.reset();
-    await l.run(120, (i) => ({ soil: 60, light: Math.min(50, i) })); // sunrise
+    await l.run(120, (i) => ({ soil: 60, light: Math.min(50, i), temp: 21 })); // sunrise
     const morning = l.spoken.find((s) => DAY_LINES.morning_calm.some((d) => s.text.startsWith(d)));
     check('S8 morning after a calm night: a calm morning line', !!morning, l.spoken.map((s) => s.text).join(' | '));
   }
@@ -140,10 +141,10 @@ async function main() {
     b.clock = at(15, 19, 0);
     await b.boot();
     const l = new Listener(b);
-    await l.run(50, () => day(30));
-    await l.run(9 * 60, () => ({ soil: 60, light: 0, hum }));
+    await l.run(50, () => ({ ...day(30), temp: 21 })); // too cool for the sloth (as in S8)
+    await l.run(9 * 60, () => ({ soil: 60, light: 0, hum, temp: 21 }));
     l.reset();
-    await l.run(120, (i) => ({ soil: 60, light: Math.min(50, i), hum: 60 }));
+    await l.run(120, (i) => ({ soil: 60, light: Math.min(50, i), hum: 60, temp: 21 }));
     const said = (lines: readonly string[]) => l.spoken.filter((s) => lines.some((d) => s.text.startsWith(d))).length;
     if (dewy) check('S8d after a dewy night (92 %): a dewy morning line, once', said(DAY_LINES.morning_dewy) === 1 && said(DAY_LINES.morning_calm) === 0, l.spoken.map((s) => s.text).join(' | '));
     else check('S8e after an 86 % night: the ordinary calm morning', said(DAY_LINES.morning_calm) === 1 && said(DAY_LINES.morning_dewy) === 0, l.spoken.map((s) => s.text).join(' | '));
@@ -656,6 +657,17 @@ async function main() {
 
     const diary = slothDiary([...humid(at(18, 8), 12 * 60), ...humid(at(19, 8), 12 * 60)], [], [], ACTIVE_SPECIES, cad, at(19, 21), 3);
     check('SL6 diary: how long the sloth stayed, per day', diary.length === 2 && diary.every((d) => d.habitat === 'sloth' && /about .* across \d+ visits?/.test(d.detail ?? '')), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));
+    // What was shown is what is counted: good air from 08:37 (the latch comes on mid-slot, as on 2026-10-21,
+    // when two visits were drawn and never counted), and a visit still going on counts
+    const odd = [...humid(t0, 37, 20, 40), ...humid(t0 + 37 * MIN, 9 * 60)];
+    const shown = new Map<string, number>();
+    for (let m = 0; m < 9 * 60 + 37; m++) {
+      const v = ev('comfortable', [], true, odd.filter((x) => x.t <= t0 + m * MIN), t0 + m * MIN).visit;
+      if (v) shown.set(v.id, (shown.get(v.id) ?? 0) + 1);
+    }
+    const counted = ev('comfortable', [], true, odd, t0 + (9 * 60 + 37) * MIN).visitsToday;
+    const shownMin = [...shown.values()].reduce((a, b) => a + b, 0);
+    check('SL6b every visit drawn is counted, from the minute it began (none lost when the air turns mid-hour)', shown.size > 0 && counted.count === shown.size && Math.abs(counted.minutes - shownMin) <= shown.size, `drawn ${shown.size} visits / ${shownMin} min · counted ${counted.count} / ${counted.minutes} min`);
 
     // Grips from comfort: all four when it has just arrived, relaxed grips only after long perfect air
     const { slothGrip } = await import('../src/behaviour/sloth');
@@ -1784,6 +1796,20 @@ async function main() {
     }
 
     check('LU9d diary: her company per day and her nights by the pot', diary.filter((d) => d.title === 'Lucy kept me company').length === 2 && diary.every((d) => d.habitat === 'lucy'), diary.map((d) => `${d.title} · ${d.detail}`).join(' | '));
+    // On a hike day the diary tells the day she lived: out on the hike, then her nap, the same visits as live
+    {
+      const { dateKey } = await import('../src/lib/time');
+      const end = at(22, 21);
+      const win = { from: 9, to: 13 };
+      const live = evaluateLucy({ outsideToday: [], rainEndedAt: null, condition: 'comfortable', modifiers: [], now: end, hike: { today: true, detail: { ...win } as any } }).visitsToday;
+      const hikeDiary = lucyDiary([], end, 1, { [dateKey(end)]: win });
+      const company = hikeDiary.find((d) => d.title === 'Lucy kept me company');
+      check(
+        'LU9e hike day: the diary says she went on the hike and counts the visits she really made',
+        hikeDiary.some((d) => d.title === 'Lucy went on the hike') && company?.detail?.startsWith(`${live.count} visit`) === true && live.count < lucyDay(end).visits.filter((v) => v.kind === 'day').length,
+        `${company?.detail} · live ${live.count}`
+      );
+    }
   }
 
   console.log('\n— Dreams (the day digested at night) —');

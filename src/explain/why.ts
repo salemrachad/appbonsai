@@ -421,7 +421,8 @@ function nightCard(i: WhyInput): WhyCard | null {
         : 'Without trustworthy readings it cannot dream of what it did not perceive.';
     return { id: 'night', icon: 'moon', title: 'Tonight', body, details: (d.tonight?.phases ?? []).map((p) => `${hhmm(p.from)}–${hhmm(p.to)} ${p.motif.replace(/_/g, ' ')}`) };
   }
-  if (d.lastNight && i.behaviour.timeOfDay === 'morning') {
+  // By day, last night's dream (until the next night begins)
+  if (d.lastNight) {
     const ln = d.lastNight;
     const body = ln.dreamt.length
       ? `Last night it dreamt of ${ln.told ? dreamScene(ln.told, ln.toldWith) : list(ln.dreamt.map((m) => m.replace(/_/g, ' ')))}${ln.again > 1 ? `, again (${ln.again} nights in a row)` : ''}${ln.restless ? ', restlessly' : ''}.`

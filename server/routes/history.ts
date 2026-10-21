@@ -73,8 +73,9 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   // The sloth remembers its last days (loyalty): its diary replays from that far back, like the live view
   const slothSamples = slothFrom < since ? [...toSamples(telemetrySince(slothFrom - 6 * HOUR, since - 6 * HOUR - 1)), ...samples] : samples;
   const sloths = slothDiary(slothSamples, weatherSince(slothFrom - 6 * HOUR), episodesSince(slothFrom), ACTIVE_SPECIES, cadenceMs, now, days, windows.sloth);
-  // Lucy's days: her plan on the household clock, and the storms she kept close through (stored weather)
-  const lucy = lucyDiary(outside, now, days);
+  // Lucy's days: her plan on the household clock (the hikes she went on), and the storms she kept close
+  // through (stored weather)
+  const lucy = lucyDiary(outside, now, days, collector.hikeDays());
   // Who shared the tree: where those visits overlapped
   const encounters = encounterDiary(windows, since, now);
   // The nights' dreams, as they were stored (what was really dreamt)

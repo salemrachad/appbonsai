@@ -45,6 +45,7 @@ export interface WeekPick {
   movedFrom: string | null;
   locked: boolean;
   chosen?: string | null; // the day the people chose (it wins over the tree's pick)
+  window?: { from: number; to: number } | null; // its best hours, kept on the day (the forecast moves on): Lucy's diary
 }
 
 // The best hours of the hike day and what the rest of the day brings (from the hourly forecast)
@@ -221,6 +222,12 @@ export function planHike(memory: HikeMemory, now: number): { plan: HikePlan | nu
   });
   const score = hikeScore(f);
   const { hours: _hours, ...dayOnly } = f; // the plan carries the window, not the 24 hours
+  const detail = hikeWindow(f);
+  // On the day its hours are kept with the pick, so the diary can tell her day once the forecast moved on
+  let memoryOut = nextMemory;
+  if (day === today && detail && (chosen.window?.from !== detail.from || chosen.window?.to !== detail.to)) {
+    memoryOut = { ...nextMemory, weeks: { ...nextMemory.weeks, [week]: { ...chosen, window: { from: detail.from, to: detail.to } } } };
+  }
   return {
     plan: {
       week,
@@ -233,12 +240,23 @@ export function planHike(memory: HikeMemory, now: number): { plan: HikePlan | nu
       movedFrom: chosen.chosen ? null : chosen.movedFrom,
       quality: hikeQuality(score),
       forecast: dayOnly,
-      detail: hikeWindow(f),
+      detail,
       week7,
       forecastAt: forecast.fetchedAt,
     },
-    memory: nextMemory,
+    memory: memoryOut,
   };
+}
+
+// The hike days so far (up to today) with their kept hours, by date
+export function hikeDaysOf(memory: HikeMemory, now: number): Record<string, { from: number; to: number }> {
+  const today = dateKey(now);
+  const out: Record<string, { from: number; to: number }> = {};
+  for (const p of Object.values(memory.weeks)) {
+    const day = p.chosen ?? p.day;
+    if (day <= today && p.window) out[day] = p.window;
+  }
+  return out;
 }
 
 // A plan from an older server (before the two days on offer) lacks options and chosen: one day, not chosen

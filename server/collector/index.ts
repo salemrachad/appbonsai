@@ -23,7 +23,7 @@ import { normalizeTelemetryEndpoint } from '../../src/telemetry/ESP32TelemetryPr
 import { normalizeESP32Payload } from '../../src/telemetry/telemetryNormalizer';
 import { fetchOutsideWeather, type OutsideObservation } from '../../src/telemetry/outsideWeather';
 import { fetchHikeForecast, type HikeForecast } from '../../src/telemetry/hikeForecast';
-import { chooseHikeDay, INITIAL_HIKE_MEMORY, planHike, type HikeMemory } from '../../src/behaviour/hike';
+import { chooseHikeDay, hikeDaysOf, INITIAL_HIKE_MEMORY, planHike, type HikeMemory } from '../../src/behaviour/hike';
 import { telemetryManager } from '../../src/telemetry/telemetryManager';
 import type { HourlyTelemetryPoint, LiveReading, PlantTelemetry, TelemetryFetchResult, TelemetrySource, TimelineEvent } from '../../src/telemetry/types';
 import type { AppDatabase } from '../database';
@@ -314,6 +314,11 @@ export class LivingCollector {
   // The yoga days so far (the diary)
   yogaDays(): string[] {
     return yogaDaysOf(this.hikeMemory, this.now());
+  }
+
+  // The hike days so far and their hours (Lucy's diary: she was out with the people)
+  hikeDays(): Record<string, { from: number; to: number }> {
+    return hikeDaysOf(this.hikeMemory, this.now());
   }
 
   // The tree's last weeks of nights (the `dreams` table): what tonight's dream is weighed against. Kept with

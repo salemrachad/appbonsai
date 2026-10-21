@@ -7,7 +7,7 @@ import type { LucyCue, LucyPose, LucySpot, LucyState, LucyStop, LucyVisit, LucyV
 import type { HikeDetail } from './hike';
 import { slotPlan } from './habitat';
 import { stableVariant } from './speech';
-import { addDays, civil, clockAt, DAY, dayKey, HOUR, MIN, startOfDay } from '../lib/time';
+import { addDays, civil, clockAt, DAY, dateKey, dayKey, HOUR, MIN, startOfDay } from '../lib/time';
 import { off, step } from '../lib/latch';
 import { outsideLatches } from '../telemetry/outsideWeather';
 
@@ -383,14 +383,15 @@ export function evaluateLucy(input: LucyInput): LucyState {
 
 const span = (min: number) => (min >= 90 ? `about ${Math.round((min / 60) * 10) / 10} h` : `about ${Math.round(min)} min`);
 
-// Her days, replayed from the plan (hikes aren't remembered here, so a hike day counts its plan) and the
-// stored outside weather (a storm she kept close through).
-export function lucyDiary(obs: OutsideObservation[], now: number, days: number): DiaryItem[] {
+// Her days, replayed from the plan (on a hike day with its kept hours, by date: she was out with the people,
+// then napped, as in the live view) and the stored outside weather (a storm she kept close through).
+export function lucyDiary(obs: OutsideObservation[], now: number, days: number, hikes: Record<string, { from: number; to: number }> = {}): DiaryItem[] {
   const items: DiaryItem[] = [];
   const since = now - days * DAY;
   for (let day = startOfDay(since); day <= now; day = addDays(day, 1)) {
-    const plan = lucyDay(day, null);
-    const visits = plan.visits.filter((v) => v.kind === 'day' && v.startedAt >= since && v.startedAt <= now);
+    const plan = lucyDay(day, hikes[dateKey(day)] ?? null);
+    if (plan.away && plan.away.from >= since && plan.away.from <= now) items.push({ at: plan.away.from, kind: 'habitat', habitat: 'lucy', title: 'Lucy went on the hike', detail: 'out on the trail with you, then a long nap by the pot' });
+    const visits = plan.visits.filter((v) => v.kind !== 'night' && v.startedAt >= since && v.startedAt <= now);
     if (visits.length) {
       const minutes = visits.reduce((m, v) => m + (Math.min(now, v.endsAt) - v.startedAt) / MIN, 0);
       items.push({ at: visits[0].startedAt, kind: 'habitat', habitat: 'lucy', title: 'Lucy kept me company', detail: `${visits.length} visit${visits.length > 1 ? 's' : ''}, ${span(minutes)} in all` });

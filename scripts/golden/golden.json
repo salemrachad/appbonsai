@@ -16,7 +16,7 @@
    "hash": {
     "perception": "aedb222bf514",
     "health": "ec3ac448696d",
-    "behaviour": "4c41187b79bf",
+    "behaviour": "b51608937339",
     "expression": "991f8c8733f8",
     "liveReadings": "0244a4dc6cb8",
     "recentEvents": "fd4688789421",
@@ -39,7 +39,7 @@
    "hash": {
     "perception": "ab978d8c87ea",
     "health": "2fe849c22365",
-    "behaviour": "53e0bd976d2f",
+    "behaviour": "1e4b3d9bab82",
     "expression": "9ba9eca95f44",
     "liveReadings": "d3d7747ce4e4",
     "recentEvents": "fd4688789421",
@@ -62,7 +62,7 @@
    "hash": {
     "perception": "bb99194fe8f3",
     "health": "904ed882432a",
-    "behaviour": "6e0da972a9d1",
+    "behaviour": "43196529b8a2",
     "expression": "ebf53f1994b8",
     "liveReadings": "4147d0a5de82",
     "recentEvents": "fd4688789421",
@@ -85,7 +85,7 @@
    "hash": {
     "perception": "8c8dead7c6b7",
     "health": "91f7bc62707c",
-    "behaviour": "ee40aef7925e",
+    "behaviour": "e9df63258d83",
     "expression": "3af1d4def8e2",
     "liveReadings": "8e659af94c65",
     "recentEvents": "fd4688789421",
@@ -108,7 +108,7 @@
    "hash": {
     "perception": "ab1b0a302215",
     "health": "8ad21a3bc869",
-    "behaviour": "f16deefa84a4",
+    "behaviour": "f71a00bdd3cb",
     "expression": "ae2c69cd1434",
     "liveReadings": "4675351db319",
     "recentEvents": "fd4688789421",
@@ -131,7 +131,7 @@
    "hash": {
     "perception": "7718f21532cf",
     "health": "9581dc896f9f",
-    "behaviour": "bf75f50b71db",
+    "behaviour": "3e082511689e",
     "expression": "668e5368d8bc",
     "liveReadings": "b75072e1b15b",
     "recentEvents": "fd4688789421",
@@ -154,7 +154,7 @@
    "hash": {
     "perception": "dcc10668f261",
     "health": "21f05f5bc291",
-    "behaviour": "83082043ee05",
+    "behaviour": "91a7fa5016ae",
     "expression": "69911323b195",
     "liveReadings": "ad8485b0a362",
     "recentEvents": "fd4688789421",
@@ -177,8 +177,8 @@
    "hash": {
     "perception": "49a824c30af1",
     "health": "e094e2892953",
-    "behaviour": "c01289fece0c",
-    "expression": "23dad2c4817d",
+    "behaviour": "4495e970adf9",
+    "expression": "6a01c3f79c82",
     "liveReadings": "eeb5fd5427e7",
     "recentEvents": "fd4688789421",
     "recentEpisodes": "b27c83b3c66e",
@@ -200,8 +200,8 @@
    "hash": {
     "perception": "f7e3376aa528",
     "health": "0993164a576e",
-    "behaviour": "7b891a03d819",
-    "expression": "ab0289f9284e",
+    "behaviour": "80752cb208ed",
+    "expression": "33754bd6bcc7",
     "liveReadings": "2a23a3cf2790",
     "recentEvents": "fd4688789421",
     "recentEpisodes": "b9ac1a586dee",
@@ -223,7 +223,7 @@
    "hash": {
     "perception": "5a647fd55388",
     "health": "a3947d8920ec",
-    "behaviour": "a1fad6ee5280",
+    "behaviour": "d27412452ab8",
     "expression": "a4ab720d3a5f",
     "liveReadings": "1dc2dfe5a37b",
     "recentEvents": "fd4688789421",
@@ -246,7 +246,7 @@
    "hash": {
     "perception": "91a2c1b6e483",
     "health": "f2bdf347e70b",
-    "behaviour": "64f7105e7a81",
+    "behaviour": "d495a78619bc",
     "expression": "9e60847983ce",
     "liveReadings": "389da6a812e1",
     "recentEvents": "fd4688789421",
@@ -269,7 +269,7 @@
    "hash": {
     "perception": "31d9147af904",
     "health": "9fe24cf4e7e4",
-    "behaviour": "61db6f2303b1",
+    "behaviour": "f69a7602c5ba",
     "expression": "2f9ffa141383",
     "liveReadings": "f6ab8f5ab23e",
     "recentEvents": "fd4688789421",
@@ -292,7 +292,7 @@
    "hash": {
     "perception": "43922e15580f",
     "health": "751273001c78",
-    "behaviour": "d876dc2867f0",
+    "behaviour": "ada4415d17a1",
     "expression": "14eebe979637",
     "liveReadings": "27807e6fa2a5",
     "recentEvents": "fd4688789421",
@@ -315,7 +315,7 @@
    "hash": {
     "perception": "af2818030948",
     "health": "b583cf7cbda3",
-    "behaviour": "784f03c2decb",
+    "behaviour": "508134d500be",
     "expression": "5aa073316a1c",
     "liveReadings": "92621f4859e5",
     "recentEvents": "fd4688789421",
@@ -338,7 +338,7 @@
    "hash": {
     "perception": "748605ab38d1",
     "health": "2aacbb7501eb",
-    "behaviour": "1492535a1498",
+    "behaviour": "c5cc8b9ed623",
     "expression": "2feaff4d2f56",
     "liveReadings": "68a3f0d47f36",
     "recentEvents": "fd4688789421",
@@ -361,7 +361,7 @@
    "hash": {
     "perception": "3a54043b17cd",
     "health": "7061cb4347f4",
-    "behaviour": "5210985f26a1",
+    "behaviour": "82636be3c9df",
     "expression": "c11200667ea9",
     "liveReadings": "9fcc45ad9307",
     "recentEvents": "fd4688789421",
@@ -384,7 +384,7 @@
    "hash": {
     "perception": "023443d007f2",
     "health": "26aafcd860a5",
-    "behaviour": "a2454405d47b",
+    "behaviour": "4b454660085b",
     "expression": "5f5958ff91dd",
     "liveReadings": "7b03b651952b",
     "recentEvents": "fd4688789421",
@@ -407,7 +407,7 @@
    "hash": {
     "perception": "352b656b267d",
     "health": "86800aee6758",
-    "behaviour": "a62708f31ad2",
+    "behaviour": "8034c7e1d3d4",
     "expression": "edf1ed47c2a4",
     "liveReadings": "9da449246503",
     "recentEvents": "fd4688789421",
@@ -430,7 +430,7 @@
    "hash": {
     "perception": "e8c466d8d757",
     "health": "c793f9f6a293",
-    "behaviour": "5ac15103fb3d",
+    "behaviour": "5967e45b0d81",
     "expression": "dc91477ac52a",
     "liveReadings": "d2316d427c9f",
     "recentEvents": "fd4688789421",
@@ -453,7 +453,7 @@
    "hash": {
     "perception": "73d7b5546932",
     "health": "f7ec2dff8bd7",
-    "behaviour": "c0111e0f8818",
+    "behaviour": "c3a4ecf573dc",
     "expression": "a73c8d218afc",
     "liveReadings": "4fd7ded1ae08",
     "recentEvents": "fd4688789421",
@@ -476,7 +476,7 @@
    "hash": {
     "perception": "3f39b5cb08da",
     "health": "e01c4c4dddd4",
-    "behaviour": "cf68a00143a8",
+    "behaviour": "574a37400066",
     "expression": "46e1272fed10",
     "liveReadings": "12a2d7eb0783",
     "recentEvents": "fd4688789421",
@@ -591,7 +591,7 @@
    "hash": {
     "perception": "e3085e440bc4",
     "health": "2eb93a75d78d",
-    "behaviour": "478871a2c4d0",
+    "behaviour": "2d631162de50",
     "expression": "d7cd18114234",
     "liveReadings": "61e8814558d2",
     "recentEvents": "fd4688789421",
@@ -614,7 +614,7 @@
    "hash": {
     "perception": "2b88c9afd6a5",
     "health": "960dcf0c4457",
-    "behaviour": "0d1ff3c62e1d",
+    "behaviour": "f3fc18ca2ef2",
     "expression": "dee361e992ee",
     "liveReadings": "89c75e9d656c",
     "recentEvents": "fd4688789421",
@@ -637,7 +637,7 @@
    "hash": {
     "perception": "40c3022e4783",
     "health": "c0d2f73e052e",
-    "behaviour": "9d6c4261dd82",
+    "behaviour": "182d599ff93e",
     "expression": "672ad8be8a24",
     "liveReadings": "0573038e5e26",
     "recentEvents": "fd4688789421",
@@ -660,7 +660,7 @@
    "hash": {
     "perception": "1d95a87d4a43",
     "health": "dbf260be1da0",
-    "behaviour": "96e3f74c817c",
+    "behaviour": "dbc8d00e3396",
     "expression": "9f700eedf253",
     "liveReadings": "2edc735c3e8a",
     "recentEvents": "fd4688789421",
@@ -683,7 +683,7 @@
    "hash": {
     "perception": "cdde90fec00a",
     "health": "8c3d769c3717",
-    "behaviour": "2f5a2b20239a",
+    "behaviour": "bcf134beec39",
     "expression": "8c17438903d7",
     "liveReadings": "496669e2382e",
     "recentEvents": "fd4688789421",
@@ -706,7 +706,7 @@
    "hash": {
     "perception": "25ef8ad9ec38",
     "health": "6a3b00d48514",
-    "behaviour": "3a076ea59435",
+    "behaviour": "a2689d52196f",
     "expression": "81514d26646f",
     "liveReadings": "94698f49f745",
     "recentEvents": "fd4688789421",
@@ -729,7 +729,7 @@
    "hash": {
     "perception": "c1e8216f1b99",
     "health": "2dd09c3329e0",
-    "behaviour": "0c6960b3295e",
+    "behaviour": "20078990e470",
     "expression": "106493ffccd6",
     "liveReadings": "e944117630a9",
     "recentEvents": "fd4688789421",
@@ -752,7 +752,7 @@
    "hash": {
     "perception": "ae368811d2d9",
     "health": "31a06837a9b7",
-    "behaviour": "e98a68a6ed5c",
+    "behaviour": "86e8a6773c1a",
     "expression": "97a11a54611d",
     "liveReadings": "fdf97db9edd6",
     "recentEvents": "fd4688789421",
@@ -775,7 +775,7 @@
    "hash": {
     "perception": "c18c69726a14",
     "health": "1f4ccd6ddfc3",
-    "behaviour": "5d844fddeb83",
+    "behaviour": "c233989c0bee",
     "expression": "701645bf67a2",
     "liveReadings": "64093c11bca0",
     "recentEvents": "fd4688789421",
@@ -798,7 +798,7 @@
    "hash": {
     "perception": "a3938f739c56",
     "health": "24350156e8b0",
-    "behaviour": "4ddd47d682a2",
+    "behaviour": "cc955098368c",
     "expression": "7eb67efadc53",
     "liveReadings": "c2f5a27a8816",
     "recentEvents": "fd4688789421",
@@ -821,7 +821,7 @@
    "hash": {
     "perception": "5d1942748970",
     "health": "476d2292e59c",
-    "behaviour": "e047ee0bb2b1",
+    "behaviour": "69a7f020d552",
     "expression": "4ba139c30345",
     "liveReadings": "1ff06e5b7869",
     "recentEvents": "fd4688789421",
@@ -844,7 +844,7 @@
    "hash": {
     "perception": "3dffc676fe48",
     "health": "299b048fd1b6",
-    "behaviour": "e1c300399252",
+    "behaviour": "2c67166ebce1",
     "expression": "cbae9544fe93",
     "liveReadings": "40a75618d893",
     "recentEvents": "fd4688789421",
@@ -867,7 +867,7 @@
    "hash": {
     "perception": "88973bc07473",
     "health": "c1fe5997fac2",
-    "behaviour": "ee2f9f014469",
+    "behaviour": "4299e9d64a3d",
     "expression": "41076723f880",
     "liveReadings": "1e47bdec2534",
     "recentEvents": "fd4688789421",
@@ -890,7 +890,7 @@
    "hash": {
     "perception": "581eb3cb897f",
     "health": "71b477888bfc",
-    "behaviour": "cce38f7d8370",
+    "behaviour": "89d9a52a3748",
     "expression": "960707dae4db",
     "liveReadings": "4fa7bfbfdc2c",
     "recentEvents": "fd4688789421",
@@ -913,7 +913,7 @@
    "hash": {
     "perception": "e2d12532f1be",
     "health": "f63c69d4aac6",
-    "behaviour": "a5d441a2037a",
+    "behaviour": "5e7961d38a96",
     "expression": "06cb9803332c",
     "liveReadings": "213307969362",
     "recentEvents": "fd4688789421",
@@ -936,7 +936,7 @@
    "hash": {
     "perception": "ca94be2d29c6",
     "health": "d06387194073",
-    "behaviour": "4b0a2e33b419",
+    "behaviour": "da22dbe114a7",
     "expression": "1121a7109d6a",
     "liveReadings": "480a003c513d",
     "recentEvents": "fd4688789421",
@@ -959,7 +959,7 @@
    "hash": {
     "perception": "ca666c96265a",
     "health": "ccc4477e4f0a",
-    "behaviour": "2718645804ae",
+    "behaviour": "e12d4e3179c2",
     "expression": "ef95a1c4c290",
     "liveReadings": "8e70d1491bad",
     "recentEvents": "fd4688789421",
@@ -982,7 +982,7 @@
    "hash": {
     "perception": "3a98dfcacd55",
     "health": "4eaa247e4228",
-    "behaviour": "103f6d571438",
+    "behaviour": "6736e13fc8a7",
     "expression": "4a56163b4890",
     "liveReadings": "f23c562f8316",
     "recentEvents": "fd4688789421",
@@ -1005,7 +1005,7 @@
    "hash": {
     "perception": "cc51b6109abc",
     "health": "e7950827ba73",
-    "behaviour": "11ee3d9604ec",
+    "behaviour": "efd64167240d",
     "expression": "028659fb4006",
     "liveReadings": "55c3f072d3e8",
     "recentEvents": "fd4688789421",
@@ -1028,7 +1028,7 @@
    "hash": {
     "perception": "ceed9d8eaac0",
     "health": "c294b7fd3461",
-    "behaviour": "2d02fadc5c51",
+    "behaviour": "5dbd3f5f9621",
     "expression": "5575cb248c36",
     "liveReadings": "6bed13afa423",
     "recentEvents": "fd4688789421",
@@ -1097,8 +1097,8 @@
    "hash": {
     "perception": "74c163307c80",
     "health": "6b6ad9eaadd4",
-    "behaviour": "a190ec0b3e8d",
-    "expression": "0ff19d142789",
+    "behaviour": "9be8b75e2646",
+    "expression": "a3208a2ee205",
     "liveReadings": "4e10c38a9b04",
     "recentEvents": "fd4688789421",
     "recentEpisodes": "3375d7dda85b",
@@ -1120,8 +1120,8 @@
    "hash": {
     "perception": "5fa07f647ba1",
     "health": "f510a31e32e0",
-    "behaviour": "ea3689304ab3",
-    "expression": "4f3d892d29de",
+    "behaviour": "0b5e92923a94",
+    "expression": "561cc2a83c67",
     "liveReadings": "0ce8c1f13266",
     "recentEvents": "fd4688789421",
     "recentEpisodes": "90c9c8f266f0",
@@ -1143,7 +1143,7 @@
    "hash": {
     "perception": "b413f4d5eb7c",
     "health": "fd8ff29b2259",
-    "behaviour": "9e42c7aa8a4e",
+    "behaviour": "f535c20ab30b",
     "expression": "9a760376bc08",
     "liveReadings": "199bb9a13107",
     "recentEvents": "5e0fdbb6a3b8",
@@ -1166,8 +1166,8 @@
    "hash": {
     "perception": "467db9f96cd0",
     "health": "0949158adcd7",
-    "behaviour": "7b912852a4c4",
-    "expression": "afd6fd481d5f",
+    "behaviour": "2a96b8688b39",
+    "expression": "c81b81226b51",
     "liveReadings": "6625ae1014f3",
     "recentEvents": "5e0fdbb6a3b8",
     "recentEpisodes": "8e5aa1378d88",
@@ -1189,8 +1189,8 @@
    "hash": {
     "perception": "c2ea0d0828df",
     "health": "28008a57439d",
-    "behaviour": "96ace919183f",
-    "expression": "246a27b37b6c",
+    "behaviour": "c2b10576d381",
+    "expression": "36d473c61f39",
     "liveReadings": "15ba51e7f394",
     "recentEvents": "5e0fdbb6a3b8",
     "recentEpisodes": "7714d42f4fed",
@@ -1212,7 +1212,7 @@
    "hash": {
     "perception": "040c4c1dab85",
     "health": "ac42d4e63bb1",
-    "behaviour": "9bf937b9b787",
+    "behaviour": "b0692418e7d7",
     "expression": "27b0785c3e46",
     "liveReadings": "08a400eb1888",
     "recentEvents": "5e0fdbb6a3b8",
@@ -1235,7 +1235,7 @@
    "hash": {
     "perception": "3d3fa275b477",
     "health": "7fd9c4f4117b",
-    "behaviour": "99c31d242d44",
+    "behaviour": "5737fcd830d6",
     "expression": "776280e415bc",
     "liveReadings": "8ccf10189316",
     "recentEvents": "5e0fdbb6a3b8",
@@ -1258,7 +1258,7 @@
    "hash": {
     "perception": "e707738b83ee",
     "health": "a2d778456c4a",
-    "behaviour": "7c9c0b643e6e",
+    "behaviour": "8ea315c94a0e",
     "expression": "d07aebbb93f2",
     "liveReadings": "c2da6a269a08",
     "recentEvents": "5e0fdbb6a3b8",
@@ -1281,7 +1281,7 @@
    "hash": {
     "perception": "35cb75ebc537",
     "health": "dec1a867522a",
-    "behaviour": "cd3d4379587d",
+    "behaviour": "46e779c703a9",
     "expression": "d924daec8904",
     "liveReadings": "4475276506dd",
     "recentEvents": "62805851bb9d",
@@ -1304,7 +1304,7 @@
    "hash": {
     "perception": "76f5afa931c3",
     "health": "fe5f78e5ad0f",
-    "behaviour": "252024543784",
+    "behaviour": "85ece44534ff",
     "expression": "6e9eb4cf3ce9",
     "liveReadings": "e5b3ddd3ca4f",
     "recentEvents": "62805851bb9d",
@@ -1327,7 +1327,7 @@
    "hash": {
     "perception": "984a11926cc6",
     "health": "ae4d4ca420b3",
-    "behaviour": "de64e21cce3c",
+    "behaviour": "9c4a086f5d5f",
     "expression": "5114ea11a21c",
     "liveReadings": "9c090a686f11",
     "recentEvents": "62805851bb9d",
@@ -1350,7 +1350,7 @@
    "hash": {
     "perception": "85dfbe6665ce",
     "health": "d2a9cf562fab",
-    "behaviour": "d7a9ef67e74e",
+    "behaviour": "984c58135446",
     "expression": "6fda34c4ddcb",
     "liveReadings": "34685f6f7eff",
     "recentEvents": "62805851bb9d",
@@ -1373,7 +1373,7 @@
    "hash": {
     "perception": "5a1ba35ff70a",
     "health": "0ada6833eb9f",
-    "behaviour": "c72db9d960f4",
+    "behaviour": "eca28ac9d9a0",
     "expression": "0905944ac5cb",
     "liveReadings": "661083b91bcf",
     "recentEvents": "62805851bb9d",
@@ -1396,7 +1396,7 @@
    "hash": {
     "perception": "f3fb364d0c43",
     "health": "37202eab5d72",
-    "behaviour": "7cbc504b6f9b",
+    "behaviour": "b8cc1b404fe8",
     "expression": "659b5df289f8",
     "liveReadings": "9c44132515f7",
     "recentEvents": "62805851bb9d",
@@ -1419,7 +1419,7 @@
    "hash": {
     "perception": "0bd8bf8c9e39",
     "health": "1357535fafaa",
-    "behaviour": "172cd0eae191",
+    "behaviour": "a9bfe4abc8d2",
     "expression": "f0ea1d4fdf31",
     "liveReadings": "254e60303c2b",
     "recentEvents": "62805851bb9d",
@@ -1442,7 +1442,7 @@
    "hash": {
     "perception": "c8cc1381d746",
     "health": "54e0df5de1a8",
-    "behaviour": "e404ce13229c",
+    "behaviour": "1f26393c08d8",
     "expression": "de01ca2b2dfc",
     "liveReadings": "b74505d5ced3",
     "recentEvents": "62805851bb9d",
@@ -1465,7 +1465,7 @@
    "hash": {
     "perception": "5def74dd1536",
     "health": "5eb3b7e5cb24",
-    "behaviour": "6a77f3384103",
+    "behaviour": "3ea28ed93b69",
     "expression": "f948044e9c3d",
     "liveReadings": "0d5ba5a5bbc7",
     "recentEvents": "62805851bb9d",
@@ -1488,7 +1488,7 @@
    "hash": {
     "perception": "7f5c9f17798e",
     "health": "461a3446871e",
-    "behaviour": "9a65bff9f653",
+    "behaviour": "646784524f6f",
     "expression": "f2648850e97d",
     "liveReadings": "b5f462481881",
     "recentEvents": "62805851bb9d",
@@ -1511,7 +1511,7 @@
    "hash": {
     "perception": "314ad52233a4",
     "health": "345f8bfb53d3",
-    "behaviour": "ed53cb1572ab",
+    "behaviour": "679eee2cb7c5",
     "expression": "828a811ec68c",
     "liveReadings": "2ffa58453762",
     "recentEvents": "62805851bb9d",
@@ -1534,7 +1534,7 @@
    "hash": {
     "perception": "a567f6c7e731",
     "health": "8c8b662c958c",
-    "behaviour": "1032fadc3845",
+    "behaviour": "444a9db3e030",
     "expression": "bf858521d2c6",
     "liveReadings": "0579b0f27b58",
     "recentEvents": "62805851bb9d",
@@ -1557,7 +1557,7 @@
    "hash": {
     "perception": "04ffda8c7fac",
     "health": "6f4864a9bd4b",
-    "behaviour": "e9d5d6273c5f",
+    "behaviour": "bc4a95a77eec",
     "expression": "fe08f14a69c2",
     "liveReadings": "5032bb2f1f4e",
     "recentEvents": "62805851bb9d",
@@ -1580,7 +1580,7 @@
    "hash": {
     "perception": "a78f65c10f63",
     "health": "0e60a6432c2d",
-    "behaviour": "a1cc5b5a351e",
+    "behaviour": "fe90889c4c41",
     "expression": "cbf7893e6742",
     "liveReadings": "8b4aba1de8de",
     "recentEvents": "62805851bb9d",
@@ -1649,8 +1649,8 @@
    "hash": {
     "perception": "80beefd348de",
     "health": "0c89a7f29a73",
-    "behaviour": "6856be563424",
-    "expression": "24afe3ec4175",
+    "behaviour": "b5f18a72e521",
+    "expression": "6ef5bb5fe066",
     "liveReadings": "e0b9dd34ba03",
     "recentEvents": "62805851bb9d",
     "recentEpisodes": "447bcfec05bb",
@@ -1672,7 +1672,7 @@
    "hash": {
     "perception": "853a0c8b3483",
     "health": "4471eafa0197",
-    "behaviour": "04be547c4b98",
+    "behaviour": "c3b84f056af3",
     "expression": "02cc6a4fbf20",
     "liveReadings": "59667fcf679b",
     "recentEvents": "e0a58d565dc8",
@@ -1695,7 +1695,7 @@
    "hash": {
     "perception": "853a0c8b3483",
     "health": "4471eafa0197",
-    "behaviour": "04be547c4b98",
+    "behaviour": "c3b84f056af3",
     "expression": "02cc6a4fbf20",
     "liveReadings": "59667fcf679b",
     "recentEvents": "e0a58d565dc8",
@@ -1772,8 +1772,8 @@
       "value": 0.88,
       "visit": null,
       "visitsToday": {
-       "count": 1,
-       "firstAt": 1781762048340
+       "count": 2,
+       "firstAt": 1781759580000
       },
       "why": "good air for it (none right now)"
      },
@@ -1962,8 +1962,8 @@
       },
       {
        "facts": {
-        "count": 1,
-        "firstAt": 1781762048340
+        "count": 2,
+        "firstAt": 1781759580000
        },
        "id": "dragonfly_came",
        "weight": 2
@@ -3827,18 +3827,18 @@
     "title": "Signs of a squirrel: a tail by the pot"
    },
    {
-    "at": 1781762048340,
-    "detail": "1 visit · first at 08:54",
-    "habitat": "dragonfly",
-    "kind": "habitat",
-    "title": "A dragonfly visited"
-   },
-   {
     "at": 1781760780000,
     "detail": "a thought of the day",
     "kind": "said",
     "said": "musing",
-    "title": "Soft, comfortable air around my leaves. 🍃"
+    "title": "A dragonfly hovered by today. ✨"
+   },
+   {
+    "at": 1781759580000,
+    "detail": "2 visits · first at 08:13",
+    "habitat": "dragonfly",
+    "kind": "habitat",
+    "title": "A dragonfly visited"
    },
    {
     "at": 1781757240000,
@@ -4047,21 +4047,7 @@
     "detail": "a thought of the day",
     "kind": "said",
     "said": "musing",
-    "title": "A dragonfly hovered by today. ✨"
-   },
-   {
-    "at": 1781687504340,
-    "detail": "about 5.7 h across 8 visits",
-    "habitat": "sloth",
-    "kind": "habitat",
-    "title": "A sloth spent time in the tree"
-   },
-   {
-    "at": 1781687504340,
-    "detail": "4 times · first at 12:11",
-    "habitat": "encounter",
-    "kind": "habitat",
-    "title": "A dragonfly and the sloth shared the tree"
+    "title": "Lots of useful light today. ☀️"
    },
    {
     "at": 1781686800000,
@@ -4075,13 +4061,27 @@
     "detail": "a thought of the day",
     "kind": "said",
     "said": "musing",
-    "title": "Lots of useful light today. ☀️"
+    "title": "A sloth hung around for a while. 🦥"
    },
    {
     "at": 1781683260000,
     "kind": "said",
     "said": "state",
     "title": "I'm thriving. Everything feels just right. 🌿"
+   },
+   {
+    "at": 1781681460000,
+    "detail": "4 times · first at 10:31",
+    "habitat": "encounter",
+    "kind": "habitat",
+    "title": "A dragonfly and the sloth shared the tree"
+   },
+   {
+    "at": 1781680860000,
+    "detail": "about 5.5 h across 9 visits",
+    "habitat": "sloth",
+    "kind": "habitat",
+    "title": "A sloth spent time in the tree"
    },
    {
     "at": 1781679600000,
@@ -4102,21 +4102,21 @@
     "detail": "a thought of the day",
     "kind": "said",
     "said": "musing",
-    "title": "The air feels gentle today. 🍃"
-   },
-   {
-    "at": 1781675660160,
-    "detail": "17 visits · first at 08:54",
-    "habitat": "dragonfly",
-    "kind": "habitat",
-    "title": "A dragonfly visited"
+    "title": "Good light on my leaves right now. ☀️"
    },
    {
     "at": 1781673900000,
     "detail": "a thought of the day",
     "kind": "said",
     "said": "musing",
-    "title": "Good light on my leaves right now. ☀️"
+    "title": "A dragonfly hovered by today. ✨"
+   },
+   {
+    "at": 1781672880000,
+    "detail": "17 visits · first at 08:08",
+    "habitat": "dragonfly",
+    "kind": "habitat",
+    "title": "A dragonfly visited"
    },
    {
     "at": 1781670840000,
@@ -4270,22 +4270,22 @@
     "title": "I could really use some water. 💧"
    },
    {
-    "at": 1781598317760,
-    "detail": "10 times · first at 11:25",
+    "at": 1781596500000,
+    "detail": "10 times · first at 10:55",
     "habitat": "encounter",
     "kind": "habitat",
     "title": "A dragonfly and the sloth shared the tree"
    },
    {
-    "at": 1781597893500,
-    "detail": "about 5.1 h across 8 visits",
+    "at": 1781595240000,
+    "detail": "about 5.3 h across 9 visits",
     "habitat": "sloth",
     "kind": "habitat",
     "title": "A sloth spent time in the tree"
    },
    {
-    "at": 1781593440900,
-    "detail": "21 visits · first at 10:04",
+    "at": 1781593500000,
+    "detail": "19 visits · first at 10:05",
     "habitat": "dragonfly",
     "kind": "habitat",
     "title": "A dragonfly visited"
@@ -4364,7 +4364,7 @@
    },
    {
     "at": 1781576732444,
-    "detail": "the sloth stayed 171 min · Lucy slept by the pot",
+    "detail": "the sloth stayed 202 min · Lucy slept by the pot",
     "dream": "dreamt",
     "kind": "dream",
     "title": "Dreamt of the sloth in long sunlight and the dragonfly"
@@ -4450,7 +4450,7 @@
     "title": "This is a good day to grow. 🌱"
    },
    {
-    "at": 1781524021200,
+    "at": 1781524080000,
     "detail": "after 7 meetings",
     "habitat": "encounter",
     "kind": "habitat",
@@ -4478,15 +4478,15 @@
     "title": "Plenty of light today. ☀️"
    },
    {
-    "at": 1781514580800,
-    "detail": "7 times · first at 12:09",
+    "at": 1781514600000,
+    "detail": "7 times · first at 12:10",
     "habitat": "encounter",
     "kind": "habitat",
     "title": "A dragonfly and the sloth shared the tree"
    },
    {
-    "at": 1781514349020,
-    "detail": "about 3.7 h across 6 visits",
+    "at": 1781514360000,
+    "detail": "about 3.7 h across 7 visits",
     "habitat": "sloth",
     "kind": "habitat",
     "title": "A sloth spent time in the tree"
@@ -4499,18 +4499,18 @@
     "title": "Soft, comfortable air around my leaves. 🍃"
    },
    {
-    "at": 1781508123000,
-    "detail": "18 visits · first at 10:22",
-    "habitat": "dragonfly",
-    "kind": "habitat",
-    "title": "A dragonfly visited"
-   },
-   {
     "at": 1781507280000,
     "detail": "8 visits, about 3.7 h in all",
     "habitat": "lucy",
     "kind": "habitat",
     "title": "Lucy kept me company"
+   },
+   {
+    "at": 1781505720000,
+    "detail": "18 visits · first at 09:42",
+    "habitat": "dragonfly",
+    "kind": "habitat",
+    "title": "A dragonfly visited"
    },
    {
     "at": 1781503860000,

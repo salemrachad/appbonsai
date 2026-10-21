@@ -4,7 +4,7 @@ import type { BehaviourEpisode, DiaryItem } from '../history/historyTypes';
 import type { PerceptionSample } from '../perception/perceptionTypes';
 import type { SpeciesProfile } from '../species';
 import type { OutsideObservation } from '../telemetry/outsideWeather';
-import { driftToward, schmitt, slotWindow } from './habitat';
+import { driftToward, schmitt, slotPlan, slotWindow } from './habitat';
 import { stableVariant } from './speech';
 import { addDays, DAY, HOUR, MIN, startOfDay } from '../lib/time';
 
@@ -78,11 +78,16 @@ export function replayAir<S extends string, T extends string>(spec: AirWandererS
   return { value: Math.round(value * 100) / 100, active, points };
 }
 
-export function airVisitAt<S extends string, T extends string>(spec: AirWandererSpec<S, T>, value: number, now: number, isDay: boolean): AirVisit<S, T> | null {
-  const { slotMinutes, visitChance, visitMinutes, scale } = spec.slots;
+// The chance that a slot holds a visit, for its value at time t
+function chanceOf<S extends string, T extends string>(spec: AirWandererSpec<S, T>, value: number, t: number): number {
+  const { visitChance, scale } = spec.slots;
   const f = Math.max(0, Math.min(1, (value - spec.latch.exit) / (1 - spec.latch.exit)));
-  const chance = (visitChance.min + (visitChance.max - visitChance.min) * f) * scale(now);
-  const w = slotWindow(spec.key, now, slotMinutes, chance, visitMinutes);
+  return (visitChance.min + (visitChance.max - visitChance.min) * f) * scale(t);
+}
+
+export function airVisitAt<S extends string, T extends string>(spec: AirWandererSpec<S, T>, value: number, now: number, isDay: boolean): AirVisit<S, T> | null {
+  const { slotMinutes, visitMinutes } = spec.slots;
+  const w = slotWindow(spec.key, now, slotMinutes, chanceOf(spec, value, now), visitMinutes);
   if (!w) return null;
   return {
     id: `${spec.key}:${w.id}`,
@@ -93,28 +98,43 @@ export function airVisitAt<S extends string, T extends string>(spec: AirWanderer
   };
 }
 
-// Visits in [from, to) while the latch was on (the same slots as the live view)
+// Visits in [from, to): every minute the live view would have shown it (the latch on at that minute, the
+// slot's visit window, its chance from the value then), so a visit that began after the latch came on
+// mid-slot, or one still going on, counts too. Minutes and windows are the time it was really there.
 export function airVisitsBetween<S extends string, T extends string>(spec: AirWandererSpec<S, T>, points: { t: number; value: number; active: boolean }[], from: number, to: number) {
-  const slotMs = spec.slots.slotMinutes * MIN;
+  const { slotMinutes, visitMinutes } = spec.slots;
   let count = 0;
   let firstAt: number | null = null;
   let minutes = 0;
   const windows: { from: number; to: number }[] = [];
   const spots: Partial<Record<S, number>> = {}; // minutes per spot (where it spent its time)
   let pi = 0;
-  for (let t = Math.ceil(from / slotMs) * slotMs; t + slotMs <= to; t += slotMs) {
-    while (pi + 1 < points.length && points[pi + 1].t <= t) pi++;
-    const p = points[pi];
-    if (!p || p.t > t || !p.active) continue;
-    let v: AirVisit<S, T> | null = null;
-    for (let m = 0; m < spec.slots.slotMinutes && !v; m += 1) v = airVisitAt(spec, p.value, t + m * MIN, true);
-    if (v) {
-      count++;
-      firstAt = firstAt ?? v.startedAt;
-      minutes += (v.endsAt - v.startedAt) / MIN;
-      spots[v.spot] = (spots[v.spot] ?? 0) + (v.endsAt - v.startedAt) / MIN;
-      windows.push({ from: v.startedAt, to: v.endsAt });
+  for (let t = from; t < to; ) {
+    const plan = slotPlan(spec.key, t, slotMinutes, 1, visitMinutes)!; // its window, whatever the chance
+    const next = plan.slotStart + slotMinutes * MIN;
+    let spot: S | null = null;
+    let seen = 0;
+    let first = 0;
+    let last = 0;
+    for (let m = Math.max(from, Math.ceil(plan.startedAt / MIN) * MIN); m < Math.min(to, plan.endsAt); m += MIN) {
+      while (pi + 1 < points.length && points[pi + 1].t <= m) pi++;
+      const p = points[pi];
+      if (!p || p.t > m || !p.active || plan.roll('visit') >= chanceOf(spec, p.value, m)) continue;
+      if (spot === null) {
+        spot = airVisitAt(spec, p.value, m, true)!.spot;
+        first = m;
+      }
+      seen++;
+      last = Math.min(to, m + MIN);
     }
+    if (spot !== null) {
+      count++;
+      firstAt = firstAt ?? first;
+      minutes += seen;
+      spots[spot] = (spots[spot] ?? 0) + seen;
+      windows.push({ from: first, to: last });
+    }
+    t = next;
   }
   return { count, firstAt, minutes: Math.round(minutes), windows, spots };
 }
