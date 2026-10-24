@@ -6,33 +6,52 @@ The website's Ficus on a physical screen. A second ESP32 of its own, separate fr
 **Hardware:** ESP32-D0WD-V3 (WROOM-32), 4 MB flash, **no PSRAM** (324 KB free heap in a minimal sketch), and a
 3.2" ILI9341 **SPI** TFT, 320 × 240, used in landscape (`TFT_ROTATION 1`). The module's microSD slot and touch pins stay unconnected.
 
-**Step 3 (this sketch): the state from the server.** The tree moves as on the website (step 2): the body's
-motion for its state, the trunk breathing, the branches swaying about their pivots, each of the 124 leaves
-quivering on its own phase, and blinking (sometimes twice). Now it also reads the live tree's ExpressionState
-once a minute (`GET /api/current`, over HTTPS with the site's password; nothing on Cloudflare changed for it):
-its **motion** (sway speed and amount, flutter, blink interval) moves the tree, eased over 2 s; the face,
-foliage, droop and scene are shown as words in the column until their art is exported (the next step). It
-measures and reports as it runs. (Step 1 was the static test.)
+**Step 4 (this sketch): the state's look.** The tree moves as on the website (step 2): the body's motion for
+its state, the trunk breathing, the branches swaying about their pivots, each of the 124 leaves quivering on
+its own phase, and blinking (sometimes twice). It reads the live tree's ExpressionState once a minute
+(`GET /api/current`, over HTTPS with the site's password; nothing on Cloudflare changed for it, step 3), and
+now draws what it says: the **foliage tone** (and a season's blend), the **droop** (eased over 2.5 s, as the
+website's transition) and a shrunk posture, the **face** (eyes, the pupils where the gaze rests, mouth, blush,
+sweat), the **soil** (moist, watered, wet, dry, frozen) and moss, yellow and new leaves, a thinner canopy's
+missing leaves and fresh tips, the **body motion** for the state, and night's paper. Its **motion** (sway
+speed and amount, flutter, blink interval) eases in over 2 s. It measures and reports as it runs. (Step 1 was
+the static test.)
 
 ## How the art gets here
 
 ```
-src/components/avatar/BonsaiAvatar.tsx  (the website's own SVG, for one ExpressionState)
+src/components/avatar/BonsaiAvatar.tsx  (the website's own SVG and AvatarFace)
   → scripts/display/export.ts            react-dom/server → Chrome headless at 198×207 (the 440×460 viewBox × 0.45; `--width`)
-     the parts, each drawn alone:        stand + pot, trunk (no face), face open, face closed, branches, the three pads without leaves
-     read from the markup (rig.ts):      the 124 leaves (place, colour, edge, midrib, gloss, quiver delay), pad droops and sway pivots
-     read from the CSS (css.ts):         the animations' keyframes, durations, easings and origins (body, trunk, sways, leaf quiver)
-  → src/assets/tree_rig.h                the parts as premultiplied RGB565 + alpha in per-row spans (60.5 KB), the leaves, the keyframes
-  → appbonsai_display.ino                 each frame: poses the rig at the time t, composes the tree's box in 16-row RGB888 strips
-                                          (parts sampled bilinearly, leaves rasterised like leafRaster.ts), dithers to RGB565, sends by DMA
+     parts that only move:               stand + pot + pillow, trunk (no face), branches
+     parts per look:                     the three pads without leaves × 14 foliage tones (one shape, a colour per tone),
+                                         the soil × 5 (moist, watered, wet, dry, frozen), the moss × 14 tones,
+                                         the face's layers: blush × 6, sweat, eyes × 14 (under / pupils / over), mouths × 13
+     the leaves (Foliage.tsx leavesFor): place, size, shade, rim, gap, quiver delay; the palettes
+     read from the CSS (css.ts):         the 17 body motions, the trunk's breathing, the sways, the leaf quiver
+  → src/assets/tree_rig.h                the parts as premultiplied RGB565 + alpha in per-row spans (256 KB), the rest as tables
+  → appbonsai_display.ino                 each frame: the website's look rules for the state (droopOf, leafLook, pupilOffset,
+                                          paletteFor), the parts posed at the time t, composed in 8-row RGB888 strips (sampled
+                                          bilinearly, leaves rasterised like leafRaster.ts), dithered to RGB565, sent by DMA
 ```
 
-The leaves are drawn on the device, not exported as pictures: `scripts/display/leafRaster.ts` and the sketch's
-`drawLeaves()` are the same rasteriser (keep them in step). The export composes the rest pose itself and
-compares it with Chrome's picture (the last run: mean difference 0.75/255, 0.18 % of pixels off by more than 24).
+The look rules run on the device, not as pictures: `scripts/display/look.ts` and the sketch's `droopOf`,
+`leafLook`, `pupilOffset`, `paletteFor` are the same rules (keep them in step), and the export checks look.ts
+against the markup React emits for a sweep of 57 states (every leaf's matrix, colour, edge, midrib, gloss and
+freshness; the pads' droop; the pupils for 5 gazes × 14 eye styles), so a change on the website that the
+display doesn't follow fails the export. The leaves are rasterised by `drawLeaves()` exactly as
+`scripts/display/leafRaster.ts` (keep the two in step). The export also composes six contrasting looks the
+firmware's way and compares them with Chrome's drawing of the whole tree (`chrome_<n>.png` vs `device_<n>.png`;
+the last run: mean difference 0.7–1.1/255, 0.1–1.0 % of pixels off by more than 24, mostly leaf edges).
 
-Speed: the parts are copied from flash into RAM at start (reading flash per pixel was most of a frame), the
-composing is built with `-O3`, and the two cores compose alternate strips.
+Speed: the parts that only move and the pads are copied from flash into RAM at start (reading flash per pixel
+was most of a frame; 57.8 KB), the pads repainted for a new tone; the face, soil and moss are small and read
+from flash. The composing is built with `-O3`, and the two cores compose alternate strips.
+
+Not yet: a new tone or face switches at once (the website eases colours over 2 s); a blend mixes the pads and
+leaves but the moss stays the main tone's; at a thinner canopy the pads' highlights don't fade and the
+branchlets don't show; the mouths' own motion (panting, chattering), the eyes' saccades and the pointer, the
+pad highlights' flutter, gestures, filters (heat shimmer, frost…), visitors, effects (sparkles, rain…), the
+dream and the hike/yoga props. The scene backdrop is the page's flat paper colour (night: the night paper).
 
 ## The connection
 
@@ -65,22 +84,19 @@ How it fits in an ESP32 without PSRAM (TLS wants ~34 KB of buffers, 16 KB each w
 Generate the asset before compiling (it is gitignored, regenerated from the art):
 
 ```sh
-npm run display:export                                   # the golden master's last state, tree only
-npm run display:export -- --state current.json           # a saved GET /api/current from the live tree
-npm run display:export -- --set avatar.eyes=happy --set avatar.mouth=smile   # change any field
-npm run display:export -- --with-extras                  # keep visitors and effects (deferred for now)
+npm run display:export                                   # the library; the golden master's last look until the server answers
+npm run display:export -- --state current.json           # start with a saved GET /api/current from the live tree
+npm run display:export -- --set avatar.eyes=happy --set avatar.mouth=smile   # change any field of that look
 ```
 
-To use the live tree's state: open `https://appbonsai.appbonsai.workers.dev/api/current` in the browser
-(it asks for the password), save the page as `current.json` outside the repository, and pass it with `--state`.
+The library is the same whatever the state; `--state` and `--set` only choose the look shown until the
+server's first answer (`RIG_DEFAULT_STATE`, read by the same function as the live answers). To use the live
+tree's: open `https://appbonsai.appbonsai.workers.dev/api/current` in the browser (it asks for the password),
+save the page as `current.json` outside the repository, and pass it with `--state`.
 
-It also writes, in `build/display/`: `chrome.png` (what Chrome drew), `rest.png` / `rest_x3.png` (the rest
-pose as the device composes it), `part_*.png` (each part), `tree.svg` and `manifest.json`. Compare
-`rest_x3.png` with the screen.
-
-Not yet: the gaze's idle saccades, the pad highlights' flutter, gestures (sigh, shiver…), visitors, effects
-(sparkles, butterfly…), the dream and the hike/yoga props. The scene backdrop is the page's flat paper colour
-for now (night: the night paper).
+It also writes, in `build/display/`: for each checked look `chrome_<n>.png` (Chrome's tree) and
+`device_<n>.png` / `device_<n>_x3.png` (the library composed the firmware's way, dithered), `part_*.png` and
+`manifest.json` (sizes, the checks' results).
 
 ## Wiring
 
@@ -137,17 +153,22 @@ Send `r` to print the report, `b` to measure the ceiling again (5 s uncapped), `
 goes (each part, the leaves and the dither, on one core), `f` to fetch now. A failed TLS connection prints
 mbedTLS's reason and the heap at that moment. (Opening the serial monitor restarts the board.)
 
-Measured (2026-10-24, 198×207 tree box, SPI 40 MHz, Wi-Fi at -66 dBm):
+Measured (2026-10-24, step 4, 198×207 tree box, SPI 40 MHz, Wi-Fi at -67 dBm, the live state `scorching`:
+curled tone, squinting, panting, sweat, droop 0.32):
 
 | | |
 |---|---|
-| Frame rate | **27.0 fps** as it runs (25.4 fps in the slowest 2 s with a fetch); ceiling 27.8 fps |
-| Frame | 36.5 ms, 25.2 ms of it composing on the two cores (16-row strips were 29.6 fps, but TLS didn't fit) |
-| Sketch | 1170 KB of the 1920 KB slot (61 %) |
-| Heap before the first fetch | 95.9 KB free, largest block 68 KB |
-| Heap, connection open | 51.2 KB free, largest block 12.5 KB; lowest while fetching 33.0 KB (block 7.7 KB) |
-| First fetch | 15.7 s (handshake + headers 14.2 s, body 1.5 s) |
-| Later fetches | 1.7 s (headers 0.2 s, body 1.5 s), on the same connection |
+| Frame rate | **25.4 fps** as it runs (23.0 fps in the slowest 2 s with a fetch); ceiling 24.8 fps uncapped |
+| Frame | 38.8 ms, 27.1 ms of it composing on the two cores (step 3: 27.0 fps; the look rules for 124 leaves are 2.6 ms of pose) |
+| Sketch | 1384 KB of the 1920 KB slot (72 %; step 3: 61 %); the library 256 KB of it |
+| Heap before the first fetch | 97.1 KB free, largest block 68 KB |
+| Heap, connection open | 52.5 KB free, largest block 14.0 KB; lowest while fetching 34.3 KB (block 7.7 KB) |
+| First fetch | 16.0 s (handshake + headers 14.5 s, body 1.5 s) |
+| Later fetches | 1.6 s (headers 0.1–0.2 s, body 1.5 s), on the same connection |
+
+The heap's largest block while fetching is the limit to watch: a first build kept 3 KB more per-leaf state, the
+block fell to 1.6 KB, and three answers in four broke off mid-body (ArduinoJson IncompleteInput, a new
+handshake each time). Keep the RAM structures small.
 
 ## Settings to try (display_config.h)
 
@@ -160,9 +181,8 @@ Measured (2026-10-24, 198×207 tree box, SPI 40 MHz, Wi-Fi at -66 dBm):
 
 1. ~~The layered rig~~ (step 2, done): sway, breathing, leaf quiver and blinking, sub-pixel motion.
 2. ~~The state's motion~~ (step 3, done): the live ExpressionState over HTTPS, its motion on the tree.
-3. The state's look: the face (eyes × mouth × blush), the leaves' colours per foliage tone, the droop and the
-   body's animation per state, exported as variants and swapped in when the state changes.
-4. The gaze's saccades, the pad highlights' flutter, gestures.
+3. ~~The state's look~~ (step 4, done): foliage tones and blends, droop, face, soil and moss, the body's motion.
+4. Colours easing between looks, the gaze's saccades, the mouths' motion, the pad highlights' flutter, gestures.
 5. Visitors, effects and backdrops, if the measured budget allows.
 6. On the server, later (agreed first): a small display endpoint (only the fields used, a read-only token)
    would make each fetch a fraction of the 30 KB and keep the site password off the device.

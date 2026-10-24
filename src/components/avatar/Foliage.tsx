@@ -101,7 +101,7 @@ export const PADS: PadShape[] = [
   { id: 'top', cx: 220, cy: 80, rx: 80, ry: 51, count: 52, seed: 37 },
 ];
 
-interface LeafSpec {
+export interface LeafSpec {
   x: number;
   y: number;
   angle: number; // leaf points along this direction (deg, SVG: 90 = down)
@@ -113,7 +113,7 @@ interface LeafSpec {
   gap: number; // 0-1: above the canopy's fullness this leaf is missing (rim leaves go first)
 }
 
-function leavesFor(pad: PadShape): LeafSpec[] {
+export function leavesFor(pad: PadShape): LeafSpec[] {
   const rand = rng(pad.seed);
   // A separate stream for the gaps, so the leaves themselves never move
   const gapRand = rng(pad.seed * 7919 + 13);

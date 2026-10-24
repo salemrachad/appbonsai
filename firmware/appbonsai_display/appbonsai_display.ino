@@ -1,22 +1,25 @@
 // Appbonsai display (ESP32 #2): the website's Ficus on a 3.2" ILI9341 (320x240, landscape).
 //
-// Step 2, the living tree: the website's avatar as a rig (scripts/display/export.ts → src/assets/tree_rig.h).
-// Its parts as Chrome draws them (stand and pot, trunk, face open and closed, branches, the three pads without
-// their leaves) are moved by the website's own CSS animations: the body's motion for the state, the trunk's
-// breathing, the branch sways about their pivots near the trunk. The 124 leaves are drawn here, each one
-// quivering about its base on its own phase, and the eyes blink at the state's interval, sometimes twice.
-// Sway speed, sway amount and flutter are the state's (ExpressionState.motion), as on the website.
+// The website's avatar as a library (scripts/display/export.ts → src/assets/tree_rig.h): its parts as Chrome
+// draws them, in every look the ExpressionState can ask for. The stand and pot, the trunk and the branches; each
+// canopy pad without its leaves in all 14 foliage tones (one shape, a colour per tone); the soil per kind and the
+// moss per tone; the face in layers (blush, sweat, each eye style around its pupils, each mouth). The 124 leaves
+// are drawn here by the website's own rules (droopOf, leafLook, pupilOffset below, as scripts/display/look.ts,
+// which the export checks against React's markup): the pads' droop, each leaf's tilt, curl, colour and
+// freshness, where the pupils rest for the gaze. The website's CSS animations move it all: the body's motion
+// for the state, the trunk's breathing, the branch sways about their pivots, each leaf's quiver on its own
+// phase, and the eyes blink at the state's interval, sometimes twice. A new droop eases in over 2.5 s as on the
+// website; a new tone or face switches at once (for now).
 //
-// No framebuffer (150 KB) on an ESP32 without PSRAM: the tree's box is composed in strips of 32 rows (RGB888,
+// No framebuffer (150 KB) on an ESP32 without PSRAM: the tree's box is composed in strips of 8 rows (RGB888,
 // the parts sampled bilinearly so motions smaller than a pixel stay smooth), dithered to RGB565 like the
 // export (a fixed pattern) and sent by DMA while the next strip is composed.
 //
-// Step 3, the state from the server: with secrets.h (npm run display:setup, then your Wi-Fi in it) a task on
-// core 0 joins the Wi-Fi and reads the tree's GET /api/current once a minute over HTTPS (HTTP Basic, the
-// site's password; If-None-Match, so an unchanged state is a 304), keeping only the ExpressionState's fields
-// it uses (a streaming filter: the ~30 KB answer is never held). Its motion (sway speed and amount, flutter,
-// blink interval) moves the tree now, eased over a few seconds; the face, foliage and droop are shown as words
-// in the column until their art is exported.
+// The state from the server: with secrets.h (npm run display:setup, then your Wi-Fi in it) a task on core 0
+// joins the Wi-Fi and reads the tree's GET /api/current once a minute over HTTPS (HTTP Basic, the site's
+// password; If-None-Match, so an unchanged state is a 304), keeping only the ExpressionState's fields it uses
+// (a streaming filter: the ~30 KB answer is never held). Until it answers, the look the library was exported
+// with (RIG_DEFAULT_STATE, read by the same function).
 //
 // It measures as it runs: frame rate, the time spent composing a frame, flash, free heap and the largest
 // free block, and while a fetch runs the lowest heap, largest block and frame rate. Serial monitor (115200
@@ -51,10 +54,10 @@
 #if __has_include("src/assets/tree_rig.h")
 #include "src/assets/tree_rig.h"
 #else
-#error "No tree rig yet: run `npm run display:export` in the repository first (see README.md)"
+#error "No tree library yet: run `npm run display:export` in the repository first (see README.md)"
 #endif
 
-const char* FIRMWARE_VERSION = "0.3.0";
+const char* FIRMWARE_VERSION = "0.4.0";
 
 // The layout (landscape 320x240): the tree's box centred in the left part, a column of words on the right
 const int SCREEN_W = 320;
@@ -68,41 +71,47 @@ const uint32_t BLINK_MS = 160;   // as BonsaiAvatar's blink
 const uint32_t FETCH_EVERY_MS = 60000; // the tree is evaluated once a minute
 const uint32_t RETRY_MS = 15000;
 const float MOTION_EASE_S = 2.0f; // a new motion eases in over a few seconds, never a jump
+const float DROOP_EASE_S = 2.5f;  // the droop's CSS transition (transform 2.5s ease-in-out)
 
 LGFX lcd;
 uint32_t* work[2] = {nullptr, nullptr}; // a strip of the tree's box per core, 0x00RRGGBB (in IRAM: see ld32)
 bool workInIram = false;
 uint16_t* dma[4] = {nullptr};          // two pairs of strips as the panel takes them (byte-swapped RGB565)
 uint32_t sketchBytes = 0, slotBytes = 0; // measured once: getSketchSize() reads the whole sketch from flash
+uint32_t ramParts = 0;                   // the parts copied to RAM
 
 float HALF[97];                        // the leaf's half-width, x = 0..12 in steps of 1/8
 uint16_t BG, INK, MUTED;
-const uint32_t BG_RGB = (RIG_BG_R << 16) | (RIG_BG_G << 8) | RIG_BG_B;
 const uint8_t BAYER4[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
 
 // Declared before the first function: the Arduino build puts its prototypes there
-// The parts in RAM (copied from flash at start): reading flash for every pixel was most of a frame
 struct StripJob {
   int y0, rows;
   uint16_t* out;
 };
+// A part to draw: in RAM (copied from flash at start: reading flash for every pixel was most of a frame) or,
+// for the small ones that change with the look (face, soil, moss), read from flash where it is
 struct Sprite {
   int16_t x, y, w, h;
-  RigRow* rows;
-  uint16_t* rgb;
-  uint8_t* a;
+  const RigRow* rows;
+  const uint16_t* rgb;
+  const uint8_t* a;
 };
 struct Heap {
   uint32_t free, largest, minFree, dmaFree, dmaLargest;
 };
-// The ExpressionState's fields the display uses (GET /api/current → expression), as last fetched
+// The ExpressionState's fields the display uses (GET /api/current → expression), as last read
 struct Live {
-  bool have = false;
+  bool have = false, fromServer = false;
   uint32_t at = 0; // millis() of the last fetch that confirmed it (200 or 304)
   float swaySpeed = 1, swayAmount = 1, flutter = 1, leafDroop = 0;
   int32_t blinkEveryMs = 0; // <= 0: null (eyes closed, no blinking)
-  char eyes[16] = "", mouth[16] = "", foliage[16] = "", blush[12] = "", posture[12] = "", gaze[12] = "";
-  char animation[32] = "", scene[16] = "", theme[8] = "", tapLabel[40] = "";
+  // The look, as indices into the library (RIG_*_NAMES); an unknown name falls back to the first
+  int8_t tone = 0, blendTone = -1, eyes = 0, mouth = 0, blush = 0, gaze = 0, soil = 0, body = -1;
+  float blendAmount = 0;
+  bool sweat = false, shrink = false, night = false, yellowLeaves = false, newLeaves = false;
+  float newGrowth = 0, yellowing = 0, fullness = 1, refilling = 0, canopyYellow = 0;
+  char animation[32] = "", scene[16] = "", tapLabel[40] = "";
 };
 struct NetStats {
   char status[28] = "starting";
@@ -113,12 +122,43 @@ struct NetStats {
   uint32_t beforeFree = 0, beforeLargest = 0;             // just before the first fetch
   float lowFps = 0;                                       // the slowest 2 s window with a fetch in it
 };
-
-// ---------------------------------------------------------------------------------------------- matrices
-
 struct Mat {
   float a, b, c, d, e, f; // SVG matrix(a b c d e f): x' = a x + c y + e, y' = b x + d y + f
 };
+// A part where it is now: tree-box pixel → its pixel at rest, the box it covers, and (the drowsy pupils) the
+// rows of its own drawing the lids leave visible, in 16.16 sampling coordinates
+struct Part {
+  const Sprite* s;
+  Mat inv;
+  int x0, y0, x1, y1;
+  int32_t vLo, vHi;
+};
+// A leaf now: its look (the rules) and where it is (tree-box pixel → leaf space)
+enum LeafFlags : uint8_t { LEAF_EDGE = 1, LEAF_RIB = 2, LEAF_GLOSS = 4, LEAF_FRESH = 8 };
+struct LeafNow { // kept small: 124 of them, and the heap is what TLS has left
+  bool show;
+  uint8_t flags;
+  int16_t x0, y0, x1, y1;
+  uint32_t fill;
+  float opacity;
+  Mat inv;
+  float cx, cy, edgeHalf;
+  float reachX, reachY; // beyond these (leaf units) no pixel is touched
+};
+// The palette the leaves take now (Foliage.tsx paletteFor: the tone, the blend's colours mixed in)
+struct Palette {
+  uint32_t leaf[3], shadow, edge;
+  bool hasEdge, gloss, browns;
+  float curl;
+};
+// A value that eases toward a new target as a CSS transition does (from wherever it is)
+struct Tween {
+  float from = 0, to = 0;
+  double start = -1e9;
+};
+
+// ---------------------------------------------------------------------------------------------- matrices
+
 const Mat IDENTITY = {1, 0, 0, 1, 0, 0};
 
 Mat mul(const Mat& p, const Mat& q) {
@@ -132,6 +172,7 @@ Mat invert(const Mat& m) {
 }
 Mat fromArray(const float* v) { return {v[0], v[1], v[2], v[3], v[4], v[5]}; }
 Mat translateM(float x, float y) { return {1, 0, 0, 1, x, y}; }
+Mat scaleM(float x, float y) { return {x, 0, 0, y, 0, 0}; }
 Mat rotateM(float deg) {
   const float r = deg * (float)M_PI / 180.0f;
   return {cosf(r), sinf(r), -sinf(r), cosf(r), 0, 0};
@@ -165,10 +206,21 @@ float ease(float u, uint8_t easing) {
   return EASE_LUT[easing][i] + (EASE_LUT[easing][i + 1] - EASE_LUT[easing][i]) * (f - i);
 }
 
-// The motion now (ExpressionState.motion): the export's until the server's arrives, then eased toward it.
-// Speed runs a clock of its own (tm += dt × speed), so a new tempo never jumps the sway's phase.
-float swaySpeed = RIG_SWAY_SPEED, swayAmount = RIG_SWAY_AMOUNT, flutterAmp = RIG_FLUTTER;
-int32_t blinkMs = RIG_BLINK_MS;
+float tweenAt(const Tween& w, double t) {
+  const float u = (float)((t - w.start) / DROOP_EASE_S);
+  return u >= 1 ? w.to : w.from + (w.to - w.from) * ease(max(0.0f, u), EASE_IN_OUT);
+}
+void tweenTo(Tween& w, float v, double t) {
+  if (v == w.to) return;
+  w.from = tweenAt(w, t);
+  w.to = v;
+  w.start = t;
+}
+
+// The motion now (ExpressionState.motion): eased toward the state's. Speed runs a clock of its own
+// (tm += dt × speed), so a new tempo never jumps the sway's phase.
+float swaySpeed = 1, swayAmount = 1, flutterAmp = 1;
+int32_t blinkMs = 0;
 double motionT = 0, lastT = -1;
 
 // Where an animation is at time t (seconds since start; double, so it stays exact over weeks), about (ox, oy).
@@ -193,22 +245,130 @@ Mat animAt(const RigAnim& an, double t, float delay, float ox, float oy) {
   return mul(translateM(ox + tx, oy + ty), mul(local, translateM(-ox, -oy)));
 }
 
+// ------------------------------------------------------------------------------- the website's look rules
+
+// As scripts/display/look.ts (checked there against React's markup; keep the three in step)
+
+// BonsaiAvatar's droopTransforms: translate · rotate · scale about each pad's origin (shrink 0..1, eased)
+Mat droopOf(int pad, float d, float shrink) {
+  const float s = 1 - 0.07f * shrink;
+  const float ox = RIG_DROOP_ORIGINS[pad][0], oy = RIG_DROOP_ORIGINS[pad][1];
+  Mat local;
+  if (pad == 0) local = mul(translateM(8 * shrink, d * 20), mul(rotateM(d * 11), scaleM(s, s)));
+  else if (pad == 1) local = mul(translateM(-8 * shrink, d * 20), mul(rotateM(-d * 11), scaleM(s, s)));
+  else local = mul(translateM(0, d * 15), scaleM(s * (1 - d * 0.07f), s * (1 - d * 0.11f)));
+  return mul(translateM(ox, oy), mul(local, translateM(-ox, -oy)));
+}
+
+// Foliage.tsx mix(): each channel rounded
+uint32_t mixRgb(uint32_t a, uint32_t b, float t) {
+  uint32_t out = 0;
+  for (int sh = 16; sh >= 0; sh -= 8) {
+    const float ca = (a >> sh) & 255, cb = (b >> sh) & 255;
+    out |= (uint32_t)floorf(ca + (cb - ca) * t + 0.5f) << sh;
+  }
+  return out;
+}
+Palette paletteFor(int tone, int blendTone, float amount) {
+  const RigPalette& p = RIG_PALETTES[tone];
+  Palette out = {{p.leaf[0], p.leaf[1], p.leaf[2]}, p.shadow, p.edge, p.hasEdge != 0, p.gloss != 0, p.browns != 0, p.curl};
+  if (blendTone >= 0 && amount > 0) {
+    const RigPalette& q = RIG_PALETTES[blendTone];
+    for (int i = 0; i < 3; i++) out.leaf[i] = mixRgb(p.leaf[i], q.leaf[i], amount);
+    out.shadow = mixRgb(p.shadow, q.shadow, amount);
+  }
+  return out;
+}
+
+float normDeg(float d) { return fmodf(fmodf(d + 180, 360) + 360, 360) - 180; }
+
+// PadLeaves for one leaf, at a droop; local: leaf space → the pad's space (before its droop and sway)
+void leafLook(const RigLeafSpec& l, const Live& v, const Palette& p, float droop, LeafNow& n, Mat& local) {
+  const float yellowShare = max(v.yellowLeaves ? 0.11f : 0.13f * v.yellowing, v.canopyYellow);
+  const float freshShare = v.newLeaves ? 0.28f : 0.32f * v.newGrowth;
+  const bool missing = l.gap > v.fullness;
+  const bool tip = missing && v.fullness < 1 && (l.gap - v.fullness) / (1 - v.fullness) < v.refilling * 0.6f;
+  n.show = !missing || tip;
+  if (!n.show) return;
+  const float tilt = normDeg(90 - l.angle) * max(-0.25f, droop) * 0.38f;
+  const Mat place = mul(translateM(l.x, l.y), mul(rotateM(l.angle), rotateM(tilt)));
+  if (tip) {
+    local = mul(place, scaleM(l.size * 0.62f, l.size * 0.62f));
+    n.fill = 0xCDEB9A, n.flags = LEAF_FRESH;
+    return;
+  }
+  uint32_t fill = p.leaf[l.shade];
+  float s = l.size;
+  uint8_t flags = LEAF_RIB | (p.hasEdge ? LEAF_EDGE : 0) | (p.gloss && l.r > 0.6f ? LEAF_GLOSS : 0);
+  if (l.r < yellowShare) fill = l.r < yellowShare / 2 ? 0xD9A93F : 0xE2C35A;
+  if (p.browns && l.r > 0.82f) fill = 0x93643A;
+  if (l.rim && l.r > 1 - freshShare) fill = 0xCDEB9A, s *= 1.12f, flags |= LEAF_FRESH;
+  local = mul(place, scaleM(s, s * p.curl));
+  n.fill = fill, n.flags = flags;
+}
+
+// AvatarFace's Eyes: where the pupils go for a gaze (px), per eye style; false for eyes without pupils
+bool pupilOffset(int eyes, float gx, float gy, float& ox, float& oy) {
+  const char* e = RIG_EYE_NAMES[eyes];
+  if (!strcmp(e, "happy") || !strcmp(e, "alert") || !strcmp(e, "worried") || !strcmp(e, "unsure")) ox = gx, oy = gy;
+  else if (!strcmp(e, "drowsy")) ox = gx * 0.6f, oy = 1 + gy * 0.3f;
+  else if (!strcmp(e, "heavy")) ox = gx * 0.7f, oy = max(0.0f, gy) * 0.6f + 1.5f;
+  else if (!strcmp(e, "wide")) ox = gx * 0.8f, oy = gy * 0.8f;
+  else if (!strcmp(e, "pleading")) ox = gx * 0.5f, oy = min(gy, -1.0f);
+  else if (!strcmp(e, "sad")) ox = gx, oy = gy + 1;
+  else return false;
+  return true;
+}
+
+// ------------------------------------------------------------------------------------------- the look
+
+Live live;   // written by the network task, read by the frame (under liveLock)
+Live shown;  // the look being drawn (the frame's copy)
+portMUX_TYPE liveLock = portMUX_INITIALIZER_UNLOCKED;
+Palette palette;
+Tween droopTween, shrinkTween;
+int closedEyes = 0;
+
+// The parts: those that only move, in RAM; each pad's colour for the tone now, in RAM, mixed when blended
+Sprite base, trunk, branches, pads[3];
+uint16_t* padRgb[3] = {nullptr};
+int8_t paintedTone = -1, paintedBlend = -2;
+float paintedAmount = -1;
+
+Sprite flashSprite(const RigSprite& r) { return {r.x, r.y, r.w, r.h, r.rows, r.rgb, r.a}; }
+
+// Each pad's colours for a tone (and the blend's mixed in, per channel of the premultiplied RGB565)
+void paintPads(int tone, int blendTone, float amount) {
+  const uint32_t w = blendTone >= 0 ? (uint32_t)(constrain(amount, 0.0f, 1.0f) * 256 + 0.5f) : 0;
+  for (int p = 0; p < 3; p++) {
+    const uint16_t* A = RIG_PAD_TONES[p][tone];
+    const uint16_t* B = w ? RIG_PAD_TONES[p][blendTone] : nullptr;
+    const uint32_t n = RIG_PAD_SHAPES[p].count;
+    if (!B) {
+      memcpy(padRgb[p], A, n * 2);
+      continue;
+    }
+    for (uint32_t k = 0; k < n; k++) {
+      const int32_t a = A[k], b = B[k];
+      const int32_t r = (a >> 11) + ((((b >> 11) - (a >> 11)) * (int32_t)w) >> 8);
+      const int32_t g = ((a >> 5) & 63) + (((((b >> 5) & 63) - ((a >> 5) & 63)) * (int32_t)w) >> 8);
+      const int32_t bl = (a & 31) + ((((b & 31) - (a & 31)) * (int32_t)w) >> 8);
+      padRgb[p][k] = (uint16_t)((r << 11) | (g << 5) | bl);
+    }
+  }
+  paintedTone = tone, paintedBlend = blendTone, paintedAmount = amount;
+}
+
 // ------------------------------------------------------------------------------------------ the frame
 
-struct Part {
-  Mat inv; // tree-box pixel now → its pixel at rest
-  int x0, y0, x1, y1;
-};
-struct LeafNow {
-  Mat inv; // tree-box pixel → leaf space
-  float cx, cy, edgeHalf;
-  float reachX, reachY; // beyond these (leaf units) no pixel is touched
-  int x0, y0, x1, y1;
-};
-Part parts[SPR_COUNT];
+enum PartId { P_BASE, P_SOIL, P_MOSS, P_TRUNK, P_BLUSH, P_SWEAT, P_EYES_UNDER, P_PUPILS, P_EYES_OVER, P_MOUTH, P_BRANCHES, P_PAD0, P_PAD1, P_PAD2, P_COUNT };
+const char* PART_NAMES[P_COUNT] = {"base", "soil", "moss", "trunk", "blush", "sweat", "eyes", "pupils", "lids", "mouth", "branches", "pad0", "pad1", "pad2"};
+Part parts[P_COUNT];
+Sprite faceSprites[P_COUNT]; // the look's sprites read from flash (soil, moss, face)
 LeafNow leafNow[RIG_LEAF_COUNT];
-Mat K, Kinv, droopInv[3];
+Mat K, Kinv;
 bool eyesShut = false;
+float droopNow = 0, shrinkNow = 0;
 
 void box(const Mat& m, float x0, float y0, float x1, float y1, int& bx0, int& by0, int& bx1, int& by1) {
   const float xs[4] = {m.a * x0 + m.c * y0 + m.e, m.a * x1 + m.c * y0 + m.e, m.a * x0 + m.c * y1 + m.e, m.a * x1 + m.c * y1 + m.e};
@@ -219,39 +379,97 @@ void box(const Mat& m, float x0, float y0, float x1, float y1, int& bx0, int& by
   bx1 = min(RIG_W, (int)ceilf(hx) + 1), by1 = min(RIG_H, (int)ceilf(hy) + 1);
 }
 
-// Every part and leaf where it is at time t
+// A part at a transform (SVG units, as the website's groups); empty sprites draw nothing
+void place(int id, const Sprite* s, const Mat& svg) {
+  Part& p = parts[id];
+  p.s = s;
+  p.vLo = INT32_MIN, p.vHi = INT32_MAX;
+  if (!s || !s->w) {
+    p.x0 = p.x1 = 0;
+    return;
+  }
+  const Mat m = mul(K, mul(svg, Kinv)); // tree-box pixels at rest → now
+  p.inv = invert(m);
+  box(m, s->x, s->y, s->x + s->w, s->y + s->h, p.x0, p.y0, p.x1, p.y1);
+}
+
+// Every part and leaf where it is at time t, for the look shown
 void pose(double t) {
-  const Mat body = animAt(RIG_ANIM_BODY, t, 0, RIG_BODY_ORIGIN[0], RIG_BODY_ORIGIN[1]);
-  const Mat trunk = mul(body, animAt(RIG_ANIM_TRUNK, t, 0, RIG_TRUNK_ORIGIN[0], RIG_TRUNK_ORIGIN[1]));
+  const Live& v = shown;
+  const RigAnim none = {0, 0, 0, 0, 0, nullptr};
+  const Mat body = animAt(v.body >= 0 ? RIG_BODY[v.body].anim : none, t, 0, RIG_BODY_ORIGIN[0], RIG_BODY_ORIGIN[1]);
+  const Mat trunkM = mul(body, animAt(RIG_ANIM_TRUNK, t, 0, RIG_TRUNK_ORIGIN[0], RIG_TRUNK_ORIGIN[1]));
+  droopNow = tweenAt(droopTween, t);
+  shrinkNow = tweenAt(shrinkTween, t);
   Mat pad[3];
   for (int i = 0; i < 3; i++) {
     const RigPad& p = RIG_PADS[i];
     const Mat sway = animAt(p.sway ? RIG_ANIM_SWAY_RIGHT : RIG_ANIM_SWAY_LEFT, t, 0, p.px, p.py);
-    pad[i] = mul(body, mul(fromArray(p.droop), mul(sway, droopInv[i]))); // the sway turns inside the droop
+    pad[i] = mul(body, mul(droopOf(i, droopNow, shrinkNow), sway)); // the sway turns inside the droop
   }
-  const Mat of[SPR_COUNT] = {body, trunk, trunk, trunk, body, pad[0], pad[1], pad[2]};
-  for (int i = 0; i < SPR_COUNT; i++) {
-    const RigSprite& s = RIG_SPRITES[i];
-    const Mat m = mul(K, mul(of[i], Kinv)); // tree-box pixels at rest → now
-    parts[i].inv = invert(m);
-    box(m, s.x, s.y, s.x + s.w, s.y + s.h, parts[i].x0, parts[i].y0, parts[i].x1, parts[i].y1);
+  // The look's sprites from flash
+  const int eyes = eyesShut ? closedEyes : v.eyes;
+  const RigEyes& e = RIG_EYES_ART[eyes];
+  faceSprites[P_SOIL] = flashSprite(RIG_SOIL[v.soil]);
+  faceSprites[P_MOSS] = flashSprite(RIG_MOSS[v.tone]);
+  faceSprites[P_BLUSH] = flashSprite(RIG_BLUSH[v.blush]);
+  faceSprites[P_SWEAT] = flashSprite(RIG_SWEAT);
+  faceSprites[P_EYES_UNDER] = flashSprite(e.under);
+  faceSprites[P_PUPILS] = flashSprite(e.pupils);
+  faceSprites[P_EYES_OVER] = flashSprite(e.over);
+  faceSprites[P_MOUTH] = flashSprite(RIG_MOUTH[v.mouth]);
+  place(P_BASE, &base, body);
+  place(P_SOIL, &faceSprites[P_SOIL], body);
+  place(P_MOSS, &faceSprites[P_MOSS], body);
+  place(P_TRUNK, &trunk, trunkM);
+  place(P_BLUSH, &faceSprites[P_BLUSH], trunkM);
+  place(P_SWEAT, v.sweat ? &faceSprites[P_SWEAT] : nullptr, trunkM);
+  place(P_EYES_UNDER, &faceSprites[P_EYES_UNDER], trunkM);
+  place(P_EYES_OVER, &faceSprites[P_EYES_OVER], trunkM);
+  place(P_MOUTH, &faceSprites[P_MOUTH], trunkM);
+  // The pupils at rest for the gaze (its base; the saccades come later), moved from where they were drawn (gaze 0)
+  float ox = 0, oy = 0, ox0 = 0, oy0 = 0;
+  if (e.hasPupils && pupilOffset(eyes, RIG_GAZE_BASE[v.gaze][0], RIG_GAZE_BASE[v.gaze][1], ox, oy)) {
+    pupilOffset(eyes, 0, 0, ox0, oy0);
+    place(P_PUPILS, &faceSprites[P_PUPILS], mul(trunkM, translateM(ox - ox0, oy - oy0)));
+    if (e.clipped) { // the lids' clip stays where it is: in the pupils' own pixels, less their move
+      const float dy = (oy - oy0) * K.d, y0 = faceSprites[P_PUPILS].y + 0.5f;
+      parts[P_PUPILS].vLo = (int32_t)((e.clip0 * K.d + K.f - dy - y0) * 65536);
+      parts[P_PUPILS].vHi = (int32_t)((e.clip1 * K.d + K.f - dy - y0) * 65536);
+    }
+  } else {
+    place(P_PUPILS, nullptr, IDENTITY);
   }
+  place(P_BRANCHES, &branches, body);
+  for (int i = 0; i < 3; i++) place(P_PAD0 + i, &pads[i], pad[i]);
+  // The leaves: the rules for the look at this droop, then the quiver about each leaf's base
   for (int i = 0; i < RIG_LEAF_COUNT; i++) {
-    const RigLeaf& l = RIG_LEAVES[i];
-    const Mat q = animAt((l.flags & LEAF_FRESH) ? RIG_ANIM_QUIVER_FRESH : RIG_ANIM_QUIVER, t, l.delay, 0, 0);
-    const Mat m = mul(K, mul(pad[l.pad], mul(fromArray(l.m), q)));
+    const RigLeafSpec& l = RIG_LEAVES[i];
     LeafNow& n = leafNow[i];
+    Mat local;
+    leafLook(l, v, palette, droopNow, n, local);
+    if (!n.show) continue;
+    const bool fresh = n.flags & LEAF_FRESH;
+    const Mat q = animAt(fresh ? RIG_ANIM_QUIVER_FRESH : RIG_ANIM_QUIVER, t, l.delay, 0, 0);
+    const Mat m = mul(K, mul(pad[l.pad], mul(local, q)));
     n.inv = invert(m);
     n.cx = hypotf(m.a, m.b);
     n.cy = hypotf(m.c, m.d);
-    n.edgeHalf = (l.flags & LEAF_EDGE) ? l.edgeWidth / 2 * n.cy : 0;
+    n.edgeHalf = (n.flags & LEAF_EDGE) ? 0.9f / 2 * n.cy : 0;
     n.reachX = (0.5f + n.edgeHalf) / n.cx;
     n.reachY = 2.3f + (0.5f + n.edgeHalf) / n.cy; // the lens is 2.3 wide at most
-    box(m, 0, -2.5f, 12, 2.5f, n.x0, n.y0, n.x1, n.y1);
+    int x0, y0, x1, y1;
+    box(m, 0, -2.5f, 12, 2.5f, x0, y0, x1, y1);
+    n.x0 = x0, n.y0 = y0, n.x1 = x1, n.y1 = y1;
+    // .leaf-fresh: opacity 0.85 → 1 → 0.85 over 4 s (ease-in-out), on the leaf's delay
+    n.opacity = 1;
+    if (fresh) {
+      double ph = fmod((t - l.delay) / 4.0, 1.0);
+      if (ph < 0) ph += 1;
+      n.opacity = ph < 0.5 ? 0.85f + 0.15f * ease((float)ph * 2, EASE_IN_OUT) : 1 - 0.15f * ease((float)(ph - 0.5) * 2, EASE_IN_OUT);
+    }
   }
 }
-
-Sprite sprites[SPR_COUNT];
 
 // The strips live in IRAM, which the RAM that TLS needs can't spare: IRAM takes only 32-bit loads and stores,
 // and -O3 may narrow (c >> 16) & 255 into a byte load (a LoadStoreError there). So every read of a strip is
@@ -279,10 +497,9 @@ static inline void texel(const Sprite& s, const RigRow& r, int x, uint32_t& rb, 
 
 // A part into the strip: each pixel sampled bilinearly (premultiplied, 16.16 fixed point), laid over what is
 // there. Per row, only where the part's rows have pixels.
-void drawPart(uint32_t* buf, int id, int y0, int rows) {
-  const Sprite& s = sprites[id];
-  const Part& p = parts[id];
-  if (!s.w) return;
+void drawPart(uint32_t* buf, const Part& p, int y0, int rows) {
+  if (!p.s || p.x1 <= p.x0) return;
+  const Sprite& s = *p.s;
   const int ya = max(p.y0, y0), yb = min(p.y1, y0 + rows);
   const float du = p.inv.a, dv = p.inv.b;
   for (int Y = ya; Y < yb; Y++) {
@@ -304,6 +521,7 @@ void drawPart(uint32_t* buf, int id, int y0, int rows) {
     int32_t U = (int32_t)((u0 + du * (xa - p.x0)) * 65536), V = (int32_t)((v0 + dv * (xa - p.x0)) * 65536);
     const int32_t DU = (int32_t)(du * 65536), DV = (int32_t)(dv * 65536);
     for (int X = xa; X < xb; X++, U += DU, V += DV) {
+      if (V < p.vLo || V >= p.vHi) continue; // clipped (the drowsy lids)
       const int iu = U >> 16, iv = V >> 16;
       const uint32_t fx = (U >> 8) & 255, fy = (V >> 8) & 255;
       uint32_t rb00, g00, a00, rb10, g10, a10, rb01, g01, a01, rb11, g11, a11;
@@ -338,12 +556,13 @@ float leafHalf(float x) {
 
 // The pad's leaves into the strip, as scripts/display/leafRaster.ts paints them (keep the two the same)
 void drawLeaves(uint32_t* buf, int pad, int y0, int rows) {
+  const uint32_t edge = palette.edge, rib = palette.shadow;
   for (int i = 0; i < RIG_LEAF_COUNT; i++) {
-    const RigLeaf& l = RIG_LEAVES[i];
-    if (l.pad != pad) continue;
+    if (RIG_LEAVES[i].pad != pad) continue;
     const LeafNow& n = leafNow[i];
-    const int ya = max(n.y0, y0), yb = min(n.y1, y0 + rows);
-    const float fr = (l.fill >> 16) & 255, fg = (l.fill >> 8) & 255, fb = l.fill & 255;
+    if (!n.show) continue;
+    const int ya = max((int)n.y0, y0), yb = min((int)n.y1, y0 + rows);
+    const float fr = (n.fill >> 16) & 255, fg = (n.fill >> 8) & 255, fb = n.fill & 255;
     for (int Y = ya; Y < yb; Y++) {
       uint32_t* row = buf + (Y - y0) * RIG_W;
       float lx = n.inv.a * (n.x0 + 0.5f) + n.inv.c * (Y + 0.5f) + n.inv.e;
@@ -354,16 +573,17 @@ void drawLeaves(uint32_t* buf, int pad, int y0, int rows) {
         float cov = d + n.edgeHalf + 0.5f;
         if (cov <= 0) continue;
         if (cov > 1) cov = 1;
+        cov *= n.opacity;
         float r = fr, g = fg, b = fb;
-        if (l.flags & LEAF_EDGE) {
+        if (n.flags & LEAF_EDGE) {
           const float e = constrain(n.edgeHalf + 0.5f - fabsf(d), 0.0f, 1.0f);
-          r += (((l.edge >> 16) & 255) - r) * e, g += (((l.edge >> 8) & 255) - g) * e, b += ((l.edge & 255) - b) * e;
+          r += (((edge >> 16) & 255) - r) * e, g += (((edge >> 8) & 255) - g) * e, b += ((edge & 255) - b) * e;
         }
-        if ((l.flags & LEAF_RIB) && lx > 1.5f && lx < 10) {
+        if ((n.flags & LEAF_RIB) && lx > 1.5f && lx < 10) {
           const float e = constrain(0.3f * n.cy + 0.5f - fabsf(ly) * n.cy, 0.0f, 1.0f) * 0.35f;
-          r += (((l.rib >> 16) & 255) - r) * e, g += (((l.rib >> 8) & 255) - g) * e, b += ((l.rib & 255) - b) * e;
+          r += (((rib >> 16) & 255) - r) * e, g += (((rib >> 8) & 255) - g) * e, b += ((rib & 255) - b) * e;
         }
-        if ((l.flags & LEAF_GLOSS) && lx > 3 && lx < 9) {
+        if ((n.flags & LEAF_GLOSS) && lx > 3 && lx < 9) {
           const float t = (lx - 3) / 6;
           const float yg = (1 - t) * (1 - t) * -1.6f + 2 * t * (1 - t) * -3.0f + t * t * -1.4f;
           const float e = constrain(0.4f * n.cy + 0.5f - fabsf(ly - yg) * n.cy, 0.0f, 1.0f) * 0.45f;
@@ -396,15 +616,18 @@ void dither(const uint32_t* buf, int y0, int rows, uint16_t* out) {
   }
 }
 
+uint32_t bgRgb() {
+  const uint8_t* c = shown.night ? RIG_BG_NIGHT : RIG_BG_DAY;
+  return (c[0] << 16) | (c[1] << 8) | c[2];
+}
+
 // One strip: background, the parts and leaves in the website's order, then dithered for the panel
 void compose(uint32_t* buf, int y0, int rows, uint16_t* out) {
-  for (int i = 0; i < rows * RIG_W; i++) buf[i] = BG_RGB;
-  drawPart(buf, SPR_BASE, y0, rows);
-  drawPart(buf, SPR_TRUNK, y0, rows);
-  drawPart(buf, eyesShut ? SPR_FACE_CLOSED : SPR_FACE, y0, rows);
-  drawPart(buf, SPR_BRANCHES, y0, rows);
+  const uint32_t bg = bgRgb();
+  for (int i = 0; i < rows * RIG_W; i++) buf[i] = bg;
+  for (int id = 0; id < P_PAD0; id++) drawPart(buf, parts[id], y0, rows);
   for (int p = 0; p < 3; p++) {
-    drawPart(buf, SPR_PAD0 + p, y0, rows);
+    drawPart(buf, parts[P_PAD0 + p], y0, rows);
     drawLeaves(buf, p, y0, rows);
   }
   dither(buf, y0, rows, out);
@@ -425,9 +648,7 @@ void helperTask(void*) {
 
 uint32_t lastComposeUs = 0;
 
-Live live;  // written by the network task, read by the frame (under liveLock)
 NetStats net;
-portMUX_TYPE liveLock = portMUX_INITIALIZER_UNLOCKED;
 volatile bool fetching = false, fetchNow = false;
 
 Live liveNow() {
@@ -437,8 +658,9 @@ Live liveNow() {
   return l;
 }
 
-// The motion eased toward the state's, and the motion clock advanced to t
-void advanceMotion(double t) {
+// The state's look and motion taken in: the motion eased toward it, the droop and shrink as CSS transitions,
+// the pads repainted for a new tone; the motion clock advanced to t
+void advanceLook(double t) {
   const float dt = lastT < 0 ? 0 : (float)(t - lastT);
   lastT = t;
   const Live l = liveNow();
@@ -448,12 +670,19 @@ void advanceMotion(double t) {
     swayAmount += (l.swayAmount - swayAmount) * k;
     flutterAmp += (l.flutter - flutterAmp) * k;
     blinkMs = l.blinkEveryMs;
+    tweenTo(droopTween, l.leafDroop, t);
+    tweenTo(shrinkTween, l.shrink ? 1 : 0, t);
+    if (l.tone != paintedTone || l.blendTone != paintedBlend || l.blendAmount != paintedAmount) {
+      paintPads(l.tone, l.blendTone, l.blendAmount);
+      palette = paletteFor(l.tone, l.blendTone, l.blendAmount);
+    }
+    shown = l;
   }
   motionT += dt * swaySpeed;
 }
 
 void drawFrame(double t) {
-  advanceMotion(t);
+  advanceLook(t);
   pose(t);
   uint32_t composeUs = 0;
   lcd.startWrite();
@@ -496,6 +725,83 @@ bool blinking(uint32_t now) {
   return (int32_t)(blinkEnd - now) > 0 || (blink2At && (int32_t)(now - blink2At) >= 0 && (int32_t)(now - blink2At) < 150);
 }
 
+// ------------------------------------------------------------------------------------- reading the state
+
+int8_t indexOf(const char* const* names, int n, JsonVariantConst v, int8_t fallback) {
+  const char* s = v.is<const char*>() ? v.as<const char*>() : nullptr;
+  if (s)
+    for (int i = 0; i < n; i++)
+      if (!strcmp(names[i], s)) return i;
+  return fallback;
+}
+void copyText(char* to, size_t n, JsonVariantConst v) { strlcpy(to, v.is<const char*>() ? v.as<const char*>() : "", n); }
+
+// The body's motion: the first of the animation's classes the library has
+int8_t bodyOf(const char* classes) {
+  char buf[48];
+  strlcpy(buf, classes, sizeof(buf));
+  for (char* tok = strtok(buf, " "); tok; tok = strtok(nullptr, " "))
+    for (int i = 0; i < RIG_BODY_ANIMS; i++)
+      if (!strcmp(RIG_BODY[i].cls, tok)) return i;
+  return -1;
+}
+
+// An ExpressionState (GET /api/current's expression, or the exported default) into the fields used
+bool readExpression(JsonObjectConst x, Live& l) {
+  if (x.isNull()) return false;
+  JsonObjectConst a = x["avatar"], mo = x["motion"];
+  l.tone = indexOf(RIG_TONE_NAMES, RIG_TONES, a["foliage"], 0);
+  JsonObjectConst blend = a["foliageBlend"];
+  l.blendTone = blend.isNull() ? -1 : indexOf(RIG_TONE_NAMES, RIG_TONES, blend["tone"], -1);
+  l.blendAmount = l.blendTone >= 0 ? (blend["amount"] | 0.0f) : 0;
+  l.eyes = indexOf(RIG_EYE_NAMES, RIG_EYES, a["eyes"], 0);
+  l.mouth = indexOf(RIG_MOUTH_NAMES, RIG_MOUTHS, a["mouth"], 0);
+  l.blush = indexOf(RIG_BLUSH_NAMES, RIG_BLUSHES, a["blush"], 0);
+  l.gaze = indexOf(RIG_GAZE_NAMES, RIG_GAZES, a["gaze"], 0);
+  l.soil = indexOf(RIG_SOIL_NAMES, RIG_SOILS - 1, a["soil"], 0);
+  l.sweat = a["sweat"] | false;
+  l.shrink = a["posture"].is<const char*>() && !strcmp(a["posture"].as<const char*>(), "shrink");
+  bool rain = false;
+  l.yellowLeaves = l.newLeaves = false;
+  for (JsonVariantConst e : a["effects"].as<JsonArrayConst>()) {
+    const char* s = e.as<const char*>();
+    if (!s) continue;
+    if (!strcmp(s, "yellow_leaves")) l.yellowLeaves = true;
+    else if (!strcmp(s, "new_leaves")) l.newLeaves = true;
+    else if (!strcmp(s, "rain")) rain = true;
+  }
+  if (rain && !strcmp(RIG_SOIL_NAMES[l.soil], "moist")) l.soil = RIG_SOILS - 1; // the moist soil darkens while watered
+  l.newGrowth = a["seasonalLeaves"]["newGrowth"] | 0.0f;
+  l.yellowing = a["seasonalLeaves"]["yellowing"] | 0.0f;
+  l.fullness = a["canopy"]["fullness"] | 1.0f;
+  l.refilling = a["canopy"]["refilling"] | 0.0f;
+  l.canopyYellow = a["canopy"]["yellow"] | 0.0f;
+  copyText(l.animation, sizeof(l.animation), a["animation"]);
+  l.body = bodyOf(l.animation);
+  copyText(l.scene, sizeof(l.scene), x["atmosphere"]["scene"]);
+  l.night = x["atmosphere"]["theme"].is<const char*>() && !strcmp(x["atmosphere"]["theme"].as<const char*>(), "night");
+  copyText(l.tapLabel, sizeof(l.tapLabel), x["tapLabel"]);
+  l.swaySpeed = mo["swaySpeed"] | 1.0f;
+  l.swayAmount = mo["swayAmount"] | 1.0f;
+  l.flutter = mo["flutter"] | 1.0f;
+  l.blinkEveryMs = mo["blinkEveryMs"].isNull() ? 0 : (int32_t)(mo["blinkEveryMs"] | 0);
+  l.leafDroop = x["leafDroop"] | 0.0f;
+  l.have = true;
+  return true;
+}
+
+// The filter for GET /api/current: only these fields are kept as the answer streams in
+void expressionFilter(JsonDocument& filter) {
+  JsonObject e = filter["expression"].to<JsonObject>();
+  for (const char* k : {"eyes", "mouth", "foliage", "foliageBlend", "seasonalLeaves", "canopy", "soil", "effects", "blush", "sweat", "posture", "gaze", "animation"})
+    e["avatar"][k] = true;
+  e["motion"] = true;
+  e["leafDroop"] = true;
+  e["atmosphere"]["scene"] = true;
+  e["atmosphere"]["theme"] = true;
+  e["tapLabel"] = true;
+}
+
 // ------------------------------------------------------------------------------------------ measuring
 
 struct Measured {
@@ -510,12 +816,6 @@ Heap heapNow() {
 }
 float kb(uint32_t bytes) { return bytes / 1024.0f; }
 double seconds() { return esp_timer_get_time() / 1e6; }
-
-uint32_t partBytes() {
-  uint32_t n = 0;
-  for (int i = 0; i < SPR_COUNT; i++) n += RIG_SPRITES[i].count * 3 + RIG_SPRITES[i].h * sizeof(RigRow);
-  return n;
-}
 
 // As fast as it goes for a while: the ceiling
 void benchmark(uint32_t ms) {
@@ -542,14 +842,19 @@ void printHeap(const char* when, const Heap& h) {
 void report() {
   const uint32_t sketch = sketchBytes;
   const uint32_t slot = slotBytes; // the OTA partition the next update would go to: the app's room
+  const Live& v = shown;
   Serial.println();
   Serial.printf("[display] Appbonsai display %s, the living tree. Chip %s rev %d, %d MHz\n", FIRMWARE_VERSION, ESP.getChipModel(), ESP.getChipRevision(),
                 ESP.getCpuFreqMHz());
-  Serial.printf("  look: %s (rig %s)\n", RIG_LOOK, RIG_HASH);
-  Serial.printf("  motion now: sway speed %.2f, sway amount %.2f, flutter %.2f, blink every %d ms (exported: %.2f, %.2f, %.2f, %d)\n", swaySpeed, swayAmount,
-                flutterAmp, (int)blinkMs, RIG_SWAY_SPEED, RIG_SWAY_AMOUNT, RIG_FLUTTER, (int)RIG_BLINK_MS);
-  Serial.printf("  flash: chip %u KB; sketch %.1f KB of a %.1f KB app slot (%.0f %%); the rig's parts %.1f KB (copied to RAM), %d leaves\n", ESP.getFlashChipSize() / 1024,
-                kb(sketch), kb(slot), 100.0f * sketch / slot, kb(partBytes()), RIG_LEAF_COUNT);
+  char blend[32] = "";
+  if (v.blendTone >= 0) snprintf(blend, sizeof(blend), " + %s %.2f", RIG_TONE_NAMES[v.blendTone], v.blendAmount);
+  Serial.printf("  look (%s): %s%s, eyes %s, mouth %s, blush %s%s, gaze %s, soil %s, %s, droop %.2f (now %.2f)%s%s, scene %s%s (library %s)\n",
+                v.fromServer ? "the server's" : "exported", RIG_TONE_NAMES[v.tone], blend, RIG_EYE_NAMES[v.eyes], RIG_MOUTH_NAMES[v.mouth], RIG_BLUSH_NAMES[v.blush], v.sweat ? ", sweat" : "", RIG_GAZE_NAMES[v.gaze],
+                v.soil < RIG_SOILS - 1 ? RIG_SOIL_NAMES[v.soil] : "moist, watered", v.body >= 0 ? RIG_BODY[v.body].cls : "no body motion", v.leafDroop, droopNow,
+                v.shrink ? ", shrunk" : "", v.newLeaves ? ", new leaves" : v.yellowLeaves ? ", yellow leaves" : "", v.scene, v.night ? " (night)" : "", RIG_HASH);
+  Serial.printf("  motion now: sway speed %.2f, sway amount %.2f, flutter %.2f, blink every %d ms\n", swaySpeed, swayAmount, flutterAmp, (int)blinkMs);
+  Serial.printf("  flash: chip %u KB; sketch %.1f KB of a %.1f KB app slot (%.0f %%); parts copied to RAM %.1f KB, %d leaves\n", ESP.getFlashChipSize() / 1024,
+                kb(sketch), kb(slot), 100.0f * sketch / slot, kb(ramParts), RIG_LEAF_COUNT);
   Serial.printf("  buffers: 2 x strip %.1f KB (RGB888, one per core, in %s) + 4 x %.1f KB (DMA); SPI %d MHz, %d rows a strip\n", kb(RIG_W * STRIP_ROWS * 4),
                 workInIram ? "IRAM" : "RAM", kb(RIG_W * STRIP_ROWS * 2), TFT_SPI_WRITE_HZ / 1000000, STRIP_ROWS);
   printHeap("at boot:", m.boot);
@@ -558,7 +863,6 @@ void report() {
   printHeap("now:", heapNow());
   Serial.printf("  running (30 fps cap):  %.1f fps, %.1f ms a frame, %.1f ms of it composing\n", m.fps, m.frameMs, m.composeMs);
   Serial.printf("  uncapped (ceiling):    %.1f fps, %.1f ms a frame, %.1f ms of it composing\n", m.maxFps, m.maxFrameMs, m.maxComposeMs);
-  const Live l = liveNow();
   Serial.printf("  network: %s; Wi-Fi %s, %d dBm; fetches %u ok, %u unchanged, %u failed, %u handshakes; last %d in %u ms (%d bytes), slowest %u ms\n", net.status,
                 WiFi.isConnected() ? WiFi.localIP().toString().c_str() : "not connected", net.rssi, (unsigned)net.ok, (unsigned)net.notModified,
                 (unsigned)net.failed, (unsigned)net.handshakes, net.lastCode, (unsigned)net.lastMs, (int)net.lastSize, (unsigned)net.slowestMs);
@@ -566,9 +870,7 @@ void report() {
     Serial.printf("  heap around fetches: before the first %.1f KB free, largest block %.1f KB; lowest while fetching %.1f KB free, largest block %.1f KB; "
                   "slowest 2 s with a fetch %.1f fps\n",
                   kb(net.beforeFree), kb(net.beforeLargest), kb(net.lowFree), kb(net.lowLargest), net.lowFps);
-  if (l.have)
-    Serial.printf("  state (%u s ago): scene %s/%s, eyes %s, mouth %s, foliage %s, blush %s, posture %s, gaze %s, %s, droop %.2f, \"%s\"\n",
-                  (unsigned)((millis() - l.at) / 1000), l.scene, l.theme, l.eyes, l.mouth, l.foliage, l.blush, l.posture, l.gaze, l.animation, l.leafDroop, l.tapLabel);
+  if (v.fromServer) Serial.printf("  state %u s ago: \"%s\"\n", (unsigned)((millis() - v.at) / 1000), v.tapLabel);
   Serial.println("  ('b' measures the ceiling again, 'p' profiles, 'f' fetches now, 'r' prints this)");
 }
 
@@ -608,17 +910,17 @@ void drawColumn() {
   if (l.have) {
     gap();
     line(INK, "%.17s", l.scene);
-    line(MUTED, "%.8s/%.8s", l.eyes, l.mouth);
-    line(MUTED, "%.17s", l.foliage);
+    line(MUTED, "%.17s", RIG_TONE_NAMES[l.tone]);
     line(MUTED, "sway %.2f x%.2f", l.swaySpeed, l.swayAmount);
-    line(MUTED, "%us ago", (unsigned)((millis() - l.at) / 1000));
+    if (l.fromServer) line(MUTED, "%us ago", (unsigned)((millis() - l.at) / 1000));
+    else line(MUTED, "exported look");
   }
 }
 
 // Where a frame's time goes: each stage of composing the whole tree box on one core, averaged over 10 frames, no SPI
 void profile() {
   const int N = 10;
-  uint32_t fill = 0, convert = 0, part[SPR_COUNT] = {0}, leaves = 0, poseUs = 0;
+  uint32_t fill = 0, convert = 0, part[P_COUNT] = {0}, leaves = 0, poseUs = 0;
   for (int k = 0; k < N; k++) {
     uint32_t t0 = micros();
     pose(seconds());
@@ -626,12 +928,12 @@ void profile() {
     for (int y0 = 0; y0 < RIG_H; y0 += STRIP_ROWS) {
       const int rows = min(STRIP_ROWS, RIG_H - y0);
       t0 = micros();
-      for (int i = 0; i < rows * RIG_W; i++) work[0][i] = BG_RGB;
+      const uint32_t bg = bgRgb();
+      for (int i = 0; i < rows * RIG_W; i++) work[0][i] = bg;
       fill += micros() - t0;
-      for (int id = 0; id < SPR_COUNT; id++) {
-        if (id == SPR_FACE_CLOSED) continue;
+      for (int id = 0; id < P_COUNT; id++) {
         t0 = micros();
-        drawPart(work[0], id, y0, rows);
+        drawPart(work[0], parts[id], y0, rows);
         part[id] += micros() - t0;
       }
       t0 = micros();
@@ -642,13 +944,15 @@ void profile() {
       convert += micros() - t0;
     }
   }
-  const char* names[SPR_COUNT] = {"base", "trunk", "face", "face_closed", "branches", "pad0", "pad1", "pad2"};
-  Serial.printf("[display] profile (ms a frame): pose %.2f, background %.2f, dither %.2f, leaves %.2f\n", poseUs / 1000.0f / N, fill / 1000.0f / N,
-                convert / 1000.0f / N, leaves / 1000.0f / N);
-  for (int id = 0; id < SPR_COUNT; id++) {
-    if (id == SPR_FACE_CLOSED) continue;
-    const RigSprite& s = RIG_SPRITES[id];
-    Serial.printf("  %-9s %3dx%-3d %6.2f ms  (box now %dx%d)\n", names[id], s.w, s.h, part[id] / 1000.0f / N, parts[id].x1 - parts[id].x0, parts[id].y1 - parts[id].y0);
+  int shownLeaves = 0;
+  for (int i = 0; i < RIG_LEAF_COUNT; i++) shownLeaves += leafNow[i].show;
+  Serial.printf("[display] profile (ms a frame): pose %.2f, background %.2f, dither %.2f, leaves %.2f (%d shown)\n", poseUs / 1000.0f / N, fill / 1000.0f / N,
+                convert / 1000.0f / N, leaves / 1000.0f / N, shownLeaves);
+  for (int id = 0; id < P_COUNT; id++) {
+    const Sprite* s = parts[id].s;
+    if (!s || !s->w) continue;
+    Serial.printf("  %-9s %3dx%-3d %6.2f ms  (box now %dx%d)%s\n", PART_NAMES[id], s->w, s->h, part[id] / 1000.0f / N, parts[id].x1 - parts[id].x0,
+                  parts[id].y1 - parts[id].y0, s == &faceSprites[id] ? ", from flash" : "");
   }
 }
 
@@ -662,8 +966,6 @@ void setStatus(const char* text) {
 
 #if HAVE_SECRETS
 String etag;
-
-void copyText(char* to, size_t n, JsonVariantConst v) { strlcpy(to, v.is<const char*>() ? v.as<const char*>() : "", n); }
 
 // The answer's body as it arrives, for the parser: Content-Length, chunked, or until the server closes. It is
 // read to its very end (drain), so the connection is clean for the next request.
@@ -730,7 +1032,6 @@ struct BodyReader {
 NetworkClientSecure tls;
 HTTPClient http;
 
-
 // One GET /api/current: 200 → the fields into `live`; 304 → the state stands; else counted as failed
 void fetchState() {
   if (!net.beforeFree) net.beforeFree = ESP.getFreeHeap(), net.beforeLargest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
@@ -752,42 +1053,19 @@ void fetchState() {
     size = http.getSize();
     if (code == 200) {
       JsonDocument filter;
-      JsonObject e = filter["expression"].to<JsonObject>();
-      for (const char* k : {"eyes", "mouth", "foliage", "blush", "posture", "gaze", "animation"}) e["avatar"][k] = true;
-      e["motion"] = true;
-      e["leafDroop"] = true;
-      e["atmosphere"]["scene"] = true;
-      e["atmosphere"]["theme"] = true;
-      e["tapLabel"] = true;
+      expressionFilter(filter);
       JsonDocument doc;
       const uint32_t b0 = millis();
       BodyReader body{http.getStream(), http.header("Transfer-Encoding").equalsIgnoreCase("chunked"), size};
       const DeserializationError err = deserializeJson(doc, body, DeserializationOption::Filter(filter));
       reuse = body.drain();
       bodyMs = millis() - b0;
-      JsonObjectConst x = doc["expression"];
-      if (err || x.isNull()) {
+      Live l;
+      if (err || !readExpression(doc["expression"], l)) {
         code = err ? -100 - (int)err.code() : -99; // -99: no expression in the answer
       } else {
-        Live l;
-        l.have = true;
+        l.fromServer = true;
         l.at = millis();
-        JsonObjectConst a = x["avatar"], mo = x["motion"];
-        copyText(l.eyes, sizeof(l.eyes), a["eyes"]);
-        copyText(l.mouth, sizeof(l.mouth), a["mouth"]);
-        copyText(l.foliage, sizeof(l.foliage), a["foliage"]);
-        copyText(l.blush, sizeof(l.blush), a["blush"]);
-        copyText(l.posture, sizeof(l.posture), a["posture"]);
-        copyText(l.gaze, sizeof(l.gaze), a["gaze"]);
-        copyText(l.animation, sizeof(l.animation), a["animation"]);
-        copyText(l.scene, sizeof(l.scene), x["atmosphere"]["scene"]);
-        copyText(l.theme, sizeof(l.theme), x["atmosphere"]["theme"]);
-        copyText(l.tapLabel, sizeof(l.tapLabel), x["tapLabel"]);
-        l.swaySpeed = mo["swaySpeed"] | 1.0f;
-        l.swayAmount = mo["swayAmount"] | 1.0f;
-        l.flutter = mo["flutter"] | 1.0f;
-        l.blinkEveryMs = mo["blinkEveryMs"].isNull() ? 0 : (int32_t)(mo["blinkEveryMs"] | 0);
-        l.leafDroop = x["leafDroop"] | 0.0f;
         portENTER_CRITICAL(&liveLock);
         live = l;
         portEXIT_CRITICAL(&liveLock);
@@ -819,8 +1097,8 @@ void fetchState() {
   else net.failed++, snprintf(text, sizeof(text), "failed: %d", code);
   net.lastCode = code, net.lastMs = ms, net.lastSize = size, net.slowestMs = max(net.slowestMs, ms);
   setStatus(text);
-  Serial.printf("[display] GET /api/current: %d, %u ms (%s %u, body %u), %d bytes; heap low while fetching %.1f KB free, largest block %.1f KB\n", code, (unsigned)ms, fresh ? "handshake + headers" : "headers", (unsigned)headersMs, (unsigned)bodyMs, (int)size,
-                net.lowFree / 1024.0f, net.lowLargest / 1024.0f);
+  Serial.printf("[display] GET /api/current: %d, %u ms (%s %u, body %u), %d bytes; heap low while fetching %.1f KB free, largest block %.1f KB\n", code, (unsigned)ms,
+                fresh ? "handshake + headers" : "headers", (unsigned)headersMs, (unsigned)bodyMs, (int)size, net.lowFree / 1024.0f, net.lowLargest / 1024.0f);
 }
 
 // Core 0 at idle priority: the TLS handshake is seconds of arithmetic, and above idle it starved the idle task
@@ -862,6 +1140,21 @@ void halt(const char* why) {
   while (true) delay(1000);
 }
 
+// A part that only moves, into RAM
+Sprite toRam(const RigSprite& r, bool copyRgb = true) {
+  Sprite s = {r.x, r.y, r.w, r.h, nullptr, nullptr, nullptr};
+  RigRow* rows = (RigRow*)heap_caps_malloc(max(1, (int)r.h) * sizeof(RigRow), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  uint16_t* rgb = (uint16_t*)heap_caps_malloc(max<uint32_t>(1, r.count) * 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  uint8_t* a = (uint8_t*)heap_caps_malloc(max<uint32_t>(1, r.count), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (!rows || !rgb || !a) halt("No memory for the tree's parts");
+  memcpy(rows, r.rows, r.h * sizeof(RigRow));
+  if (copyRgb) memcpy(rgb, r.rgb, r.count * 2);
+  memcpy(a, r.a, r.count);
+  s.rows = rows, s.rgb = rgb, s.a = a;
+  ramParts += r.h * sizeof(RigRow) + r.count * 3;
+  return s;
+}
+
 void setup() {
   Serial.begin(115200);
   delay(300);
@@ -869,7 +1162,7 @@ void setup() {
 
   lcd.init();
   lcd.setRotation(TFT_ROTATION);
-  BG = lcd.color565(RIG_BG_R, RIG_BG_G, RIG_BG_B);
+  BG = lcd.color565(RIG_BG_DAY[0], RIG_BG_DAY[1], RIG_BG_DAY[2]);
   INK = lcd.color565(0x2d, 0x33, 0x2a); // --ink
   MUTED = lcd.color565(0x8a, 0x8f, 0x86);
   Serial.printf("[display] panel started: %dx%d, SPI %d MHz\n", lcd.width(), lcd.height(), TFT_SPI_WRITE_HZ / 1000000);
@@ -909,26 +1202,33 @@ void setup() {
     const float t = (-10 + sqrtf(100 + 8 * x)) / 4;
     HALF[i] = (i == 0 || i == 96) ? 0 : 9.2f * t * (1 - t);
   }
-  // The parts into RAM
-  for (int i = 0; i < SPR_COUNT; i++) {
-    const RigSprite& r = RIG_SPRITES[i];
-    Sprite& sp = sprites[i];
-    sp.x = r.x, sp.y = r.y, sp.w = r.w, sp.h = r.h;
-    sp.rows = (RigRow*)heap_caps_malloc(max(1, (int)r.h) * sizeof(RigRow), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    sp.rgb = (uint16_t*)heap_caps_malloc(r.count * 2, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    sp.a = (uint8_t*)heap_caps_malloc(r.count, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (!sp.rows || !sp.rgb || !sp.a) halt("No memory for the tree's parts");
-    memcpy(sp.rows, r.rows, r.h * sizeof(RigRow));
-    memcpy(sp.rgb, r.rgb, r.count * 2);
-    memcpy(sp.a, r.a, r.count);
+  // The parts that only move into RAM; the pads' shapes too, their colours painted for the tone
+  base = toRam(RIG_BASE);
+  trunk = toRam(RIG_TRUNK);
+  branches = toRam(RIG_BRANCHES);
+  for (int p = 0; p < 3; p++) {
+    pads[p] = toRam(RIG_PAD_SHAPES[p], false);
+    padRgb[p] = (uint16_t*)pads[p].rgb;
   }
+  for (int i = 0; i < RIG_EYES; i++)
+    if (!strcmp(RIG_EYE_NAMES[i], "closed")) closedEyes = i;
   for (int e = 0; e < 3; e++)
     for (int i = 0; i <= 256; i++) EASE_LUT[e][i] = easeExact(i / 256.0f, e);
   K = fromArray(RIG_K);
   Kinv = invert(K);
-  for (int i = 0; i < 3; i++) droopInv[i] = invert(fromArray(RIG_PADS[i].droop));
+
+  // The exported look until the server answers, read as a live answer would be
+  {
+    JsonDocument doc;
+    Live l;
+    if (deserializeJson(doc, RIG_DEFAULT_STATE) || !readExpression(doc["expression"], l)) halt("The exported state doesn't read");
+    live = l;
+    swaySpeed = l.swaySpeed, swayAmount = l.swayAmount, flutterAmp = l.flutter, blinkMs = l.blinkEveryMs;
+    droopTween = {l.leafDroop, l.leafDroop, -1e9};
+    shrinkTween = {l.shrink ? 1.0f : 0.0f, l.shrink ? 1.0f : 0.0f, -1e9};
+  }
   randomSeed(esp_random());
-  blinkAt = millis() + (RIG_BLINK_MS > 0 ? random(RIG_BLINK_MS) : 0);
+  blinkAt = millis() + (blinkMs > 0 ? random(blinkMs) : 0);
 
   benchmark(3000);
 #if HAVE_SECRETS

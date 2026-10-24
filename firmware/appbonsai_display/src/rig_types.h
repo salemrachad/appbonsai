@@ -1,4 +1,4 @@
-// The shapes of the tree rig that scripts/display/export.ts generates into src/assets/tree_rig.h.
+// The shapes of the tree library that scripts/display/export.ts generates into src/assets/tree_rig.h.
 // Keep the field order in step with the export (it writes aggregate initializers).
 #pragma once
 #include <stdint.h>
@@ -16,7 +16,14 @@ struct RigSprite {
   const uint8_t* a;
   uint32_t count; // pixels in the spans
 };
-enum RigSpriteId { SPR_BASE, SPR_TRUNK, SPR_FACE, SPR_FACE_CLOSED, SPR_BRANCHES, SPR_PAD0, SPR_PAD1, SPR_PAD2, SPR_COUNT };
+
+// One eye style, around its pupils: what lies under them, the pupils (at gaze 0), what lies over them.
+// Drowsy pupils are clipped by the lids to an SVG y range (clipped: clip0..clip1)
+struct RigEyes {
+  RigSprite under, pupils, over;
+  uint8_t hasPupils, clipped;
+  float clip0, clip1;
+};
 
 // A CSS keyframe, reduced to translate · rotate · skewX · scale about the animation's origin
 struct RigKey {
@@ -32,20 +39,29 @@ struct RigAnim {
   uint8_t n; // 0: no animation
   const RigKey* keys;
 };
+// A body motion by its class (ExpressionState avatar.animation)
+struct RigNamedAnim {
+  const char* cls;
+  RigAnim anim;
+};
 
-// A canopy pad: its droop (in its exported image already), which sway it runs and about which point (SVG units)
+// A canopy pad: which sway it runs and about which point (SVG units); its droop is the firmware's (droopOf)
 struct RigPad {
-  float droop[6];
   uint8_t sway; // 0 branch-sway-left, 1 branch-sway-right
   float px, py;
 };
 
-// A leaf: leaf space (the lens 0..12 along x) → SVG units, droop included; the quiver turns it about its base
-enum RigLeafFlags : uint8_t { LEAF_EDGE = 1, LEAF_RIB = 2, LEAF_GLOSS = 4, LEAF_FRESH = 8 };
-struct RigLeaf {
-  float m[6];
-  uint32_t fill, edge, rib; // 0x00RRGGBB
-  float edgeWidth;          // leaf units
-  float delay;              // seconds (CSS animation-delay)
-  uint8_t pad, flags;
+// A leaf as Foliage.tsx's leavesFor places it (SVG units, degrees); the look rules (leafLook) do the rest
+struct RigLeafSpec {
+  float x, y, angle, size, r, gap, delay;
+  uint8_t pad, shade, rim;
+};
+
+// A foliage tone's leaf colours (Foliage.tsx PALETTES, 0x00RRGGBB), how flat its leaves roll, and whether
+// some of them turn dry brown
+struct RigPalette {
+  uint32_t leaf[3];
+  uint32_t shadow, edge;
+  uint8_t hasEdge, gloss, browns;
+  float curl;
 };

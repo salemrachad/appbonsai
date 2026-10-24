@@ -67,7 +67,7 @@ const GESTURE_FACE: Partial<Record<Gesture, Partial<AvatarPresentation>>> = {
 };
 
 // Where the eyes rest for each gaze mode (pupil offset in px); the avatar adds saccades around it.
-const GAZE_BASE: Record<Gaze, { x: number; y: number; spread: number }> = {
+export const GAZE_BASE: Record<Gaze, { x: number; y: number; spread: number }> = {
   around: { x: 0, y: 0, spread: 2.6 },
   center: { x: 0, y: 0, spread: 0.5 },
   down: { x: 0, y: 2.6, spread: 1 },
