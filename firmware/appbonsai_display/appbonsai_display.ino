@@ -11,13 +11,23 @@
 // the parts sampled bilinearly so motions smaller than a pixel stay smooth), dithered to RGB565 like the
 // export (a fixed pattern) and sent by DMA while the next strip is composed.
 //
-// It measures as it runs: frame rate, the time spent composing a frame, flash, free heap and the largest
-// free block (with the Wi-Fi stack started, as it will be). Serial monitor (115200 baud) and the column right
-// of the tree. Serial: 'r' reports, 'b' runs uncapped for 5 s to find the ceiling.
+// Step 3, the state from the server: with secrets.h (npm run display:setup, then your Wi-Fi in it) a task on
+// core 0 joins the Wi-Fi and reads the tree's GET /api/current once a minute over HTTPS (HTTP Basic, the
+// site's password; If-None-Match, so an unchanged state is a 304), keeping only the ExpressionState's fields
+// it uses (a streaming filter: the ~30 KB answer is never held). Its motion (sway speed and amount, flutter,
+// blink interval) moves the tree now, eased over a few seconds; the face, foliage and droop are shown as words
+// in the column until their art is exported.
 //
-// Separate from the sensor ESP32's firmware (firmware/appbonsai_esp32), which this never touches. No network
-// yet: the state is the one the rig was exported from; later the ExpressionState comes from the server.
+// It measures as it runs: frame rate, the time spent composing a frame, flash, free heap and the largest
+// free block, and while a fetch runs the lowest heap, largest block and frame rate. Serial monitor (115200
+// baud) and the column right of the tree. Serial: 'r' reports, 'b' runs uncapped for 5 s, 'p' profiles,
+// 'f' fetches now.
+//
+// Separate from the sensor ESP32's firmware (firmware/appbonsai_esp32), which this never touches.
 
+#include <ArduinoJson.h>
+#include <HTTPClient.h>
+#include <NetworkClientSecure.h>
 #include <WiFi.h>
 #include <esp_heap_caps.h>
 #include <esp_timer.h>
@@ -26,6 +36,14 @@
 #include <math.h>
 #include "display_config.h"
 #include "src/rig_types.h"
+
+#if __has_include("secrets.h") && __has_include("src/assets/roots.h")
+#include "secrets.h"
+#include "src/assets/roots.h"
+#define HAVE_SECRETS 1
+#else
+#define HAVE_SECRETS 0
+#endif
 
 // Composing is the frame: the default -Os left it at half speed
 #pragma GCC optimize("O3")
@@ -36,7 +54,7 @@
 #error "No tree rig yet: run `npm run display:export` in the repository first (see README.md)"
 #endif
 
-const char* FIRMWARE_VERSION = "0.2.0";
+const char* FIRMWARE_VERSION = "0.3.0";
 
 // The layout (landscape 320x240): the tree's box centred in the left part, a column of words on the right
 const int SCREEN_W = 320;
@@ -44,15 +62,19 @@ const int SCREEN_H = 240;
 const int TEXT_X = 214;
 const int TREE_X = (TEXT_X - RIG_W) / 2;
 const int TREE_Y = (SCREEN_H - RIG_H) / 2;
-const int STRIP_ROWS = 16; // two strips at a time, one per core
+const int STRIP_ROWS = 8; // two strips at a time, one per core; small, so the TLS buffers fit
 const uint32_t FRAME_US = 33333; // 30 fps: the website's motions are seconds long and a few pixels wide
 const uint32_t BLINK_MS = 160;   // as BonsaiAvatar's blink
+const uint32_t FETCH_EVERY_MS = 60000; // the tree is evaluated once a minute
+const uint32_t RETRY_MS = 15000;
+const float MOTION_EASE_S = 2.0f; // a new motion eases in over a few seconds, never a jump
 
 LGFX lcd;
-uint32_t* work[2] = {nullptr, nullptr}; // a strip of the tree's box per core, 0x00RRGGBB
+uint32_t* work[2] = {nullptr, nullptr}; // a strip of the tree's box per core, 0x00RRGGBB (in IRAM: see ld32)
+bool workInIram = false;
 uint16_t* dma[4] = {nullptr};          // two pairs of strips as the panel takes them (byte-swapped RGB565)
 uint32_t sketchBytes = 0, slotBytes = 0; // measured once: getSketchSize() reads the whole sketch from flash
-uint8_t D5[16][256], D6[16][256];      // ordered dithering to 5 and 6 bits, per Bayer cell
+
 float HALF[97];                        // the leaf's half-width, x = 0..12 in steps of 1/8
 uint16_t BG, INK, MUTED;
 const uint32_t BG_RGB = (RIG_BG_R << 16) | (RIG_BG_G << 8) | RIG_BG_B;
@@ -72,6 +94,24 @@ struct Sprite {
 };
 struct Heap {
   uint32_t free, largest, minFree, dmaFree, dmaLargest;
+};
+// The ExpressionState's fields the display uses (GET /api/current → expression), as last fetched
+struct Live {
+  bool have = false;
+  uint32_t at = 0; // millis() of the last fetch that confirmed it (200 or 304)
+  float swaySpeed = 1, swayAmount = 1, flutter = 1, leafDroop = 0;
+  int32_t blinkEveryMs = 0; // <= 0: null (eyes closed, no blinking)
+  char eyes[16] = "", mouth[16] = "", foliage[16] = "", blush[12] = "", posture[12] = "", gaze[12] = "";
+  char animation[32] = "", scene[16] = "", theme[8] = "", tapLabel[40] = "";
+};
+struct NetStats {
+  char status[28] = "starting";
+  int rssi = 0, lastCode = 0;
+  uint32_t ok = 0, notModified = 0, failed = 0, handshakes = 0, lastMs = 0, slowestMs = 0;
+  int32_t lastSize = -1;
+  uint32_t lowFree = UINT32_MAX, lowLargest = UINT32_MAX; // while a fetch runs (sampled every frame)
+  uint32_t beforeFree = 0, beforeLargest = 0;             // just before the first fetch
+  float lowFps = 0;                                       // the slowest 2 s window with a fetch in it
 };
 
 // ---------------------------------------------------------------------------------------------- matrices
@@ -125,11 +165,17 @@ float ease(float u, uint8_t easing) {
   return EASE_LUT[easing][i] + (EASE_LUT[easing][i + 1] - EASE_LUT[easing][i]) * (f - i);
 }
 
-// Where an animation is at time t (seconds since start; double, so it stays exact over weeks), about (ox, oy)
+// The motion now (ExpressionState.motion): the export's until the server's arrives, then eased toward it.
+// Speed runs a clock of its own (tm += dt × speed), so a new tempo never jumps the sway's phase.
+float swaySpeed = RIG_SWAY_SPEED, swayAmount = RIG_SWAY_AMOUNT, flutterAmp = RIG_FLUTTER;
+int32_t blinkMs = RIG_BLINK_MS;
+double motionT = 0, lastT = -1;
+
+// Where an animation is at time t (seconds since start; double, so it stays exact over weeks), about (ox, oy).
+// Those divided by the sway speed run on the motion clock; their delays (seconds, as CSS) are not divided.
 Mat animAt(const RigAnim& an, double t, float delay, float ox, float oy) {
   if (!an.n) return IDENTITY;
-  const double dur = an.bySpeed ? an.dur / RIG_SWAY_SPEED : an.dur;
-  double p = fmod((t - delay) / dur, 1.0);
+  double p = fmod(an.bySpeed ? (motionT - delay * swaySpeed) / an.dur : (t - delay) / an.dur, 1.0);
   if (p < 0) p += 1;
   int i = 0;
   while (i < an.n - 2 && p > an.keys[i + 1].at) i++;
@@ -137,7 +183,7 @@ Mat animAt(const RigAnim& an, double t, float delay, float ox, float oy) {
   const RigKey& k1 = an.keys[i + 1];
   const float span = k1.at - k0.at;
   const float u = ease(span > 0 ? constrain(((float)p - k0.at) / span, 0.0f, 1.0f) : 0, an.easing);
-  const float amp = an.amp == AMP_SWAY ? RIG_SWAY_AMOUNT : an.amp == AMP_FLUTTER ? RIG_FLUTTER : 1;
+  const float amp = an.amp == AMP_SWAY ? swayAmount : an.amp == AMP_FLUTTER ? flutterAmp : 1;
   const float tx = k0.tx + (k1.tx - k0.tx) * u, ty = k0.ty + (k1.ty - k0.ty) * u;
   const float rot = (k0.rot + (k1.rot - k0.rot) * u) * amp;
   const float sx = k0.sx + (k1.sx - k0.sx) * u, sy = k0.sy + (k1.sy - k0.sy) * u;
@@ -207,6 +253,15 @@ void pose(double t) {
 
 Sprite sprites[SPR_COUNT];
 
+// The strips live in IRAM, which the RAM that TLS needs can't spare: IRAM takes only 32-bit loads and stores,
+// and -O3 may narrow (c >> 16) & 255 into a byte load (a LoadStoreError there). So every read of a strip is
+// this one 32-bit load; writes are whole words anyway.
+static inline uint32_t ld32(const uint32_t* p) {
+  uint32_t v;
+  asm volatile("l32i %0, %1, 0" : "=r"(v) : "r"(p));
+  return v;
+}
+
 const RigRow NO_ROW = {0, 0, 0};
 
 // One texel of a part's row, unpacked for blending: red and blue as 5-bit lanes (bits 16-20, 0-4), green 6-bit, alpha
@@ -265,7 +320,7 @@ void drawPart(uint32_t* buf, int id, int y0, int rows) {
       const uint32_t g = g00 * w00 + g10 * w10 + g01 * w01 + g11 * w11;
       const uint32_t r8 = (((rb >> 16) & 0xFFFF) * 263) >> 13, b8 = ((rb & 0xFFFF) * 263) >> 13, g8 = (g * 259) >> 14;
       // Over what is there; saturating, since RGB565 rounding can lift a premultiplied colour a little past its alpha
-      const uint32_t dst = row[X], ia = 256 - a;
+      const uint32_t dst = ld32(row + X), ia = 256 - a;
       const uint32_t r = min<uint32_t>(255, r8 + ((((dst >> 16) & 255) * ia) >> 8));
       const uint32_t gg = min<uint32_t>(255, g8 + ((((dst >> 8) & 255) * ia) >> 8));
       const uint32_t b = min<uint32_t>(255, b8 + (((dst & 255) * ia) >> 8));
@@ -314,7 +369,7 @@ void drawLeaves(uint32_t* buf, int pad, int y0, int rows) {
           const float e = constrain(0.4f * n.cy + 0.5f - fabsf(ly - yg) * n.cy, 0.0f, 1.0f) * 0.45f;
           r += (255 - r) * e, g += (255 - g) * e, b += (255 - b) * e;
         }
-        const uint32_t dst = row[X];
+        const uint32_t dst = ld32(row + X);
         const float dr = (dst >> 16) & 255, dg = (dst >> 8) & 255, db = dst & 255;
         row[X] = ((uint32_t)(dr + (r - dr) * cov + 0.5f) << 16) | ((uint32_t)(dg + (g - dg) * cov + 0.5f) << 8) | (uint32_t)(db + (b - db) * cov + 0.5f);
       }
@@ -326,14 +381,16 @@ void drawLeaves(uint32_t* buf, int pad, int y0, int rows) {
 void dither(const uint32_t* buf, int y0, int rows, uint16_t* out) {
   for (int y = 0; y < rows; y++) {
     const uint8_t* bayer = BAYER4 + ((y0 + y) & 3) * 4;
-    const uint8_t* d5[4] = {D5[bayer[0]], D5[bayer[1]], D5[bayer[2]], D5[bayer[3]]};
-    const uint8_t* d6[4] = {D6[bayer[0]], D6[bayer[1]], D6[bayer[2]], D6[bayer[3]]};
+    // floor(v · 31/255 + (cell + ½)/16) in integers, exactly (checked for every v and cell): no 8 KB of tables,
+    // which the TLS buffers need
+    const uint32_t k[4] = {(2u * bayer[0] + 1) * 255, (2u * bayer[1] + 1) * 255, (2u * bayer[2] + 1) * 255, (2u * bayer[3] + 1) * 255};
+    auto q = [](uint32_t v, uint32_t mul, uint32_t k) { return ((((v * mul + k) >> 5) * 257 + 257) >> 16); }; // ⌊⌊y/32⌋/255⌋
     const uint32_t* src = buf + y * RIG_W;
     uint16_t* dst = out + y * RIG_W;
     for (int x = 0; x < RIG_W; x++) {
-      const uint32_t c = src[x];
-      const uint8_t *q5 = d5[x & 3], *q6 = d6[x & 3];
-      const uint32_t v = (q5[(c >> 16) & 255] << 11) | (q6[(c >> 8) & 255] << 5) | q5[c & 255];
+      const uint32_t c = ld32(src + x), kk = k[x & 3];
+      const uint32_t v = (min<uint32_t>(31, q((c >> 16) & 255, 992, kk)) << 11) | (min<uint32_t>(63, q((c >> 8) & 255, 2016, kk)) << 5) |
+                         min<uint32_t>(31, q(c & 255, 992, kk));
       dst[x] = (uint16_t)((v >> 8) | (v << 8));
     }
   }
@@ -368,7 +425,35 @@ void helperTask(void*) {
 
 uint32_t lastComposeUs = 0;
 
+Live live;  // written by the network task, read by the frame (under liveLock)
+NetStats net;
+portMUX_TYPE liveLock = portMUX_INITIALIZER_UNLOCKED;
+volatile bool fetching = false, fetchNow = false;
+
+Live liveNow() {
+  portENTER_CRITICAL(&liveLock);
+  const Live l = live;
+  portEXIT_CRITICAL(&liveLock);
+  return l;
+}
+
+// The motion eased toward the state's, and the motion clock advanced to t
+void advanceMotion(double t) {
+  const float dt = lastT < 0 ? 0 : (float)(t - lastT);
+  lastT = t;
+  const Live l = liveNow();
+  if (l.have) {
+    const float k = min(1.0f, dt / MOTION_EASE_S);
+    swaySpeed += (l.swaySpeed - swaySpeed) * k;
+    swayAmount += (l.swayAmount - swayAmount) * k;
+    flutterAmp += (l.flutter - flutterAmp) * k;
+    blinkMs = l.blinkEveryMs;
+  }
+  motionT += dt * swaySpeed;
+}
+
 void drawFrame(double t) {
+  advanceMotion(t);
   pose(t);
   uint32_t composeUs = 0;
   lcd.startWrite();
@@ -402,11 +487,11 @@ uint32_t blinkAt = 0, blinkEnd = 0, blink2At = 0;
 
 // As BonsaiAvatar: every blinkEveryMs × (0.6..1.4), sometimes twice; never when the state's eyes are closed
 bool blinking(uint32_t now) {
-  if (RIG_BLINK_MS <= 0) return false;
+  if (blinkMs <= 0) return false;
   if ((int32_t)(now - blinkAt) >= 0) {
     blinkEnd = now + BLINK_MS;
     blink2At = random(100) < 18 ? now + 320 : 0;
-    blinkAt = now + (uint32_t)(RIG_BLINK_MS * (0.6f + random(1000) / 1000.0f * 0.8f));
+    blinkAt = now + (uint32_t)(blinkMs * (0.6f + random(1000) / 1000.0f * 0.8f));
   }
   return (int32_t)(blinkEnd - now) > 0 || (blink2At && (int32_t)(now - blink2At) >= 0 && (int32_t)(now - blink2At) < 150);
 }
@@ -461,51 +546,73 @@ void report() {
   Serial.printf("[display] Appbonsai display %s, the living tree. Chip %s rev %d, %d MHz\n", FIRMWARE_VERSION, ESP.getChipModel(), ESP.getChipRevision(),
                 ESP.getCpuFreqMHz());
   Serial.printf("  look: %s (rig %s)\n", RIG_LOOK, RIG_HASH);
-  Serial.printf("  motion: sway speed %.2f, sway amount %.2f, flutter %.2f, blink every %d ms\n", RIG_SWAY_SPEED, RIG_SWAY_AMOUNT, RIG_FLUTTER, (int)RIG_BLINK_MS);
+  Serial.printf("  motion now: sway speed %.2f, sway amount %.2f, flutter %.2f, blink every %d ms (exported: %.2f, %.2f, %.2f, %d)\n", swaySpeed, swayAmount,
+                flutterAmp, (int)blinkMs, RIG_SWAY_SPEED, RIG_SWAY_AMOUNT, RIG_FLUTTER, (int)RIG_BLINK_MS);
   Serial.printf("  flash: chip %u KB; sketch %.1f KB of a %.1f KB app slot (%.0f %%); the rig's parts %.1f KB (copied to RAM), %d leaves\n", ESP.getFlashChipSize() / 1024,
                 kb(sketch), kb(slot), 100.0f * sketch / slot, kb(partBytes()), RIG_LEAF_COUNT);
-  Serial.printf("  buffers: 2 x strip %.1f KB (RGB888, one per core) + 4 x %.1f KB (DMA); SPI %d MHz, %d rows a strip\n", kb(RIG_W * STRIP_ROWS * 4),
-                kb(RIG_W * STRIP_ROWS * 2), TFT_SPI_WRITE_HZ / 1000000, STRIP_ROWS);
+  Serial.printf("  buffers: 2 x strip %.1f KB (RGB888, one per core, in %s) + 4 x %.1f KB (DMA); SPI %d MHz, %d rows a strip\n", kb(RIG_W * STRIP_ROWS * 4),
+                workInIram ? "IRAM" : "RAM", kb(RIG_W * STRIP_ROWS * 2), TFT_SPI_WRITE_HZ / 1000000, STRIP_ROWS);
   printHeap("at boot:", m.boot);
   printHeap("before Wi-Fi:", m.beforeWifi);
   printHeap("Wi-Fi stack started:", m.withWifi);
   printHeap("now:", heapNow());
   Serial.printf("  running (30 fps cap):  %.1f fps, %.1f ms a frame, %.1f ms of it composing\n", m.fps, m.frameMs, m.composeMs);
   Serial.printf("  uncapped (ceiling):    %.1f fps, %.1f ms a frame, %.1f ms of it composing\n", m.maxFps, m.maxFrameMs, m.maxComposeMs);
-  Serial.println("  ('b' measures the ceiling again, 'r' prints this)");
+  const Live l = liveNow();
+  Serial.printf("  network: %s; Wi-Fi %s, %d dBm; fetches %u ok, %u unchanged, %u failed, %u handshakes; last %d in %u ms (%d bytes), slowest %u ms\n", net.status,
+                WiFi.isConnected() ? WiFi.localIP().toString().c_str() : "not connected", net.rssi, (unsigned)net.ok, (unsigned)net.notModified,
+                (unsigned)net.failed, (unsigned)net.handshakes, net.lastCode, (unsigned)net.lastMs, (int)net.lastSize, (unsigned)net.slowestMs);
+  if (net.beforeFree)
+    Serial.printf("  heap around fetches: before the first %.1f KB free, largest block %.1f KB; lowest while fetching %.1f KB free, largest block %.1f KB; "
+                  "slowest 2 s with a fetch %.1f fps\n",
+                  kb(net.beforeFree), kb(net.beforeLargest), kb(net.lowFree), kb(net.lowLargest), net.lowFps);
+  if (l.have)
+    Serial.printf("  state (%u s ago): scene %s/%s, eyes %s, mouth %s, foliage %s, blush %s, posture %s, gaze %s, %s, droop %.2f, \"%s\"\n",
+                  (unsigned)((millis() - l.at) / 1000), l.scene, l.theme, l.eyes, l.mouth, l.foliage, l.blush, l.posture, l.gaze, l.animation, l.leafDroop, l.tapLabel);
+  Serial.println("  ('b' measures the ceiling again, 'p' profiles, 'f' fetches now, 'r' prints this)");
 }
 
 // The column right of the tree: the same numbers, small (17 characters a line)
 void drawColumn() {
   const Heap h = heapNow();
+  const Live l = liveNow();
+  char status[28];
+  portENTER_CRITICAL(&liveLock);
+  strlcpy(status, net.status, sizeof(status));
+  portEXIT_CRITICAL(&liveLock);
   lcd.fillRect(TEXT_X, 0, SCREEN_W - TEXT_X, SCREEN_H, BG);
   lcd.setFont(&fonts::Font0);
   lcd.setTextSize(1);
-  int y = 14;
+  int y = 10;
   auto line = [&](uint16_t colour, const char* fmt, auto... v) {
     lcd.setTextColor(colour, BG);
     lcd.setCursor(TEXT_X, y);
     lcd.printf(fmt, v...);
     y += 11;
   };
-  auto gap = [&] { y += 6; };
+  auto gap = [&] { y += 5; };
   line(INK, "Appbonsai %s", FIRMWARE_VERSION);
-  line(MUTED, "living tree");
   gap();
   line(INK, "%.1f fps", m.fps);
-  line(MUTED, "frame %.1f ms", m.frameMs);
-  line(MUTED, "draw  %.1f ms", m.composeMs);
+  line(MUTED, "draw %.0f/%.0f ms", m.composeMs, m.frameMs);
   line(MUTED, "max %.1f fps", m.maxFps);
   gap();
   line(INK, "heap  %.0fK", kb(h.free));
   line(INK, "block %.0fK", kb(h.largest));
-  line(MUTED, "min   %.0fK", kb(h.minFree));
-  line(MUTED, "wifi -%.0fK", kb(m.beforeWifi.free - m.withWifi.free));
+  if (net.beforeFree) line(MUTED, "fetch %.0fK/%.0fK", kb(net.lowFree), kb(net.lowLargest));
+  line(MUTED, "flash %.0f/%.0fK", kb(sketchBytes), kb(slotBytes));
   gap();
-  line(INK, "flash %.0f/%.0fK", kb(sketchBytes), kb(slotBytes));
-  line(MUTED, "parts %.0fK", kb(partBytes()));
-  line(MUTED, "%d leaves", RIG_LEAF_COUNT);
-  line(MUTED, "%d MHz", TFT_SPI_WRITE_HZ / 1000000);
+  line(INK, "%.17s", status);
+  if (WiFi.isConnected()) line(MUTED, "wifi %d dBm", net.rssi);
+  line(MUTED, "ok %u =%u x%u", (unsigned)net.ok, (unsigned)net.notModified, (unsigned)net.failed);
+  if (l.have) {
+    gap();
+    line(INK, "%.17s", l.scene);
+    line(MUTED, "%.8s/%.8s", l.eyes, l.mouth);
+    line(MUTED, "%.17s", l.foliage);
+    line(MUTED, "sway %.2f x%.2f", l.swaySpeed, l.swayAmount);
+    line(MUTED, "%us ago", (unsigned)((millis() - l.at) / 1000));
+  }
 }
 
 // Where a frame's time goes: each stage of composing the whole tree box on one core, averaged over 10 frames, no SPI
@@ -545,6 +652,207 @@ void profile() {
   }
 }
 
+// ------------------------------------------------------------------------------- the state from the server
+
+void setStatus(const char* text) {
+  portENTER_CRITICAL(&liveLock);
+  strlcpy(net.status, text, sizeof(net.status));
+  portEXIT_CRITICAL(&liveLock);
+}
+
+#if HAVE_SECRETS
+String etag;
+
+void copyText(char* to, size_t n, JsonVariantConst v) { strlcpy(to, v.is<const char*>() ? v.as<const char*>() : "", n); }
+
+// The answer's body as it arrives, for the parser: Content-Length, chunked, or until the server closes. It is
+// read to its very end (drain), so the connection is clean for the next request.
+struct BodyReader {
+  Stream& s;
+  bool chunked;
+  int32_t left;       // Content-Length bytes still to come (-1: unknown)
+  uint32_t chunk = 0; // bytes left in this chunk
+  bool started = false, done = false;
+
+  int raw() {
+    char c;
+    return s.readBytes(&c, 1) == 1 ? (uint8_t)c : -1; // with the client's timeout
+  }
+  bool line(char* out, size_t n) { // one line, CRLF dropped
+    size_t i = 0;
+    for (int c; (c = raw()) >= 0;) {
+      if (c == '\n') {
+        out[i] = 0;
+        return true;
+      }
+      if (c != '\r' && i + 1 < n) out[i++] = c;
+    }
+    return false;
+  }
+  int read() {
+    if (done) return -1;
+    if (!chunked) {
+      if (left == 0) return done = true, -1;
+      const int c = raw();
+      if (c < 0) return done = true, -1;
+      if (left > 0) left--;
+      return c;
+    }
+    if (!chunk) {
+      char text[24];
+      if (started && !line(text, sizeof(text))) return done = true, -1; // the CRLF after the last chunk's data
+      started = true;
+      if (!line(text, sizeof(text))) return done = true, -1;
+      chunk = strtoul(text, nullptr, 16);
+      if (!chunk) { // the last chunk: trailers up to an empty line
+        while (line(text, sizeof(text)) && text[0]) {}
+        return done = true, -1;
+      }
+    }
+    const int c = raw();
+    if (c < 0) return done = true, -1;
+    chunk--;
+    return c;
+  }
+  size_t readBytes(char* buf, size_t n) {
+    size_t i = 0;
+    for (int c; i < n && (c = read()) >= 0;) buf[i++] = c;
+    return i;
+  }
+  bool drain() {
+    while (read() >= 0) {}
+    return !chunked || chunk == 0;
+  }
+};
+
+// The connection stays open between fetches (HTTP/1.1 keep-alive): the TLS handshake is ~15 s of a core that
+// also composes, so it is paid only when the server has closed the connection
+NetworkClientSecure tls;
+HTTPClient http;
+
+
+// One GET /api/current: 200 → the fields into `live`; 304 → the state stands; else counted as failed
+void fetchState() {
+  if (!net.beforeFree) net.beforeFree = ESP.getFreeHeap(), net.beforeLargest = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  fetching = true;
+  const uint32_t t0 = millis();
+  int code = -1;
+  int32_t size = -1;
+  uint32_t headersMs = 0, bodyMs = 0;
+  bool reuse = true;
+  const bool fresh = !tls.connected();
+  if (fresh) net.handshakes++;
+  if (http.begin(tls, APPBONSAI_URL "/api/current")) {
+    http.setAuthorization("display", APPBONSAI_PASSWORD);
+    const char* keep[] = {"ETag", "Transfer-Encoding"};
+    http.collectHeaders(keep, 2);
+    if (etag.length()) http.addHeader("If-None-Match", etag);
+    code = http.GET();
+    headersMs = millis() - t0; // (connect + TLS handshake) + request + headers
+    size = http.getSize();
+    if (code == 200) {
+      JsonDocument filter;
+      JsonObject e = filter["expression"].to<JsonObject>();
+      for (const char* k : {"eyes", "mouth", "foliage", "blush", "posture", "gaze", "animation"}) e["avatar"][k] = true;
+      e["motion"] = true;
+      e["leafDroop"] = true;
+      e["atmosphere"]["scene"] = true;
+      e["atmosphere"]["theme"] = true;
+      e["tapLabel"] = true;
+      JsonDocument doc;
+      const uint32_t b0 = millis();
+      BodyReader body{http.getStream(), http.header("Transfer-Encoding").equalsIgnoreCase("chunked"), size};
+      const DeserializationError err = deserializeJson(doc, body, DeserializationOption::Filter(filter));
+      reuse = body.drain();
+      bodyMs = millis() - b0;
+      JsonObjectConst x = doc["expression"];
+      if (err || x.isNull()) {
+        code = err ? -100 - (int)err.code() : -99; // -99: no expression in the answer
+      } else {
+        Live l;
+        l.have = true;
+        l.at = millis();
+        JsonObjectConst a = x["avatar"], mo = x["motion"];
+        copyText(l.eyes, sizeof(l.eyes), a["eyes"]);
+        copyText(l.mouth, sizeof(l.mouth), a["mouth"]);
+        copyText(l.foliage, sizeof(l.foliage), a["foliage"]);
+        copyText(l.blush, sizeof(l.blush), a["blush"]);
+        copyText(l.posture, sizeof(l.posture), a["posture"]);
+        copyText(l.gaze, sizeof(l.gaze), a["gaze"]);
+        copyText(l.animation, sizeof(l.animation), a["animation"]);
+        copyText(l.scene, sizeof(l.scene), x["atmosphere"]["scene"]);
+        copyText(l.theme, sizeof(l.theme), x["atmosphere"]["theme"]);
+        copyText(l.tapLabel, sizeof(l.tapLabel), x["tapLabel"]);
+        l.swaySpeed = mo["swaySpeed"] | 1.0f;
+        l.swayAmount = mo["swayAmount"] | 1.0f;
+        l.flutter = mo["flutter"] | 1.0f;
+        l.blinkEveryMs = mo["blinkEveryMs"].isNull() ? 0 : (int32_t)(mo["blinkEveryMs"] | 0);
+        l.leafDroop = x["leafDroop"] | 0.0f;
+        portENTER_CRITICAL(&liveLock);
+        live = l;
+        portEXIT_CRITICAL(&liveLock);
+        etag = http.header("ETag");
+      }
+    } else if (code == 304) {
+      portENTER_CRITICAL(&liveLock);
+      live.at = millis();
+      portEXIT_CRITICAL(&liveLock);
+    }
+    if (code != 200 && code != 304) reuse = false; // a body nobody read: start clean
+    http.end();
+    if (!reuse) tls.stop();
+  }
+  const uint32_t ms = millis() - t0;
+  fetching = false;
+  if (code < 0) {
+    char why[100];
+    const int e = tls.lastError(why, sizeof(why));
+    Serial.printf("[display] TLS: %d (%s); 8-bit heap %.1f KB, largest %.1f KB; 32-bit-only (IRAM) free %.1f KB, largest %.1f KB\n", e, why,
+                  heap_caps_get_free_size(MALLOC_CAP_8BIT) / 1024.0f, heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) / 1024.0f,
+                  (heap_caps_get_free_size(MALLOC_CAP_32BIT) - heap_caps_get_free_size(MALLOC_CAP_8BIT)) / 1024.0f,
+                  heap_caps_get_largest_free_block(MALLOC_CAP_32BIT | MALLOC_CAP_EXEC) / 1024.0f);
+  }
+  char text[28];
+  if (code == 200) net.ok++, snprintf(text, sizeof(text), "state in %u ms", (unsigned)ms);
+  else if (code == 304) net.notModified++, snprintf(text, sizeof(text), "unchanged, %u ms", (unsigned)ms);
+  else if (code == 401) net.failed++, strlcpy(text, "401: wrong password", sizeof(text));
+  else net.failed++, snprintf(text, sizeof(text), "failed: %d", code);
+  net.lastCode = code, net.lastMs = ms, net.lastSize = size, net.slowestMs = max(net.slowestMs, ms);
+  setStatus(text);
+  Serial.printf("[display] GET /api/current: %d, %u ms (%s %u, body %u), %d bytes; heap low while fetching %.1f KB free, largest block %.1f KB\n", code, (unsigned)ms, fresh ? "handshake + headers" : "headers", (unsigned)headersMs, (unsigned)bodyMs, (int)size,
+                net.lowFree / 1024.0f, net.lowLargest / 1024.0f);
+}
+
+// Core 0 at idle priority: the TLS handshake is seconds of arithmetic, and above idle it starved the idle task
+// into the task watchdog (a reboot). Composing comes first; this joins the Wi-Fi and fetches once a minute.
+void netTask(void*) {
+  if (!strlen(WIFI_SSID)) {
+    setStatus("no Wi-Fi in secrets.h");
+    vTaskDelete(nullptr);
+  }
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  tls.setCACert(ROOTS_PEM);
+  http.setReuse(true);
+  http.setTimeout(10000);
+  uint32_t next = 0;
+  for (;;) {
+    if (WiFi.status() != WL_CONNECTED) {
+      setStatus("joining Wi-Fi");
+      vTaskDelay(pdMS_TO_TICKS(500));
+      continue;
+    }
+    net.rssi = WiFi.RSSI();
+    if (fetchNow || (int32_t)(millis() - next) >= 0) {
+      fetchNow = false;
+      fetchState();
+      next = millis() + (net.lastCode == 200 || net.lastCode == 304 ? FETCH_EVERY_MS : RETRY_MS);
+    }
+    vTaskDelay(pdMS_TO_TICKS(200));
+  }
+}
+#endif
+
 // ------------------------------------------------------------------------------------------- setup/loop
 
 void halt(const char* why) {
@@ -583,7 +891,12 @@ void setup() {
   delay(100);
   m.withWifi = heapNow();
 
-  for (int i = 0; i < 2; i++) work[i] = (uint32_t*)heap_caps_malloc(RIG_W * STRIP_ROWS * 4, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  // The strips in IRAM (32-bit only, ~37 KB otherwise unused), else in RAM
+  workInIram = true;
+  for (int i = 0; i < 2; i++) {
+    work[i] = (uint32_t*)heap_caps_malloc(RIG_W * STRIP_ROWS * 4, MALLOC_CAP_EXEC | MALLOC_CAP_32BIT);
+    if (!work[i]) work[i] = (uint32_t*)heap_caps_malloc(RIG_W * STRIP_ROWS * 4, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT), workInIram = false;
+  }
   for (int i = 0; i < 4; i++) dma[i] = (uint16_t*)heap_caps_malloc(RIG_W * STRIP_ROWS * 2, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
   if (!work[0] || !work[1] || !dma[0] || !dma[1] || !dma[2] || !dma[3]) halt("No memory for the strip buffers");
   helperDone = xSemaphoreCreateBinary();
@@ -591,12 +904,6 @@ void setup() {
   sketchBytes = ESP.getSketchSize();
   slotBytes = ESP.getFreeSketchSpace();
 
-  for (int cell = 0; cell < 16; cell++)
-    for (int v = 0; v < 256; v++) {
-      const float t = (cell + 0.5f) / 16;
-      D5[cell][v] = min(31, (int)floorf(v * 31 / 255.0f + t));
-      D6[cell][v] = min(63, (int)floorf(v * 63 / 255.0f + t));
-    }
   for (int i = 0; i <= 96; i++) {
     const float x = i / 8.0f;
     const float t = (-10 + sqrtf(100 + 8 * x)) / 4;
@@ -624,12 +931,18 @@ void setup() {
   blinkAt = millis() + (RIG_BLINK_MS > 0 ? random(RIG_BLINK_MS) : 0);
 
   benchmark(3000);
+#if HAVE_SECRETS
+  if (xTaskCreatePinnedToCore(netTask, "net", 10240, nullptr, tskIDLE_PRIORITY, nullptr, 0) != pdPASS) setStatus("no memory for the network");
+#else
+  setStatus("no secrets.h (README)");
+#endif
   drawColumn();
   report();
 }
 
 void loop() {
   static uint32_t frameAt = 0, windowAt = 0, frames = 0, frameUs = 0, composeUs = 0;
+  static bool fetchInWindow = false;
   if (Serial.available()) {
     const int c = Serial.read();
     if (c == 'b') {
@@ -639,6 +952,8 @@ void loop() {
       report();
     } else if (c == 'p') {
       profile();
+    } else if (c == 'f') {
+      fetchNow = true;
     }
   }
   const uint32_t now = micros();
@@ -649,12 +964,19 @@ void loop() {
     frameUs += micros() - now;
     composeUs += lastComposeUs;
     frames++;
+    if (fetching) { // the heap at its lowest while TLS runs
+      fetchInWindow = true;
+      net.lowFree = min(net.lowFree, (uint32_t)ESP.getFreeHeap());
+      net.lowLargest = min(net.lowLargest, (uint32_t)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    }
   }
   if (millis() - windowAt >= 2000 && frames) { // the numbers over the last two seconds, then the column
     const float secs = (millis() - windowAt) / 1000.0f;
     m.fps = frames / secs;
     m.frameMs = frameUs / (float)frames / 1000;
     m.composeMs = composeUs / (float)frames / 1000;
+    if (fetchInWindow) net.lowFps = net.lowFps ? min(net.lowFps, m.fps) : m.fps;
+    fetchInWindow = false;
     frames = frameUs = composeUs = 0;
     windowAt = millis();
     drawColumn();

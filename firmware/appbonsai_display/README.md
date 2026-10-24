@@ -6,10 +6,13 @@ The website's Ficus on a physical screen. A second ESP32 of its own, separate fr
 **Hardware:** ESP32-D0WD-V3 (WROOM-32), 4 MB flash, **no PSRAM** (324 KB free heap in a minimal sketch), and a
 3.2" ILI9341 **SPI** TFT, 320 × 240, used in landscape (`TFT_ROTATION 1`). The module's microSD slot and touch pins stay unconnected.
 
-**Step 2 (this sketch): the living tree.** The tree moves as on the website: the body's motion for its state,
-the trunk breathing, the branches swaying about their pivots, each of the 124 leaves quivering on its own phase,
-and blinking (sometimes twice). It measures and reports as it runs. No network yet: the state is the one the
-rig was exported from. (Step 1 was the static test.)
+**Step 3 (this sketch): the state from the server.** The tree moves as on the website (step 2): the body's
+motion for its state, the trunk breathing, the branches swaying about their pivots, each of the 124 leaves
+quivering on its own phase, and blinking (sometimes twice). Now it also reads the live tree's ExpressionState
+once a minute (`GET /api/current`, over HTTPS with the site's password; nothing on Cloudflare changed for it):
+its **motion** (sway speed and amount, flutter, blink interval) moves the tree, eased over 2 s; the face,
+foliage, droop and scene are shown as words in the column until their art is exported (the next step). It
+measures and reports as it runs. (Step 1 was the static test.)
 
 ## How the art gets here
 
@@ -29,8 +32,35 @@ The leaves are drawn on the device, not exported as pictures: `scripts/display/l
 compares it with Chrome's picture (the last run: mean difference 0.75/255, 0.18 % of pixels off by more than 24).
 
 Speed: the parts are copied from flash into RAM at start (reading flash per pixel was most of a frame), the
-composing is built with `-O3`, and the two cores compose alternate strips (core 0 is otherwise idle; the
-Wi-Fi stack is started but not connected).
+composing is built with `-O3`, and the two cores compose alternate strips.
+
+## The connection
+
+```sh
+npm run display:setup    # writes secrets.h (gitignored) and src/assets/roots.h
+```
+
+It takes the tree's address and password from `.env.cloud` (never printed) and keeps the Wi-Fi lines; type
+your Wi-Fi's name and password into `firmware/appbonsai_display/secrets.h` yourself (2.4 GHz). Without
+`secrets.h` the sketch still builds and shows the exported state. The site password is in the device's flash:
+the Worker has one password for everything for now; a read-only display token would be better later.
+
+`roots.h` holds the roots of the CAs Cloudflare issues from (Let's Encrypt ISRG X1/X2 — workers.dev today,
+ECDSA —, Google Trust Services R1/R4, SSL.com 2022), from Node's (Mozilla's) store.
+
+How it fits in an ESP32 without PSRAM (TLS wants ~34 KB of buffers, 16 KB each way, plus the handshake):
+
+- The two RGB888 strips live in **IRAM** (~37 KB of heap that takes only 32-bit loads and stores, otherwise
+  unused): every read of a strip is a forced 32-bit load (`ld32`), since `-O3` may narrow `(c >> 16) & 255`
+  into a byte load, which faults there.
+- The strips are **8 rows** (the DMA buffers halve), and the dither is computed in integers instead of two
+  8 KB tables (exactly the same values, checked for every value and cell).
+- The network task runs on core 0 at **idle priority**: the TLS handshake is ~15 s of elliptic-curve
+  arithmetic on a core that also composes, and above idle it starved the idle task into the task watchdog
+  (a reboot).
+- **Keep-alive:** the connection stays open between fetches (HTTP/1.1; `BodyReader` reads a chunked or
+  Content-Length body to its very end, so the connection stays clean), so the handshake is paid only after the
+  server or the Wi-Fi drops it. The answer is ~30 KB; a streaming filter keeps only the fields used.
 
 Generate the asset before compiling (it is gitignored, regenerated from the art):
 
@@ -98,15 +128,26 @@ On the serial monitor (115200 baud) and in the column right of the tree:
 - **heap** at boot, before and with the Wi-Fi stack started (not connected: the heap the display will really
   have), and now: free, **largest free block**, minimum ever, and the DMA-capable part;
 - **frame rate** as it runs (capped at 30 fps), the time a frame takes and how much of it is composing, and
-  the uncapped ceiling (measured for 3 s at start).
+  the uncapped ceiling (measured for 3 s at start);
+- **network:** Wi-Fi, fetches (ok / unchanged / failed), handshakes, the last fetch's time (handshake or not,
+  headers, body), the heap before the first fetch and its lowest while fetching, the slowest 2 s of frames
+  with a fetch in it, and the state last read.
 
 Send `r` to print the report, `b` to measure the ceiling again (5 s uncapped), `p` for where a frame's time
-goes (each part, the leaves and the dither, on one core).
+goes (each part, the leaves and the dither, on one core), `f` to fetch now. A failed TLS connection prints
+mbedTLS's reason and the heap at that moment. (Opening the serial monitor restarts the board.)
 
-Measured (2026-10-24, 198×207 tree box, SPI 40 MHz): **29.6 fps** as it runs, ceiling 30.3 fps; 33 ms a frame,
-22 ms of it composing on the two cores (37 ms on one). Sketch 1009.6 KB of the 1920 KB slot (53 %). Heap now
-87.7 KB free, **largest block 42 KB** (the parts in RAM take 60.5 KB, the strips 49.6 KB): an HTTPS client
-for the state will need most of that block, so the next step measures it first.
+Measured (2026-10-24, 198×207 tree box, SPI 40 MHz, Wi-Fi at -66 dBm):
+
+| | |
+|---|---|
+| Frame rate | **27.0 fps** as it runs (25.4 fps in the slowest 2 s with a fetch); ceiling 27.8 fps |
+| Frame | 36.5 ms, 25.2 ms of it composing on the two cores (16-row strips were 29.6 fps, but TLS didn't fit) |
+| Sketch | 1170 KB of the 1920 KB slot (61 %) |
+| Heap before the first fetch | 95.9 KB free, largest block 68 KB |
+| Heap, connection open | 51.2 KB free, largest block 12.5 KB; lowest while fetching 33.0 KB (block 7.7 KB) |
+| First fetch | 15.7 s (handshake + headers 14.2 s, body 1.5 s) |
+| Later fetches | 1.7 s (headers 0.2 s, body 1.5 s), on the same connection |
 
 ## Settings to try (display_config.h)
 
@@ -117,8 +158,11 @@ for the state will need most of that block, so the next step measures it first.
 
 ## Next steps (after the numbers)
 
-1. ~~The layered rig~~ (step 2, done): sway, breathing, leaf quiver and blinking at 30 fps, sub-pixel motion.
-2. The state: the ExpressionState (`expression` in `GET /api/current`) drives foliage, droop, face, motion and
-   day/night. No server or engine changes until this step is agreed. Measure the HTTPS client's heap first.
-3. The gaze's saccades, the pad highlights' flutter, gestures.
-4. Visitors, effects and backdrops, if the measured budget allows.
+1. ~~The layered rig~~ (step 2, done): sway, breathing, leaf quiver and blinking, sub-pixel motion.
+2. ~~The state's motion~~ (step 3, done): the live ExpressionState over HTTPS, its motion on the tree.
+3. The state's look: the face (eyes × mouth × blush), the leaves' colours per foliage tone, the droop and the
+   body's animation per state, exported as variants and swapped in when the state changes.
+4. The gaze's saccades, the pad highlights' flutter, gestures.
+5. Visitors, effects and backdrops, if the measured budget allows.
+6. On the server, later (agreed first): a small display endpoint (only the fields used, a read-only token)
+   would make each fetch a fraction of the 30 KB and keep the site password off the device.

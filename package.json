@@ -18,6 +18,7 @@
     "cf:migrate": "tsx scripts/cloudMigrate.ts",
     "cf:backup": "tsx scripts/cloudBackup.ts",
     "display:export": "tsx scripts/display/export.ts",
+    "display:setup": "tsx scripts/display/setup.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit && tsc --noEmit -p worker",
