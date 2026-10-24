@@ -24,3 +24,6 @@ coverage/
 
 # Copies of the tree from npm run cf:backup (keep them outside Cloudflare, e.g. Google Drive)
 /backups/
+
+# The display ESP32's art, generated from the website's avatar (npm run display:export)
+/firmware/appbonsai_display/src/assets/
