@@ -49,7 +49,7 @@
 //        http://<device>/update
 // ======================================================
 
-const char* FIRMWARE_VERSION = "1.4.0";
+const char* FIRMWARE_VERSION = "1.4.1";
 
 
 // ----------------------
@@ -88,9 +88,10 @@ const int SOIL_WET_RAW = 2022;
 // relative light % (and checks light_raw for a stuck
 // sensor), so both are derived from lux on a log scale:
 //
-//   light_percent: ~215 lux = 0 %, 1 000 lux = 25 %
-//     (the tree's low/good edge), 40 000 lux = 85 %
-//     (very bright), 100 000 lux = 100 %. Provisional.
+//   light_percent: 1 lux = 0 %, 60 lux = 4 %,
+//     300 lux = 5 %, 1 000 lux = 25 % (the tree's
+//     low/good edge), 40 000 lux = 85 % (very bright),
+//     100 000 lux = 100 %. Provisional.
 //   light_raw: log10(lux + 1) over the sensor's whole
 //     range in 0-4095: 0 only in true darkness, 4095
 //     only when the BH1750 is saturated (65 535 lux).
@@ -299,7 +300,18 @@ int luxToPercent(float lux) {
 
   if (lux < 1.0f) return 0;
 
-  float percent = 37.5f * (log10f(lux) - 2.333f);
+  float l = log10f(lux);
+
+  // From 300 lux up: the scale the tree's bands are set
+  // on (every light threshold is >= 9 % = ~375 lux).
+  const float KNEE = 2.4771f; // log10(300)
+  float atKnee = 37.5f * (KNEE - 2.333f); // ~5.4 %
+
+  // Below it, a gentle slope down to 0 % at 1 lux, so
+  // dim but real light isn't shown as 0 (a dead sensor).
+  float percent = l >= KNEE
+    ? 37.5f * (l - 2.333f)
+    : atKnee * l / KNEE;
 
   return constrain((int)lroundf(percent), 0, 100);
 }
