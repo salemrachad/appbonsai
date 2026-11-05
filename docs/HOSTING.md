@@ -235,6 +235,8 @@ arduino-cli compile --fqbn esp32:esp32:esp32 --output-dir <dir> firmware/appbons
 curl -H "Authorization: Bearer <device token>" -F firmware=@<dir>/appbonsai_esp32.ino.bin http://<device ip>/update
 ```
 
+Firmware 1.4.0 (2026-11-05) replaces the LDR with a BH1750 on GPIO32 (SDA) / GPIO33 (SCL): it sends `light_lux` and keeps `light_percent` / `light_raw` as log mappings of it (see the sketch's header); the server's light calibration must stay cleared. Over USB: `arduino-cli upload -p <COM port> --fqbn esp32:esp32:esp32 --input-dir <dir> firmware/appbonsai_esp32` keeps the saved Wi-Fi, server address and token.
+
 `200` → it restarts into the new firmware (unsent readings in RAM are lost); `401` wrong or no token; `400` no file
 or a bad image (the old firmware keeps running). Firmware 1.3.0 powers the soil probe from GPIO25 only while reading (constant DC
 corroded the FC-28, which drifted toward reading wetter): move the probe's VCC wire from 3V3 to GPIO25 with it, and

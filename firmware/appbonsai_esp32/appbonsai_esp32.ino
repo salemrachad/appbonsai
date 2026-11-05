@@ -20,8 +20,13 @@
 //          drifts toward reading wetter)
 //   GND -> GND
 //
-// LDR:
-//   midpoint of LDR + 10k resistor -> GPIO35
+// BH1750 (GY-30) light sensor, its own I2C bus (Wire1):
+//   SDA  -> GPIO32
+//   SCL  -> GPIO33
+//   VCC  -> 3V3
+//   GND  -> GND
+//   ADDR -> GND (address 0x23)
+//   (replaces the LDR on GPIO35, firmware 1.4.0)
 //
 // HTS221:
 //   SDA -> GPIO21
@@ -44,7 +49,7 @@
 //        http://<device>/update
 // ======================================================
 
-const char* FIRMWARE_VERSION = "1.3.0";
+const char* FIRMWARE_VERSION = "1.4.0";
 
 
 // ----------------------
@@ -53,10 +58,13 @@ const char* FIRMWARE_VERSION = "1.3.0";
 
 const int SOIL_PIN  = 34;
 const int SOIL_POWER_PIN = 25; // the probe's VCC, on only while it is read
-const int LIGHT_PIN = 35;
 
 const int SDA_PIN = 21;
 const int SCL_PIN = 22;
+
+const int LIGHT_SDA_PIN = 32;
+const int LIGHT_SCL_PIN = 33;
+const uint8_t BH1750_ADDR = 0x23;
 
 
 // ======================================================
@@ -76,13 +84,18 @@ const int SOIL_DRY_RAW = 4000;
 const int SOIL_WET_RAW = 2022;
 
 
-// LDR test:
+// Light: the BH1750 measures lux. The server judges a
+// relative light % (and checks light_raw for a stuck
+// sensor), so both are derived from lux on a log scale:
 //
-// DARK   ≈ 0
-// BRIGHT ≈ 3000
-
-const int LIGHT_DARK_RAW   = 0;
-const int LIGHT_BRIGHT_RAW = 3000;
+//   light_percent: ~215 lux = 0 %, 1 000 lux = 25 %
+//     (the tree's low/good edge), 40 000 lux = 85 %
+//     (very bright), 100 000 lux = 100 %. Provisional.
+//   light_raw: log10(lux + 1) over the sensor's whole
+//     range in 0-4095: 0 only in true darkness, 4095
+//     only when the BH1750 is saturated (65 535 lux).
+//
+// The lux itself goes out as light_lux.
 
 
 // ======================================================
@@ -111,6 +124,7 @@ Preferences preferences;
 Adafruit_HTS221 hts;
 
 bool htsAvailable = false;
+bool bh1750Available = false;
 bool online = false;
 
 String wifiSSID = "";
@@ -129,8 +143,9 @@ struct Reading {
   int64_t uptimeMs;
   int soilRaw;
   int soilPercent;
-  int lightRaw;
-  int lightPercent;
+  int lightRaw;      // -1 = no light reading
+  int lightPercent;  // -1 = no light reading
+  float lux;         // NAN = no light reading
   float temperature;
   float humidity;
   int rssi;
@@ -234,31 +249,67 @@ int soilRawToPercent(int raw) {
 // LIGHT
 // ======================================================
 
-int readLightRaw() {
+// BH1750 over Wire1: power on, continuous high
+// resolution (1 lx, a new value every 120 ms).
+bool bh1750Begin() {
 
-  long total = 0;
-  const int samples = 30;
+  Wire1.beginTransmission(BH1750_ADDR);
+  Wire1.write(0x01); // power on
+  if (Wire1.endTransmission() != 0) return false;
 
-  for (int i = 0; i < samples; i++) {
-    total += analogRead(LIGHT_PIN);
-    delay(3);
-  }
+  Wire1.beginTransmission(BH1750_ADDR);
+  Wire1.write(0x10); // continuous high-res mode
+  if (Wire1.endTransmission() != 0) return false;
 
-  return total / samples;
+  delay(180); // first measurement
+  return true;
 }
 
 
-int lightRawToPercent(int raw) {
+float bh1750ReadOnce() {
 
-  int percent = map(
-    raw,
-    LIGHT_DARK_RAW,
-    LIGHT_BRIGHT_RAW,
-    0,
-    100
-  );
+  if (Wire1.requestFrom(BH1750_ADDR, (uint8_t)2) != 2) {
+    return NAN;
+  }
 
-  return constrain(percent, 0, 100);
+  uint16_t raw = ((uint16_t)Wire1.read() << 8) | Wire1.read();
+
+  return raw / 1.2f;
+}
+
+
+// The lux, or NAN when the sensor doesn't answer
+// (tries to bring it back once).
+float readLux() {
+
+  if (bh1750Available) {
+    float lux = bh1750ReadOnce();
+    if (!isnan(lux)) return lux;
+  }
+
+  bh1750Available = bh1750Begin();
+
+  if (!bh1750Available) return NAN;
+
+  return bh1750ReadOnce();
+}
+
+
+int luxToPercent(float lux) {
+
+  if (lux < 1.0f) return 0;
+
+  float percent = 37.5f * (log10f(lux) - 2.333f);
+
+  return constrain((int)lroundf(percent), 0, 100);
+}
+
+
+int luxToRaw(float lux) {
+
+  float raw = 4095.0f * log10f(lux + 1.0f) / log10f(65536.0f);
+
+  return constrain((int)lroundf(raw), 0, 4095);
 }
 
 
@@ -282,8 +333,15 @@ Reading takeReading() {
 
   // Light
 
-  r.lightRaw = readLightRaw();
-  r.lightPercent = lightRawToPercent(r.lightRaw);
+  r.lux = readLux();
+
+  if (isnan(r.lux)) {
+    r.lightRaw = -1;
+    r.lightPercent = -1;
+  } else {
+    r.lightRaw = luxToRaw(r.lux);
+    r.lightPercent = luxToPercent(r.lux);
+  }
 
 
   // HTS221
@@ -363,19 +421,28 @@ String readingJson(const Reading& r, bool forPush) {
   json += ",";
 
 
+  // Light (BH1750): null when it didn't answer
+
+  bool hasLight = !isnan(r.lux);
+
   json += "\"light_raw\":";
-  json += String(r.lightRaw);
+  json += hasLight ? String(r.lightRaw) : String("null");
   json += ",";
 
 
   json += "\"light_percent\":";
-  json += String(r.lightPercent);
+  json += hasLight ? String(r.lightPercent) : String("null");
   json += ",";
 
 
-  // LDR is not calibrated in lux
+  json += "\"light_lux\":";
+  json += hasLight ? String(r.lux, 1) : String("null");
+  json += ",";
 
-  json += "\"light_lux\":null,";
+
+  json += "\"bh1750_connected\":";
+  json += hasLight ? "true" : "false";
+  json += ",";
 
 
   // Future sensor
@@ -908,13 +975,26 @@ void handleRoot() {
 
   html += "<div class='value'>";
 
-  html += String(r.lightPercent);
+  if (!isnan(r.lux)) {
 
-  html += "%</div>";
+    html += String(r.lightPercent);
 
-  html += "<div class='raw'>RAW: ";
+    html += "%</div>";
 
-  html += String(r.lightRaw);
+    html += "<div class='raw'>";
+
+    html += String(r.lux, 0);
+
+    html += " lux · RAW: ";
+
+    html += String(r.lightRaw);
+
+  } else {
+
+    html += "--</div>";
+
+    html += "<div class='raw'>BH1750 not found";
+  }
 
   html += "</div>";
 
@@ -1751,12 +1831,6 @@ void setup() {
   );
 
 
-  analogSetPinAttenuation(
-    LIGHT_PIN,
-    ADC_11db
-  );
-
-
   pinMode(
     SOIL_PIN,
     INPUT
@@ -1774,10 +1848,17 @@ void setup() {
   );
 
 
-  pinMode(
-    LIGHT_PIN,
-    INPUT
+  // BH1750 (its own bus)
+
+  Wire1.begin(
+    LIGHT_SDA_PIN,
+    LIGHT_SCL_PIN
   );
+
+  bh1750Available = bh1750Begin();
+
+  Serial.print("BH1750: ");
+  Serial.println(bh1750Available ? "CONNECTED" : "NOT FOUND");
 
 
   // HTS221
