@@ -5,8 +5,12 @@ import type { SpeciesProfile } from '../species';
 import type { OutsideObservation } from '../telemetry/outsideWeather';
 import type { SlothBranch, SlothGrip, SlothMemory, SlothState } from './behaviourTypes';
 import { stableVariant } from './speech';
-import { AirDay, airDays, AirInput, AirWandererSpec, baseGate, evaluateAir, replayAir } from './wanderer';
+import { AirDay, airDays, AirInput, AirPeriods, AirWandererSpec, baseGate, evaluateAir, replayAir } from './wanderer';
 import { DAY, dayKey, startOfDay } from '../lib/time';
+import { ART_DAY, artDays, artPeriodStart, artTempo, nextArtPeriod } from '../lib/artClock';
+
+// Its loyalty is remembered in story days (the art clock), so a week of it fits in a day
+export const ART_PERIODS: AirPeriods = { length: ART_DAY, start: artPeriodStart, next: nextArtPeriod };
 
 // The sloth: the third wanderer, an air wanderer like the dragonfly (see wanderer.ts) with its own
 // character. It loves warm, humid, still air (a greenhouse is perfect): warmth and humidity inside, no
@@ -52,24 +56,26 @@ export const SLOTH: AirWandererSpec<SlothBranch, 'hanging' | 'climbing' | 'sleep
 const L = () => C().loyalty;
 export const NO_SLOTH_MEMORY: SlothMemory = { loyalty: 0, homeBranch: null, daysWithIt: 0 };
 
-// Its loyalty as of the start of the day of `at`, from its days before (oldest first). A full day with it
-// moves loyalty `riseRate` of the way to 1; every day decays it (`fallDays`), so days without it fade it.
+// Its loyalty as of the start of the story day of `at` (the art clock), from its story days before (oldest
+// first). A full one with it moves loyalty `riseRate` of the way to 1; every one decays it (`fallDays`), so
+// story days without it fade it.
 export function slothMemory(days: Pick<AirDay<SlothBranch>, 'day' | 'minutes' | 'spots'>[], at: number): SlothMemory {
   const l = L();
-  const today = startOfDay(at);
+  const today = artPeriodStart(at);
+  const fullMinutes = l.fullDayMinutes / artTempo();
   let loyalty = 0;
   let last: number | null = null;
   let count = 0;
   const branch: Record<SlothBranch, number> = { left_branch: 0, right_branch: 0 };
   for (const d of days) {
-    if (d.day >= today || d.day < today - l.days * DAY) continue;
-    const decay = last === null ? 1 : Math.exp(-Math.round((d.day - last) / DAY) / l.fallDays);
-    loyalty = loyalty * decay + (1 - loyalty * decay) * l.riseRate * Math.min(1, d.minutes / l.fullDayMinutes);
+    if (d.day >= today || d.day < today - artDays(l.days)) continue;
+    const decay = last === null ? 1 : Math.exp(-Math.round((d.day - last) / ART_DAY) / l.fallDays);
+    loyalty = loyalty * decay + (1 - loyalty * decay) * l.riseRate * Math.min(1, d.minutes / fullMinutes);
     for (const b of BRANCHES) branch[b] = branch[b] * decay + (d.spots[b] ?? 0);
     last = d.day;
     count++;
   }
-  if (last !== null) loyalty *= Math.exp(-Math.max(0, Math.round((today - last) / DAY) - 1) / l.fallDays); // days since, beyond yesterday
+  if (last !== null) loyalty *= Math.exp(-Math.max(0, Math.round((today - last) / ART_DAY) - 1) / l.fallDays); // story days since, beyond the last one
   const home: SlothBranch | null = count === 0 ? null : branch.left_branch >= branch.right_branch ? 'left_branch' : 'right_branch';
   return { loyalty: Math.round(loyalty * 100) / 100, homeBranch: home, daysWithIt: count };
 }
@@ -98,7 +104,7 @@ export function withLoyalty(m: SlothMemory | null | undefined): AirWandererSpec<
 
 // Its days over the readings given (each day with the loyalty of the days before it) and its memory now
 export function slothLife(samples: PerceptionSample[], obs: OutsideObservation[], episodes: BehaviourEpisode[], species: SpeciesProfile, cadenceMs: number, now: number, days: number) {
-  const list = airDays(SLOTH, samples, obs, episodes, species, cadenceMs, now, days, (day, before) => withLoyalty(slothMemory(before, day)));
+  const list = airDays(SLOTH, samples, obs, episodes, species, cadenceMs, now, days, (day, before) => withLoyalty(slothMemory(before, day)), ART_PERIODS);
   return { days: list, memory: slothMemory(list, now) };
 }
 
@@ -158,18 +164,30 @@ export function slothGrip(visitId: string, pose: 'hanging' | 'climbing' | 'sleep
 
 const span = (min: number) => (min >= 90 ? `about ${Math.round(min / 60 * 10) / 10} h` : `about ${Math.round(min)} min`);
 
-// Its days in the diary (each with the loyalty of the days before it, as in the live view). Give it readings
-// from `loyalty.days` before the diary range so its loyalty matches the live one. A loyal sloth back after
-// days away is back on its branch.
+// Its days in the diary (each with the loyalty of the story days before it, as in the live view). Give it
+// readings from `loyalty.days` (story days) before the diary range so its loyalty matches the live one. Its
+// story days are told per calendar day; a loyal sloth back after days away is back on its branch.
 export function slothDiary(samples: PerceptionSample[], obs: OutsideObservation[], episodes: BehaviourEpisode[], species: SpeciesProfile, cadenceMs: number, now: number, days: number, windowsOut?: { from: number; to: number }[]): DiaryItem[] {
   const since = now - days * DAY;
   const covered = samples.length ? Math.ceil((now - samples[0].t) / DAY) : days;
-  const { days: list } = slothLife(samples, obs, episodes, species, cadenceMs, now, Math.max(days, covered));
+  const { days: periods } = slothLife(samples, obs, episodes, species, cadenceMs, now, Math.max(days, covered) * artTempo());
+  // The story days of each calendar day together (at tempo 1 they are the calendar days)
+  const list: (AirDay<SlothBranch> & { loyaltyAt: number })[] = [];
+  for (const p of periods) {
+    const day = startOfDay(p.day);
+    const d = list.at(-1);
+    if (d && d.day === day) {
+      d.count += p.count;
+      d.minutes += p.minutes;
+      d.windows = [...d.windows, ...p.windows];
+      for (const b of BRANCHES) if (p.spots[b]) d.spots[b] = (d.spots[b] ?? 0) + p.spots[b]!;
+    } else list.push({ ...p, day, spots: { ...p.spots }, loyaltyAt: p.day });
+  }
   const items: DiaryItem[] = [];
   let prev: number | null = null;
   for (const v of list) {
     if (v.day + DAY > since) windowsOut?.push(...v.windows);
-    const m = slothMemory(list, v.day);
+    const m = slothMemory(periods, v.loyaltyAt);
     const top: SlothBranch = (v.spots.left_branch ?? 0) >= (v.spots.right_branch ?? 0) ? 'left_branch' : 'right_branch';
     if (v.firstAt! >= since) {
       if (prev !== null && v.day - prev >= 2 * DAY && m.loyalty >= 0.5 && m.homeBranch === top)

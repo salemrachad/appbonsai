@@ -5,6 +5,7 @@ import type { DreamRecord, PlantBehaviourState, SlothMemory } from '../../src/be
 import { slothLife } from '../../src/behaviour/sloth';
 import { DRAGONFLY } from '../../src/behaviour/dragonfly';
 import { airDays } from '../../src/behaviour/wanderer';
+import { artDays, artPeriodStart } from '../../src/lib/artClock';
 import type { Window } from '../../src/behaviour/familiarity';
 import { decideSpeech, INITIAL_MESSAGE_MEMORY, MessageMemory } from '../../src/behaviour/speech';
 import { APP_CONFIG } from '../../src/config/appConfig';
@@ -292,12 +293,13 @@ export class LivingCollector {
   // restart reads no readings for it; never in its own table.
   private slothCache: { key: string; memory: SlothMemory; history?: { sloth: Window[]; dragonfly: Window[] } } | null = null;
   private wanderersMemory(now: number, cadenceMs: number): { sloth: SlothMemory; history: { sloth: Window[]; dragonfly: Window[] } } {
-    const today = startOfDay(now);
+    // As of the start of the story day (the art clock; at tempo 1, today's start)
+    const today = artPeriodStart(now);
     const loc = this.location();
     const key = JSON.stringify([today, this.source(), loc, this.calibration]);
     if (this.slothCache?.key === key && this.slothCache.history) return { sloth: this.slothCache.memory, history: this.slothCache.history };
-    const days = APP_CONFIG.habitat.sloth.loyalty.days;
-    const from = today - days * DAY;
+    const days = APP_CONFIG.habitat.sloth.loyalty.days; // story days
+    const from = today - artDays(days);
     const samples = this.db.telemetrySince(this.source(), from - 6 * HOUR, today).flatMap((r) => {
       const t = fromRecord(r, this.calibration, false);
       return t ? [toSample(t, ACTIVE_SPECIES, loc)] : [];
@@ -305,7 +307,7 @@ export class LivingCollector {
     const weather = recentWeather(this.db, from - 6 * HOUR);
     const episodes = this.db.episodesSince(from);
     const { memory, days: slothDays } = slothLife(samples, weather, episodes, ACTIVE_SPECIES, cadenceMs, today, days);
-    const dragonflyDays = airDays(DRAGONFLY, samples, weather, episodes, ACTIVE_SPECIES, cadenceMs, today, days);
+    const dragonflyDays = airDays(DRAGONFLY, samples, weather, episodes, ACTIVE_SPECIES, cadenceMs, today, Math.ceil(artDays(days) / DAY));
     const history = { sloth: slothDays.flatMap((d) => d.windows), dragonfly: dragonflyDays.flatMap((d) => d.windows) };
     this.slothCache = { key, memory, history };
     return { sloth: memory, history };

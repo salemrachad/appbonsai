@@ -11,6 +11,10 @@ import type { DreyState, HabitatState, HabitatVisit, ReactionKind, SquirrelMemor
 import { stableVariant } from './speech';
 import { becameFriends, familiarity, familiarityFrom, LUCY_SCALE, lucyInterest, meetings, type Window } from './familiarity';
 import { dayKey, DAY, HOUR, hourFraction, hourOf as hourOfDay, MIN, hhmm, startOfDay } from '../lib/time';
+import { ART_DAY, artDays, artTempo } from '../lib/artClock';
+
+// Story hours in a story day (the art clock): trust and the drey drift in these
+const ART_DAY_HOURS = ART_DAY / HOUR;
 
 // Habitat: how welcoming the tree has been as a place to be, and whether a visitor (the squirrel) is
 // here right now. Evidence class "art": wild animals don't read soil probes, but they do behave like
@@ -56,10 +60,12 @@ type Drift = { toward: 0 | 1; tauHours: number } | null;
 function drift(condition: HealthCondition): Drift {
   const cfg = APP_CONFIG.habitat;
   if (HELD.includes(condition)) return null;
-  if (condition === 'thriving') return { toward: 1, tauHours: cfg.riseHours.thriving };
-  if (condition === 'comfortable') return { toward: 1, tauHours: cfg.riseHours.comfortable };
+  // Story hours (the art clock)
+  const k = 1 / artTempo();
+  if (condition === 'thriving') return { toward: 1, tauHours: cfg.riseHours.thriving * k };
+  if (condition === 'comfortable') return { toward: 1, tauHours: cfg.riseHours.comfortable * k };
   const sev = CONDITION_SEVERITY[condition];
-  return { toward: 0, tauHours: sev === 'critical' ? cfg.fallHours.critical : sev === 'moderate' ? cfg.fallHours.moderate : cfg.fallHours.mild };
+  return { toward: 0, tauHours: (sev === 'critical' ? cfg.fallHours.critical : sev === 'moderate' ? cfg.fallHours.moderate : cfg.fallHours.mild) * k };
 }
 
 export interface HabitatInput {
@@ -185,8 +191,8 @@ export function replayHabitat(episodes: BehaviourEpisode[], now: number, trace =
       }
       // Trust grows with welcoming time (held time included, like the drey), slower for a while after a
       // break; without a welcoming place it fades slowly
-      const wary = brokenAt !== null && t - brokenAt < T.waryDays * DAY;
-      trust = welcoming ? driftToward(trust, 1, hours / steps, T.riseDays * 24 * (wary ? T.waryFactor : 1)) : driftToward(trust, 0, hours / steps, T.fallDays * 24);
+      const wary = brokenAt !== null && t - brokenAt < artDays(T.waryDays);
+      trust = welcoming ? driftToward(trust, 1, hours / steps, T.riseDays * ART_DAY_HOURS * (wary ? T.waryFactor : 1)) : driftToward(trust, 0, hours / steps, T.fallDays * ART_DAY_HOURS);
       traces = !welcoming && rising && schmitt(traces, value, T.tracesFrom, T.tracesExit);
       confident = schmitt(confident, trust, T.peekUntil, T.peekExit);
       settled = schmitt(settled, trust, T.settledFrom, T.settledExit);
@@ -194,7 +200,7 @@ export function replayHabitat(episodes: BehaviourEpisode[], now: number, trace =
       stage = welcoming ? (settled ? 'settled' : confident ? 'visiting' : 'peeking') : traces ? 'traces' : 'none';
       if (stage !== before0 && (stage === 'traces' || stage === 'settled')) changes.push({ at: t, kind: stage });
       // The drey grows with welcoming time (held time included: a sleeping tree is still a home)
-      drey = driftToward(drey, welcoming ? 1 : 0, hours / steps, (welcoming ? D.riseDays : D.fallDays) * 24);
+      drey = driftToward(drey, welcoming ? 1 : 0, hours / steps, (welcoming ? D.riseDays : D.fallDays) * ART_DAY_HOURS);
       const before = dreyStage;
       if (dreyStage === 'none' && drey >= D.startedEnter) dreyStage = 'started';
       if (dreyStage === 'started' && drey >= D.builtEnter) dreyStage = 'built';
@@ -246,7 +252,7 @@ export function habitsFrom(visits: { startedAt: number; spot: VisitSpot }[], at:
   let count = 0;
   for (const v of visits) {
     if (v.startedAt >= at) break;
-    const w = Math.exp(-(at - v.startedAt) / (H.recencyDays * DAY));
+    const w = Math.exp(-(at - v.startedAt) / artDays(H.recencyDays));
     bands[Math.floor(hourOf(v.startedAt) / 2)] += w;
     spots.set(v.spot, (spots.get(v.spot) ?? 0) + w);
     count++;
@@ -375,7 +381,7 @@ export function squirrelLife(
   const lessons: number[] = [];
   const met: number[] = [];
   const lucyDays: LucyDayLesson[] = [];
-  const weigh = (ts: number[], at: number, days: number) => ts.reduce((w, x) => (x < at ? w + Math.exp(-(at - x) / (days * DAY)) : w), 0);
+  const weigh = (ts: number[], at: number, days: number) => ts.reduce((w, x) => (x < at ? w + Math.exp(-(at - x) / artDays(days)) : w), 0);
   const learnedBy = (at: number) => {
     const w = weigh(lessons, at, L.recencyDays);
     return { wariness: round2(w / (w + L.k)), familiarity: familiarityFrom(met, at, LUCY_SCALE) };
@@ -441,7 +447,7 @@ function boldnessOf(trust: number, visits: PastVisit[], interactions: Interactio
   let play = 0;
   for (const i of interactions) {
     if (i.kind !== 'pet') continue;
-    if (visits.some((v) => v.presence === 'visiting' && v.stage !== 'peeking' && i.startedAt < v.endsAt && i.endedAt > v.startedAt)) play += Math.exp(-(now - i.endedAt) / (H.recencyDays * DAY));
+    if (visits.some((v) => v.presence === 'visiting' && v.stage !== 'peeking' && i.startedAt < v.endsAt && i.endedAt > v.startedAt)) play += Math.exp(-(now - i.endedAt) / artDays(H.recencyDays));
   }
   return round2(clamp(0.5 * trust + (0.5 * play) / (play + H.playSessions), 0, 1));
 }

@@ -77,11 +77,20 @@ export const APP_CONFIG = {
     familiarityWindowDays: 30, // older days count for nothing: a month away is fully neutral again
   },
 
+  // The art clock (src/lib/artClock.ts): story days per real day. The visitors' slow memories (habitat, trust,
+  // drey, habits, sloth loyalty, encounter familiarity, the squirrel's lessons about Lucy) are written below in
+  // story days and read through it, so a week of their story fits in a day. Art only: health, vitality, the
+  // canopy, seasons, photos, petting familiarity, Lucy's day and the nights (dreams) keep real time.
+  // 7 (2026-11-05, the user's wish): a week of story per real day, one story day ≈ 3 h 26 min. Counts of events
+  // that arrive at the real rate (meetings, lessons) keep their meaning: their halfway points are tuned below.
+  artTempo: 7,
+
   // Habitat (visitors such as the squirrel): how welcoming the tree has been as a place to be, derived
   // from the stored episodes. Evidence class "art": it never reaches health, mood or energy.
   // Slow to trust, quick to leave: calm time raises it over days, stress empties it within hours.
   habitat: {
-    windowDays: 14, // episodes replayed (older ones no longer matter much)
+    windowDays: 14, // episodes replayed, real days (older ones no longer matter much)
+    // Story hours (÷ artTempo): at 7, welcoming after ~4–5 h of calm, a critical stress empties it in minutes
     riseHours: { comfortable: 36, thriving: 20 }, // observed calm hours, time constant toward 1
     fallHours: { mild: 12, moderate: 4, critical: 1 }, // time constant toward 0 while that stress is primary
     enter: 0.6, // Schmitt trigger: visitors start coming above this…
@@ -90,7 +99,7 @@ export const APP_CONFIG = {
     visitChance: { min: 0.15, max: 0.45 }, // chance a daytime slot holds a visit, from just welcoming → fully
     visitMinutes: { min: 4, max: 12 },
     replayDays: 30, // episodes replayed for the drey and the diary (the habitat value forgets within days)
-    // The drey: welcoming time builds it (~2 weeks to full), time not welcoming takes it apart (days)
+    // The drey: welcoming time builds it (~2 story weeks to full), time not welcoming takes it apart (story days)
     drey: { riseDays: 10, fallDays: 3, startedEnter: 0.25, startedExit: 0.15, builtEnter: 0.6, builtExit: 0.45 },
     // Answers to care: a calm, welcoming tree's squirrel comes to drink after a needed watering, or inspects
     // a pruning. At most one per care event; watering on wet soil gets no answer.
@@ -100,7 +109,7 @@ export const APP_CONFIG = {
     // stages: traces (signs, no animal) → peeking (short peeks from the leaves, no play) → visiting →
     // settled (longer visits, ventures lower). When the place stops being welcoming trust breaks, and for a
     // while it rebuilds slower: it comes back warily.
-    trust: {
+    trust: { // in story days (the art clock)
       riseDays: 4, // welcoming time, time constant toward 1
       fallDays: 10, // not welcoming: fades slowly toward 0 (on top of the break)
       breakFactor: 0.25, // the latch flips off: trust is cut to this share
@@ -181,7 +190,7 @@ export const APP_CONFIG = {
       // sloth has a home branch, stays longer and is slow to give up when the air turns. No stages: it
       // doesn't scout, it just turns up. Derived from the stored readings of the last days (nothing stored).
       loyalty: {
-        days: 14, // days of readings replayed
+        days: 14, // story days of readings replayed (the art clock; fullDayMinutes ÷ artTempo per story day)
         fullDayMinutes: 180, // visit minutes in a day that count as a full day with it
         riseRate: 0.35, // a full day moves loyalty this share of the way to 1
         fallDays: 5, // days without it: time constant toward 0
@@ -285,8 +294,8 @@ export const APP_CONFIG = {
       // past overlaps of their visits (≥ 1 min together), recency-weighted; familiarity = w / (w + k). Unknown
       // history (previews, a fresh tree) is 0.5: the encounters as they always were.
       familiarity: {
-        recencyDays: 7, // a meeting's weight halves in about 5 days
-        k: 2, // two recent meetings: halfway; meeting once a day makes old friends in about two weeks
+        recencyDays: 7, // story days: a meeting's weight halves in about 5 (≈ 17 h)
+        k: 2, // two recent meetings: halfway; a day with half a dozen meetings makes old friends
         strangers: 0.3, // below: wary of each other (the squirrel only peeks at the sloth)
         friends: 0.75, // above: at ease (sharing a branch, no more staring, Lucy calmer)
         dragonflyOnSloth: { strangers: 0.25, friends: 0.8 }, // its resting chance from strangers to old friends (0.5 at 0.5)
@@ -296,15 +305,15 @@ export const APP_CONFIG = {
     // got her curious or excited is a lesson; wariness = recency-weighted lessons / (lessons + k). Wary, it comes
     // less in her hours (so its usual hour drifts away from them) and ducks into the leaves when she is below.
     lucyLessons: {
-      recencyDays: 10,
-      k: 4,
+      recencyDays: 10, // story days (≈ 34 h)
+      k: 2, // was 4 at real days: lessons still come at her real rate, so wary after a couple of them in a day
       maxAvoid: 0.7, // at full wariness, a slot during one of her visits keeps 30 % of its chance
       waryAt: 0.4, // from here it hides when she is awake below (else it watches her)
       waitedAfterMin: 20, // a visit starting this soon after she left: "waited until Lucy had gone"
       // They meet several times a day (she comes ten times): their familiarity grows on a slower scale, so the
-      // wary weeks come first and peace (if ever) over months
-      familiarityK: 40,
-      familiarityRecencyDays: 30,
+      // wary days come first and peace (if ever) over a couple of weeks
+      familiarityK: 8, // was 40 at real days (meetings come at the real rate)
+      familiarityRecencyDays: 30, // story days (≈ 4 days)
     },
     // Petting while the squirrel visits: it plays around the tree (UI only, never stored). How playful comes
     // from the tree's state (ExpressionEngine visitorPlay); these are the tunings per kind.
@@ -456,7 +465,10 @@ export const APP_CONFIG = {
     maxMotifs: 3, // + one anticipation before dawn
     minSalience: 0.2, // below: not in tonight's dream
     toldMin: 0.35, // the morning line tells a dream only this vivid (and not a restless one)
-    novelty: { nights: 14, step: 0.3, floor: 0.35 }, // pleasures habituate: each recent night with it weighs less
+    // Pleasures habituate: each recent night with it weighs less. Nights come once a real day, so these stay in
+    // real nights; the habituation is faster instead (step 0.3 → 1, 2026-11-05: new on the first night, faint by
+    // the third, where 0.3 took about a week)
+    novelty: { nights: 14, step: 1, floor: 0.35 },
     recurrence: { tauDays: 7, min: 1, cap: 0.6 }, // worries come back until they fade (strength = Σ salience × decay)
     castBoost: 0.15, // the day of who sleeps beside the tree weighs more
     keepNights: 21, // past nights the collector keeps in its runtime

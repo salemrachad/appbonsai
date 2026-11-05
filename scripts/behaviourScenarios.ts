@@ -811,19 +811,21 @@ async function main() {
     );
     {
       const { familiarity, familiarityStage } = await import('../src/behaviour/familiarity');
-      const day = (k: number, h: number, len: number) => ({ from: at(10, h) + k * 24 * 60 * MIN, to: at(10, h) + k * 24 * 60 * MIN + len * MIN });
+      const { ART_DAY } = await import('../src/lib/artClock');
+      // Once a story day (the art clock)
+      const day = (k: number, h: number, len: number) => ({ from: at(10, h) + k * ART_DAY, to: at(10, h) + k * ART_DAY + len * MIN });
       const a = Array.from({ length: 18 }, (_, k) => day(k, 10, 20));
       const b = Array.from({ length: 18 }, (_, k) => day(k, 10, 30));
       const elsewhere = Array.from({ length: 10 }, (_, k) => day(k, 15, 30));
-      const fNow = familiarity(a, b, at(10, 0) + 18 * 24 * 60 * MIN);
-      const fLater = familiarity(a, b, at(10, 0) + 48 * 24 * 60 * MIN);
-      const fNever = familiarity(a, elsewhere, at(10, 0) + 10 * 24 * 60 * MIN);
+      const fNow = familiarity(a, b, at(10, 0) + 18 * ART_DAY);
+      const fLater = familiarity(a, b, at(10, 0) + 48 * ART_DAY);
+      const fNever = familiarity(a, elsewhere, at(10, 0) + 10 * ART_DAY);
       const shy = meet({ squirrel: sq(1, 'crown'), dragonfly: null, sloth: sl(1), familiarity: { squirrel_sloth: 0.1 } });
       const friends = encounterCues({ visitor: v, dragonfly: null, sloth: s }, ['squirrel_sloth'], { squirrel_sloth: 0.9 });
       check(
         'EN11 familiarity grows with meetings and fades without them; strangers only peek at the sloth, old friends stop staring (and its play may hop onto the sloth\'s branch)',
         familiarityStage(fNow) === 'friends' && fLater < 0.3 && fNever === 0 && shy.squirrelShows === 'peek' && friends.visitor!.lookAt === null && friends.sloth!.lookAt === null && !friends.visitor!.avoid!.includes('left_branch'),
-        `18 days together ${fNow} · a month later ${fLater} · never together ${fNever}`
+        `18 story days together ${fNow} · a story month later ${fLater} · never together ${fNever}`
       );
       const rideAt = (f: number) => n.filter((i) => meet({ squirrel: null, dragonfly: df(i), sloth: sl(i, 'right_branch'), familiarity: { dragonfly_sloth: f } }).dragonflyPerch === 'on_sloth').length / n.length;
       const [r0, r5, r1] = [rideAt(0), rideAt(0.5), rideAt(1)];
@@ -1150,6 +1152,17 @@ async function main() {
       for (let t = end - days * 24 * HOUR; t < end; t += 24 * HOUR) out.push(ep(awake, t, 14), ep('sleeping', t + 14 * HOUR, 10));
       return out;
     };
+    // The same in story time (the art clock): story days of 14 h awake and 10 h asleep, story hours in real hours
+    const { artTempo, artDays } = await import('../src/lib/artClock');
+    const sh = (h: number) => h / artTempo();
+    const storyDays = (days: number, end: number, awake: C = 'comfortable') => {
+      const out: Ep[] = [];
+      for (let i = days; i > 0; i--) {
+        const t = end - artDays(i);
+        out.push(ep(awake, t, sh(14)), ep('sleeping', t + sh(14) * HOUR, sh(10)));
+      }
+      return out;
+    };
     const habitat = (episodes: Ep[], now: number, condition: C = 'comfortable', modifiers: C[] = [], isDay = true) =>
       evaluateHabitat({ episodes, condition, modifiers, isDay, season: { id: 'summer', energy: 1 }, now });
     // The first minute of the day that holds a visit (visits are rare and fall in slots)
@@ -1163,12 +1176,12 @@ async function main() {
 
     const now = at(20, 7);
     check('V1 no history: nobody', habitat([], now).value === 0 && habitat([], now).presence === 'none');
-    const one = replayHabitat(calmDays(1, now), now);
-    const three = replayHabitat(calmDays(3, now), now);
-    check('V2 slow to trust: one calm day is not enough, three are', !one.welcoming && three.welcoming, `1 day ${one.value}, 3 days ${three.value}`);
+    const one = replayHabitat(storyDays(1, now), now);
+    const three = replayHabitat(storyDays(3, now), now);
+    check('V2 slow to trust: one calm story day is not enough, three are', !one.welcoming && three.welcoming, `1 day ${one.value}, 3 days ${three.value}`);
 
-    const base = calmDays(5, now);
-    const after = (c: C, hours: number) => replayHabitat([...base, ep(c, now, hours)], now + hours * HOUR);
+    const base = storyDays(5, now);
+    const after = (c: C, hours: number) => replayHabitat([...base, ep(c, now, sh(hours))], now + sh(hours) * HOUR); // story hours
     const thirsty1 = after('thirsty', 1);
     const thirsty6 = after('thirsty', 6);
     const dry1 = after('very_dry', 1.5);
@@ -1178,8 +1191,8 @@ async function main() {
     check('V3c a mild stress drains it slowly', humid8.welcoming && humid8.value < replayHabitat(base, now).value, `humid 8h ${humid8.value}`);
 
     // Hysteresis: between exit and enter the latch keeps whatever it was
-    const falling = replayHabitat([...base, ep('thirsty', now, 2.5)], now + 2.5 * HOUR);
-    const rising = replayHabitat(calmDays(2, now), now);
+    const falling = after('thirsty', 2.5);
+    const rising = replayHabitat(storyDays(2, now), now);
     check(
       'V4 Schmitt trigger: same value band, different history → different answer',
       falling.value < 0.6 && falling.value >= 0.4 && falling.welcoming && rising.value < 0.6 && !rising.welcoming,
@@ -1203,7 +1216,8 @@ async function main() {
       check('V7 a passing moderate stress: hiding in the leaves', habitat(life(v.t), v.t, 'thirsty').presence === 'hiding');
       check('V7b critical stress: fled, even while the latch holds', habitat(life(v.t), v.t, 'very_dry').presence === 'none');
       check('V8 no trustworthy data (overlay): nobody shown', habitat(life(v.t), v.t, 'comfortable', ['sensor_uncertain']).presence === 'none');
-      check('V8b night: nobody', habitat(life(v.t), v.t, 'comfortable', [], false).presence === 'none');
+      const dark = habitat(life(v.t), v.t, 'comfortable', [], false);
+      check('V8b night: nobody out (asleep in its drey at most)', dark.presence === 'none' || (dark.presence === 'sleeping' && dark.visit?.cause === 'drey'), dark.presence);
     }
     let visits = 0;
     for (let t = day0 + 6 * HOUR; t < day0 + 19 * HOUR; t += 10 * MIN) if (habitat(life(t), t).visit) visits++;
@@ -1274,22 +1288,22 @@ async function main() {
     // ---- The drey: weeks of a welcoming tree, made visible ----
     {
       const t0 = new Date(2026, 5, 30, 7).getTime();
-      const drey = (days: number) => replayHabitat(calmDays(days, t0), t0).drey;
+      const drey = (days: number) => replayHabitat(storyDays(days, t0), t0).drey;
       const d4 = drey(4);
       const d9 = drey(9);
       const d18 = drey(18);
-      check('V14 the drey takes weeks: none after 4 calm days, a few twigs after ~9, built after ~18', d4.stage === 'none' && d9.stage === 'started' && d18.stage === 'built', `4d ${d4.value} ${d4.stage} · 9d ${d9.value} ${d9.stage} · 18d ${d18.value} ${d18.stage}`);
+      check('V14 the drey takes story weeks: none after 4 calm story days, a few twigs after ~9, built after ~18', d4.stage === 'none' && d9.stage === 'started' && d18.stage === 'built', `4d ${d4.value} ${d4.stage} · 9d ${d9.value} ${d9.stage} · 18d ${d18.value} ${d18.stage}`);
       const hard = (hours: number) => {
-        const eps = [...calmDays(18, t0), ep('very_dry', t0, hours)];
-        return replayHabitat(eps, t0 + hours * HOUR).drey;
+        const eps = [...storyDays(18, t0), ep('very_dry', t0, sh(hours))];
+        return replayHabitat(eps, t0 + sh(hours) * HOUR).drey;
       };
       const h1 = hard(24);
       const h7 = hard(24 * 7);
-      check('V15 a long stress thins it, a sustained one empties it (days, not hours)', h1.stage === 'built' && h1.value < d18.value && h7.stage === 'none', `1 day ${h1.value} ${h1.stage} · 7 days ${h7.value} ${h7.stage}`);
+      check('V15 a long stress thins it, a sustained one empties it (story days, not hours)', h1.stage === 'built' && h1.value < d18.value && h7.stage === 'none', `1 day ${h1.value} ${h1.stage} · 7 days ${h7.value} ${h7.stage}`);
       const night = new Date(2026, 5, 30, 1).getTime();
-      const asleep = evaluateHabitat({ episodes: [...calmDays(18, night - 2 * HOUR), ep('sleeping', night - 2 * HOUR, 2, 0, true)], condition: 'sleeping', modifiers: [], isDay: false, season: { id: 'summer', energy: 1 }, now: night });
-      const noDrey = evaluateHabitat({ episodes: [...calmDays(4, night - 2 * HOUR), ep('sleeping', night - 2 * HOUR, 2, 0, true)], condition: 'sleeping', modifiers: [], isDay: false, season: { id: 'summer', energy: 1 }, now: night });
-      const unsure = evaluateHabitat({ episodes: [...calmDays(18, night - 2 * HOUR), ep('sleeping', night - 2 * HOUR, 2, 0, true)], condition: 'sleeping', modifiers: ['sensor_uncertain'], isDay: false, season: { id: 'summer', energy: 1 }, now: night });
+      const asleep = evaluateHabitat({ episodes: [...storyDays(18, night - 2 * HOUR), ep('sleeping', night - 2 * HOUR, 2, 0, true)], condition: 'sleeping', modifiers: [], isDay: false, season: { id: 'summer', energy: 1 }, now: night });
+      const noDrey = evaluateHabitat({ episodes: [...storyDays(4, night - 2 * HOUR), ep('sleeping', night - 2 * HOUR, 2, 0, true)], condition: 'sleeping', modifiers: [], isDay: false, season: { id: 'summer', energy: 1 }, now: night });
+      const unsure = evaluateHabitat({ episodes: [...storyDays(18, night - 2 * HOUR), ep('sleeping', night - 2 * HOUR, 2, 0, true)], condition: 'sleeping', modifiers: ['sensor_uncertain'], isDay: false, season: { id: 'summer', energy: 1 }, now: night });
       check('V16 at night: asleep in a built drey; no drey → nobody; no trustworthy data → nobody', asleep.presence === 'sleeping' && asleep.visit?.cause === 'drey' && noDrey.presence === 'none' && unsure.presence === 'none', `${asleep.presence} / ${noDrey.presence} / ${unsure.presence}`);
     }
 
@@ -1322,7 +1336,7 @@ async function main() {
       check('V18c the answer passes: 20 min later it is an ordinary day again', care('watering_relief', 20).visit?.cause !== 'care');
       const prune = care('care_pruning', 5);
       check('V19 after a pruning it inspects the cut; off-season only briefly', prune.visit?.action === 'inspecting' && care('care_pruning', 5, 'comfortable', 'resting_prune').visit?.cause !== 'care', prune.why);
-      check('V19b a stressed tree or a place that is not welcoming yet: no answer', care('watering_relief', 3, 'thirsty').visit?.cause !== 'care' && care('watering_relief', 3, 'comfortable', null, calmDays(1, at)).visit === null);
+      check('V19b a stressed tree or a place that is not welcoming yet: no answer', care('watering_relief', 3, 'thirsty').visit?.cause !== 'care' && care('watering_relief', 3, 'comfortable', null, storyDays(1, at)).visit === null);
     }
 
     // ---- The diary ----
@@ -1350,10 +1364,10 @@ async function main() {
       const { APP_CONFIG } = await import('../src/config/appConfig');
       const t0 = new Date(2026, 6, 1, 7).getTime();
       const ORDER = ['none', 'traces', 'peeking', 'visiting', 'settled'];
-      const stages = Array.from({ length: 12 }, (_, i) => replayHabitat(calmDays(i + 1, t0), t0).stage);
+      const stages = Array.from({ length: 12 }, (_, i) => replayHabitat(storyDays(i + 1, t0), t0).stage);
       const firstDay = (st: string) => stages.indexOf(st as never) + 1;
       check(
-        'V21 trust in stages over calm days: traces → peeking → visiting → settled, never backwards',
+        'V21 trust in stages over calm story days: traces → peeking → visiting → settled, never backwards',
         stages.every((x, i) => i === 0 || ORDER.indexOf(x) >= ORDER.indexOf(stages[i - 1])) && ['traces', 'peeking', 'visiting', 'settled'].every((x) => stages.includes(x as never)),
         stages.map((x, i) => `${i + 1}d ${x}`).join(' · ')
       );
@@ -1362,7 +1376,7 @@ async function main() {
       const scan = (days: number, want: 'traces' | 'visit', condition: C = 'comfortable') => {
         const d0 = new Date(2026, 6, 1).getTime() + days * 24 * HOUR;
         for (let t = d0 + 7 * HOUR; t < d0 + 19 * HOUR; t += 2 * MIN) {
-          const eps = [...calmDays(days, d0 + 7 * HOUR), ep('comfortable', d0 + 7 * HOUR, (t - d0 - 7 * HOUR) / HOUR, 0, true)];
+          const eps = [...storyDays(days, d0 + 7 * HOUR), ep('comfortable', d0 + 7 * HOUR, (t - d0 - 7 * HOUR) / HOUR, 0, true)];
           const h = evaluateHabitat({ episodes: eps, condition, modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: t });
           if (want === 'visit' ? h.visit : h.traces) return { t, eps, h };
         }
@@ -1379,8 +1393,8 @@ async function main() {
 
       // Broken trust: settled, then a day of drought; back it only peeks, and settling takes longer
       const firstSettled = firstDay('settled');
-      const story = (n: number) => [...calmDays(14, t0), ep('very_dry', t0, 24), ...calmDays(n, t0 + 24 * HOUR + n * 24 * HOUR)];
-      const after = (n: number) => replayHabitat(story(n), t0 + 24 * HOUR + n * 24 * HOUR);
+      const story = (n: number) => [...storyDays(14, t0), ep('very_dry', t0, sh(24)), ...storyDays(n, t0 + sh(24) * HOUR + artDays(n))];
+      const after = (n: number) => replayHabitat(story(n), t0 + sh(24) * HOUR + artDays(n));
       const back = Array.from({ length: 16 }, (_, i) => after(i + 1));
       const firstBack = back.find((x) => x.welcoming);
       const settledAgain = back.findIndex((x) => x.stage === 'settled') + 1;
@@ -1389,9 +1403,28 @@ async function main() {
         !!firstBack && firstBack.stage === 'peeking' && firstBack.brokenAt !== null && (settledAgain === 0 || settledAgain > firstSettled),
         `first settled after ${firstSettled} days · back: ${back.map((x) => x.stage).join(',')}`
       );
-      const diary = habitatDiary({ episodes: story(16), now: t0 + 17 * 24 * HOUR, days: 30, location: { latitude: null, longitude: null }, seasonAt: () => ({ id: 'summer', energy: 1 }) });
+      const diary = habitatDiary({ episodes: story(16), now: t0 + sh(24) * HOUR + artDays(16), days: 30, location: { latitude: null, longitude: null }, seasonAt: () => ({ id: 'summer', energy: 1 }) });
       const tags = new Set(diary.map((i) => i.habitat));
       check('V22b diary: its traces, first peeks, settling in and the wary return', tags.has('traces') && tags.has('peek') && tags.has('settled') && tags.has('wary'), [...tags].join(', '));
+
+      // The art clock: a week of its story in a real day. From nothing, one calm day (awake 6:00-22:00, asleep
+      // after): signs by mid-morning, peeking, then visiting the same day, settled by the next morning; a
+      // thirst breaks it within the hour
+      {
+        const d0 = new Date(2026, 7, 3).getTime();
+        const calmFrom = d0 + 6 * HOUR;
+        const real = (t: number) => (t <= d0 + 22 * HOUR ? [ep('comfortable', calmFrom, (t - calmFrom) / HOUR, 0, true)] : [ep('comfortable', calmFrom, 16), ep('sleeping', d0 + 22 * HOUR, (t - d0 - 22 * HOUR) / HOUR, 0, true)]);
+        const stageAt = (h: number) => replayHabitat(real(d0 + h * HOUR), d0 + h * HOUR).stage;
+        const day1 = [9, 12, 16, 20].map(stageAt);
+        const morning = stageAt(24 + 7);
+        const settledDay = [...real(d0 + 31 * HOUR).slice(0, 1), ep('sleeping', d0 + 22 * HOUR, 9)];
+        const broken = replayHabitat([...settledDay, ep('thirsty', d0 + 31 * HOUR, 1)], d0 + 32 * HOUR);
+        check(
+          'V26 a week of story in a day: traces → peeking → visiting the first day, settled the next morning; a thirst breaks it within the hour',
+          day1[0] === 'traces' && day1.includes('peeking') && day1[3] === 'visiting' && morning === 'settled' && !broken.welcoming && broken.brokenAt !== null,
+          `9:00 ${day1[0]} · 12:00 ${day1[1]} · 16:00 ${day1[2]} · 20:00 ${day1[3]} · next 7:00 ${morning} · after an hour of thirst ${broken.stage}`
+        );
+      }
 
       // Habits: visits gather around its usual hour and its favourite spot (against the habit-free life)
       const end = new Date(2026, 6, 20, 7).getTime();
@@ -1522,12 +1555,14 @@ async function main() {
     const smp = (t: number, temp = 26, hum = 70, light = 50) => ({ t, soil: 60, soilRaw: null, temp, hum, light, radiation: null, lightRaw: null, isDay: true, lightExpected: true });
     const air = (from: number, minutes: number, temp = 26, hum = 70) => Array.from({ length: minutes }, (_, i) => smp(from + i * MIN, temp, hum));
 
-    // Loyalty from its days: a week with it makes it loyal with a home branch; days away fade it
+    // Loyalty from its story days (the art clock): a week with it makes it loyal with a home branch; days away fade it
+    const { ART_DAY, artTempo } = await import('../src/lib/artClock');
     const d0 = new Date(2026, 6, 1).getTime();
-    const week = Array.from({ length: 7 }, (_, i) => ({ day: d0 + i * DAY, minutes: 200, spots: { left_branch: 150, right_branch: 50 } }));
-    const loyal = slothMemory(week, d0 + 7 * DAY);
-    const faded = slothMemory(week, d0 + 14 * DAY);
-    check('SL8 a week of long days makes the sloth loyal, with a home branch; a week away fades it', loyal.loyalty > 0.6 && loyal.homeBranch === 'left_branch' && faded.loyalty < loyal.loyalty / 2 && slothMemory([], d0).loyalty === 0, `loyal ${loyal.loyalty} (${loyal.homeBranch}) · a week later ${faded.loyalty}`);
+    const k = 1 / artTempo();
+    const week = Array.from({ length: 7 }, (_, i) => ({ day: d0 + i * ART_DAY, minutes: 200 * k, spots: { left_branch: 150 * k, right_branch: 50 * k } }));
+    const loyal = slothMemory(week, d0 + 7 * ART_DAY);
+    const faded = slothMemory(week, d0 + 14 * ART_DAY);
+    check('SL8 a story week of long days makes the sloth loyal, with a home branch; a week away fades it', loyal.loyalty > 0.6 && loyal.homeBranch === 'left_branch' && faded.loyalty < loyal.loyalty / 2 && slothMemory([], d0).loyalty === 0, `loyal ${loyal.loyalty} (${loyal.homeBranch}) · a week later ${faded.loyalty}`);
     check('SL8b no loyalty: exactly the plain sloth', withLoyalty(NO_SLOTH_MEMORY) === withLoyalty(null));
 
     // Slow to give up: through a 90-min cool spell a loyal sloth stays, a new one leaves

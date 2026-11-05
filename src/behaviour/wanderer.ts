@@ -178,6 +178,13 @@ export function evaluateAir<S extends string, T extends string>(spec: AirWandere
 // episodes). Shared by its diary lines and the encounter diary (the windows). `specAt` gives the spec for a
 // day from the days before it (a species with a memory, like the sloth's loyalty).
 export type AirDay<S extends string> = ReturnType<typeof airVisitsBetween<S, string>> & { day: number };
+// How airDays cuts time: calendar days (the default), or the art clock's story days (the sloth's loyalty)
+export interface AirPeriods {
+  length: number; // ms (nominal), for `days` back
+  start: (t: number) => number;
+  next: (start: number) => number;
+}
+export const CALENDAR_DAYS: AirPeriods = { length: DAY, start: startOfDay, next: (d) => addDays(d, 1) };
 export function airDays<S extends string, T extends string>(
   spec0: AirWandererSpec<S, T>,
   samples: PerceptionSample[],
@@ -187,14 +194,15 @@ export function airDays<S extends string, T extends string>(
   cadenceMs: number,
   now: number,
   days: number,
-  specAt?: (day: number, before: AirDay<S>[]) => AirWandererSpec<S, T>
+  specAt?: (day: number, before: AirDay<S>[]) => AirWandererSpec<S, T>,
+  periods: AirPeriods = CALENDAR_DAYS
 ) {
-  const since = now - days * DAY;
+  const since = now - days * periods.length;
   const out: AirDay<S>[] = [];
-  for (let day = startOfDay(since); day < now; day = addDays(day, 1)) {
-    const end = Math.min(addDays(day, 1), now);
+  for (let day = periods.start(since); day < now; day = periods.next(day)) {
+    const end = Math.min(periods.next(day), now);
     const spec = specAt ? specAt(day, out) : spec0;
-    // The latch is replayed per day from the readings of that day and the evening before
+    // The latch is replayed per day (period) from the readings of that day and the 6 hours before
     const daySamples = samples.filter((s) => s.t >= day - 6 * HOUR && s.t < end);
     if (daySamples.length < 2) continue;
     const r = replayAir(spec, daySamples, obs, species, cadenceMs, end, true);

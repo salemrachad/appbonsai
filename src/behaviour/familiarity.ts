@@ -1,5 +1,6 @@
 import { APP_CONFIG } from '../config/appConfig';
-import { DAY, MIN } from '../lib/time';
+import { MIN } from '../lib/time';
+import { artDays } from '../lib/artClock';
 import { stableVariant } from './speech';
 
 // Familiarity (evidence class "art"): two visitors that have met often get used to each other. A meeting is
@@ -30,7 +31,7 @@ export function meetings(a: Window[], b: Window[], at: number): number[] {
 export type FamiliarityScale = { k: number; recencyDays: number };
 export function familiarityFrom(met: number[], at: number, scale: FamiliarityScale = APP_CONFIG.habitat.encounters.familiarity): number {
   let w = 0;
-  for (const t of met) if (t < at) w += Math.exp(-(at - t) / (scale.recencyDays * DAY));
+  for (const t of met) if (t < at) w += Math.exp(-(at - t) / artDays(scale.recencyDays)); // story days (the art clock)
   return round2(w / (w + scale.k));
 }
 export const LUCY_SCALE: FamiliarityScale = { k: APP_CONFIG.habitat.lucyLessons.familiarityK, recencyDays: APP_CONFIG.habitat.lucyLessons.familiarityRecencyDays };

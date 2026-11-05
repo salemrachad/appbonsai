@@ -134,7 +134,7 @@ export const BehaviourDebugPanel: React.FC<Props> = ({ behaviour: b, expression:
             </>
           )}
           {b.habitat.sloth?.memory && (
-            <Row label="Sloth loyalty" value={`${b.habitat.sloth.memory.loyalty} · ${b.habitat.sloth.memory.homeBranch?.replace('_', ' ') ?? 'no home branch'} · ${b.habitat.sloth.memory.daysWithIt} days with it (14)`} />
+            <Row label="Sloth loyalty" value={`${b.habitat.sloth.memory.loyalty} · ${b.habitat.sloth.memory.homeBranch?.replace('_', ' ') ?? 'no home branch'} · ${b.habitat.sloth.memory.daysWithIt} story days with it (14)`} />
           )}
           {x.visitor && x.visitor.id.startsWith('preview') && <Row label="Shown" value={`preview: squirrel ${x.visitor.mode}`} />}
         </Section>

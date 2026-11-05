@@ -3,6 +3,7 @@ import { APP_CONFIG } from '../../src/config/appConfig';
 import { STRESS_CONDITIONS } from '../../src/health/statePriority';
 import { dragonflyDiary } from '../../src/behaviour/dragonfly';
 import { slothDiary } from '../../src/behaviour/sloth';
+import { artDays } from '../../src/lib/artClock';
 import { lucyDayVisits, lucyDiary } from '../../src/behaviour/lucy';
 import { recentTelemetry, recentWeather } from '../rowCache';
 import { encounterDiary, type Window } from '../../src/behaviour/encounters';
@@ -38,7 +39,7 @@ export function diaryFor(db: AppDatabase, collector: LivingCollector, days: numb
   const location = { latitude: settings.latitude ?? null, longitude: settings.longitude ?? null };
   // Rows are read once (episodes, events) or from the in-memory cache of recent readings and weather
   // (rowCache.ts): the diary is opened often, and a Durable Object's SQLite bills every row read
-  const slothFrom = now - Math.max(days, APP_CONFIG.habitat.sloth.loyalty.days) * DAY;
+  const slothFrom = now - Math.max(days * DAY, artDays(APP_CONFIG.habitat.sloth.loyalty.days)); // loyalty: story days (the art clock)
   const from = dayStartOf(since);
   const allEpisodes = db.episodesSince(Math.min(now - APP_CONFIG.habitat.replayDays * DAY, slothFrom, from, since));
   const episodesSince = (t: number) => allEpisodes.filter((e) => (e.endedAt ?? e.lastSeenAt) >= t);
