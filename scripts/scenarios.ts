@@ -734,6 +734,10 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   check('WH5 a night with a dream: what it dreams of, and what tonight is made of', !!night && /the squirrel in the rain/.test(night.body) && /after the long thirst/.test(night.body), night?.body ?? 'none');
   const calmCards = why(calm, at(10));
   check('WH6 a calm day: comfortable, its vitality, its mood, how sure; every card has its figures', calmCards[0].id === 'now' && ['vitality', 'mood', 'trust'].every((id) => calmCards.some((c) => c.id === id)) && calmCards.every((c) => c.details.length > 0) && clean(calmCards), calmCards.map((c) => c.title).join(' · '));
+  const probed = { ...calm, p: { ...calm.p, source: 'esp32_sensor' as const, telemetry: { ...calm.p.telemetry!, soilTemperature: 16.4 }, readings: { ...calm.p.readings, temperature: 19.8 } } };
+  const nowProbed = why(probed, at(10)).find((c) => c.id === 'now')!;
+  const nowPlain = calmCards.find((c) => c.id === 'now')!;
+  check('WH7 the soil temperature probe: the "now" card tells it next to the air; without it the card is unchanged', /16\.4 °C, 3\.4 °C cooler than the air/.test(nowProbed.body) && nowProbed.details.some((d) => d.startsWith('soil temperature 16.4')) && !/soil is \d/.test(nowPlain.body) && clean([nowProbed]), nowProbed.body);
 }
 
 // LX. The light sensor: an LDR (relative, the server's light calibration applies) vs a BH1750 (lux, firmware ≥ 1.4.0)

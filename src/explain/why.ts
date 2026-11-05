@@ -205,6 +205,15 @@ function nowCard(i: WhyInput): WhyCard {
   }
   const extras = h.modifiers.filter((m) => m !== 'sensor_uncertain' && m !== c).map((m) => (m === 'sleeping' ? 'asleep' : CONDITION_LABELS[m].toLowerCase()));
   if (extras.length) body += c === 'sensor_uncertain' ? ` Its last known state: ${list(extras)}.` : ` Also ${list(extras)}.`;
+  // The soil temperature probe (DS18B20): a fact for now, not judged by health
+  const soilTemp = p.source === 'esp32_sensor' ? p.telemetry?.soilTemperature ?? null : null;
+  if (soilTemp !== null) {
+    const air = p.readings.temperature;
+    const diff = air !== null ? Math.round((soilTemp - air) * 10) / 10 : null;
+    const vsAir = diff === null ? '' : Math.abs(diff) < 0.5 ? ', about the same as the air' : `, ${num(Math.abs(diff))} °C ${diff < 0 ? 'cooler' : 'warmer'} than the air`;
+    body += ` Around its roots the soil is ${num(soilTemp)} °C${vsAir} (a probe in the pot; noted, not judged yet).`;
+    details.push(`soil temperature ${num(soilTemp)} °C${air !== null ? ` · air ${num(air)} °C` : ''}`);
+  }
   details.push(`episode since ${hhmm(since)} (${b.episode.minutes} min)`);
   return { id: 'now', icon: 'leaf', title, body, details };
 }
