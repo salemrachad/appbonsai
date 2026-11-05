@@ -144,6 +144,7 @@ export function perceive(input: PerceptionInput): PerceptionState {
         lightRaw: fresh.lightRaw ?? null,
         radiation: fresh.source === 'weather_estimate' ? fresh.radiation ?? null : null,
         ...(fresh.source === 'esp32_sensor' && fresh.soilTemperature != null ? { soilTemperature: fresh.soilTemperature } : {}),
+        ...(fresh.source === 'esp32_sensor' && fresh.lightLux != null ? { lightLux: fresh.lightLux } : {}),
       }
     : EMPTY_READINGS;
 

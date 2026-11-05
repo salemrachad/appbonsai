@@ -203,6 +203,26 @@ async function main() {
   }
 
   {
+    const b = new Bench();
+    b.clock = new Date(2026, 5, 15, 11, 0).getTime();
+    await b.boot();
+    await b.run(5, () => ({ soil: 60, light: 50 }));
+    const ldr = b.state();
+    const lightOf = (s: typeof ldr) => s.health.metrics.find((m) => m.id === 'light');
+    const shown: string[] = [];
+    for (const lux of [54.2, 728.3, 12345]) {
+      await b.run(1, () => ({ soil: 60, light: 50, extra: { light_lux: lux } }));
+      shown.push(lightOf(b.state())?.detail ?? '–');
+    }
+    const bh = b.state();
+    check(
+      'Q9 the BH1750 lux shows on the light card; the light % and its verdict are the same as without it, and an LDR shows none',
+      lightOf(ldr)?.detail === undefined && shown.join(' | ') === '54 lux | 730 lux | 12,300 lux' && lightOf(bh)?.status === lightOf(ldr)?.status && lightOf(bh)?.display === lightOf(ldr)?.display,
+      `${shown.join(' | ')} · ${lightOf(bh)?.display} ${lightOf(bh)?.status}`
+    );
+  }
+
+  {
     // Same air, same soil: only the roots differ
     const run = async (soilTemp: number | null) => {
       const b = new Bench();

@@ -35,6 +35,7 @@ export interface PerceivedReadings {
   lightRaw: number | null;
   radiation: number | null;
   soilTemperature?: number; // °C at the roots (DS18B20, ESP32 only); absent without the probe
+  lightLux?: number; // the BH1750's lux (ESP32 only; shown, the engines judge lightPercent); absent from an LDR
 }
 
 export interface AirComparison {

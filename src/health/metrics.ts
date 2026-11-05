@@ -46,6 +46,12 @@ function band(
   return { status: critHigh, tone: 'alert' };
 }
 
+// 54 → "54", 728.3 → "730", 12 345 → "12,300": as precise as a light reading is worth
+const luxText = (lux: number) => {
+  const n = lux < 100 ? Math.round(lux) : lux < 10000 ? Math.round(lux / 10) * 10 : Math.round(lux / 100) * 100;
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
 // Display-ready view of each perceived measurement against the species ranges.
 export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempUnit: 'C' | 'F' = 'C', extraNotes: Partial<Record<MetricId, string[]>> = {}): MetricAssessment[] {
   const r = p.readings;
@@ -84,7 +90,8 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
     });
   }
 
-  // Light (relative LDR %, never lux). Dark outside daylight hours is normal, not a problem.
+  // Light (a relative %: the engines judge it; a BH1750's lux is shown beside it). Dark outside daylight hours is
+  // normal, not a problem.
   {
     const level = lightLevel(p, species);
     const idealRange = isSensor ? relativeLightRange(species, 'good') : `${species.radiation.minOptimal}–${species.radiation.maxOptimal} W/m²`;
@@ -118,6 +125,7 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
         tone,
         idealRange,
         estimated,
+        ...(isSensor && r.lightLux !== undefined ? { detail: `${luxText(r.lightLux)} lux` } : {}),
       });
     }
   }
