@@ -73,7 +73,10 @@ export const SensorCard: React.FC<SensorCardProps> = ({ metric, tooltipAlign = '
                 {metric.estimated ? 'Est.' : 'Live Sensor'}
               </span>
             </div>
-            <div className={`text-[11px] mt-0.5 ${TONE_CLASS[metric.tone]}`}>{metric.status}</div>
+            <div className={`text-[11px] mt-0.5 ${TONE_CLASS[metric.tone]}`}>
+              {metric.status}
+              {metric.detail && <span className="font-normal text-[var(--ink)]/55"> · {metric.detail}</span>}
+            </div>
           </>
         )}
       </div>

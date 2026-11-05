@@ -192,6 +192,16 @@ async function main() {
     check('Q6 short history lowers confidence (medium), not plant stress', b.state().health.confidence === 'medium' && b.state().health.condition !== 'sensor_uncertain', cond(b));
   }
 
+  {
+    const b = new Bench();
+    await b.boot();
+    await b.run(5, () => ({ soil: 60, extra: { soil_temp: 21.1 } }));
+    const withProbe = b.state().health.metrics.find((m) => m.id === 'soil');
+    await b.run(2, () => ({ soil: 60 }));
+    const without = b.state().health.metrics.find((m) => m.id === 'soil');
+    check('Q7 the DS18B20 soil temperature shows on the soil card; without the probe nothing does', withProbe?.detail === 'Soil 21.1°C' && without?.detail === undefined && withProbe?.status === without?.status, `${withProbe?.detail} / ${without?.detail}`);
+  }
+
   console.log('\n— Continuity —');
 
   {

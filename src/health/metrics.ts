@@ -52,6 +52,7 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
   const estimated = p.source === 'weather_estimate';
   const isSensor = p.source === 'esp32_sensor';
   const stale = !p.telemetry;
+  const soilTemp = isSensor ? p.telemetry?.soilTemperature ?? null : null;
   const s = species.soilMoisture;
   const tr = species.temperature;
   const hr = species.humidity;
@@ -75,6 +76,8 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
       ...(r.soilMoisture >= s.minOptimal && r.soilMoisture < species.soilCycle.readyBelow ? { status: 'Ready for water', tone: 'info' as const } : {}),
       idealRange: `${s.minOptimal}–${s.maxOptimal}%`,
       estimated,
+      // The soil temperature probe (DS18B20, firmware ≥ 1.5.0): shown only, not judged yet
+      ...(soilTemp !== null ? { detail: `Soil ${tempUnit === 'F' ? Math.round((soilTemp * 9) / 5 + 32) : soilTemp}°${tempUnit}` } : {}),
     });
   }
 
