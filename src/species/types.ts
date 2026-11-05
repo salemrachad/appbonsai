@@ -74,6 +74,9 @@ export interface SpeciesProfile {
   commonName: string;
 
   temperature: ComfortRange; // °C
+  // The root zone (°C), from a soil temperature probe (DS18B20). Scored with the air temperature (the worse of
+  // the two) when the probe reports; absent probe = air only
+  rootTemperature: ComfortRange;
   humidity: ComfortRange; // % RH
   soilMoisture: ComfortRange; // % from the probe (PROTOTYPE, locally calibrated)
   // The wet-to-dry cycle: soil from soilMoisture.minOptimal up to readyBelow is the watering window (calm);

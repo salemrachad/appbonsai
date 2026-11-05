@@ -5,7 +5,7 @@ import type { HealthCondition, LatchDebug, PlantHealthState } from '../health/he
 import { CONDITION_LABELS } from '../health/labels';
 import { STRESS_CONDITIONS } from '../health/statePriority';
 import type { PerceptionState } from '../perception/perceptionTypes';
-import type { SpeciesProfile } from '../species';
+import { rootTemperatureBand, type SpeciesProfile } from '../species';
 import type { LatchId, LatchRule } from '../species/types';
 import { DAY, HOUR, MIN, hhmm } from '../lib/time';
 
@@ -205,14 +205,20 @@ function nowCard(i: WhyInput): WhyCard {
   }
   const extras = h.modifiers.filter((m) => m !== 'sensor_uncertain' && m !== c).map((m) => (m === 'sleeping' ? 'asleep' : CONDITION_LABELS[m].toLowerCase()));
   if (extras.length) body += c === 'sensor_uncertain' ? ` Its last known state: ${list(extras)}.` : ` Also ${list(extras)}.`;
-  // The soil temperature probe (DS18B20): a fact for now, not judged by health
-  const soilTemp = p.source === 'esp32_sensor' ? p.telemetry?.soilTemperature ?? null : null;
+  // The root zone (soil temperature probe), against the species' range; it counts in the temperature score
+  const soilTemp = p.readings.soilTemperature ?? null;
   if (soilTemp !== null) {
     const air = p.readings.temperature;
+    const rt = species.rootTemperature;
+    const band = rootTemperatureBand(species, soilTemp);
     const diff = air !== null ? Math.round((soilTemp - air) * 10) / 10 : null;
     const vsAir = diff === null ? '' : Math.abs(diff) < 0.5 ? ', about the same as the air' : `, ${num(Math.abs(diff))} °C ${diff < 0 ? 'cooler' : 'warmer'} than the air`;
-    body += ` Around its roots the soil is ${num(soilTemp)} °C${vsAir} (a probe in the pot; noted, not judged yet).`;
-    details.push(`soil temperature ${num(soilTemp)} °C${air !== null ? ` · air ${num(air)} °C` : ''}`);
+    const counts = band.id === 'ideal' ? '' : ' Its vitality feels it, as it would the air.';
+    body +=
+      band.id === 'ideal'
+        ? ` Around its roots the soil is ${num(soilTemp)} °C${vsAir}: ${band.meaning}.`
+        : ` Around its roots the soil is ${num(soilTemp)} °C${vsAir}. That is ${band.word} for ficus roots (best ${rt.minOptimal}–${rt.maxOptimal} °C): ${band.meaning}.${counts}`;
+    details.push(`root zone ${num(soilTemp)} °C (${band.word}; optimal ${rt.minOptimal}–${rt.maxOptimal}, warning below ${rt.minWarning}, critical below ${rt.minCritical})${air !== null ? ` · air ${num(air)} °C` : ''}`);
   }
   details.push(`episode since ${hhmm(since)} (${b.episode.minutes} min)`);
   return { id: 'now', icon: 'leaf', title, body, details };

@@ -67,8 +67,11 @@ export function healthScores(p: PerceptionState, species: SpeciesProfile): Score
 
   // Temperature: the current reading, and the hours spent outside the optimal range recently (decayed
   // degree-hours from perception.exposure). The worse of the two, so sustained heat lingers and fades.
+  // The roots (a soil temperature probe) count too: the worse of air and roots, same component and weight.
   let temperature: ScoreComponent;
-  if (r.temperature === null) temperature = comp('temperature', null, 'not reported');
+  const rt = species.rootTemperature;
+  const roots = r.soilTemperature !== undefined ? { score: scoreAgainstRange(r.soilTemperature, rt), note: ` · roots ${r.soilTemperature}°C (optimal ${rt.minOptimal}–${rt.maxOptimal}°C)` } : null;
+  if (r.temperature === null) temperature = roots ? comp('temperature', roots.score, roots.note.slice(3)) : comp('temperature', null, 'not reported');
   else {
     const current = scoreAgainstRange(r.temperature, t);
     const e = p.exposure?.temperature ?? null;
@@ -77,9 +80,10 @@ export function healthScores(p: PerceptionState, species: SpeciesProfile): Score
     const exposureScore = Math.round(100 - penalty);
     temperature = comp(
       'temperature',
-      Math.min(current, exposureScore),
+      Math.min(current, exposureScore, roots?.score ?? 100),
       `${r.temperature}°C · optimal ${t.minOptimal}–${t.maxOptimal}°C` +
-        (penalty >= 1 ? ` · recent exposure ${Math.round((e!.heatDegreeHours + e!.coldDegreeHours) * 10) / 10} °C·h (−${Math.round(penalty)})` : '')
+        (penalty >= 1 ? ` · recent exposure ${Math.round((e!.heatDegreeHours + e!.coldDegreeHours) * 10) / 10} °C·h (−${Math.round(penalty)})` : '') +
+        (roots ? `${roots.note} → ${roots.score}` : '')
     );
   }
 

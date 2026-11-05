@@ -34,6 +34,7 @@ export interface PerceivedReadings {
   lightPercent: number | null;
   lightRaw: number | null;
   radiation: number | null;
+  soilTemperature?: number; // °C at the roots (DS18B20, ESP32 only); absent without the probe
 }
 
 export interface AirComparison {

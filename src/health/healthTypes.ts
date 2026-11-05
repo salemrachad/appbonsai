@@ -42,7 +42,9 @@ export interface MetricAssessment {
   tone: MetricTone;
   idealRange: string;
   estimated: boolean;
-  detail?: string; // a second measured value shown small on the card (soil: the DS18B20's soil temperature)
+  detail?: string; // a second measured value shown small on the card (soil: the root zone's temperature)
+  detailStatus?: string; // its verdict ("cool")
+  detailTone?: MetricTone;
   guide?: MetricGuide; // explanation of the best conditions and ranges (tooltips)
 }
 

@@ -10,6 +10,10 @@ import { ComfortRange, RelativeLightBand, SpeciesProfile } from './types';
 //   Temperature and humidity ranges are general indoor/outdoor ficus care guidance.
 
 const TEMPERATURE: ComfortRange = { minCritical: 5, minWarning: 13, minOptimal: 18, maxOptimal: 28, maxWarning: 32, maxCritical: 38, unit: '°C' };
+// The root zone (care guidance for ficus): roots work best at 18-26 °C; below 18 uptake and growth slow (the
+// soil stays wet longer), below 15 the roots are stressed and rot is likelier in wet soil, below 10 they can be
+// damaged. A pot heated by sun above 30 stresses them, above 35 harms them.
+const ROOT_TEMPERATURE: ComfortRange = { minCritical: 10, minWarning: 15, minOptimal: 18, maxOptimal: 26, maxWarning: 30, maxCritical: 35, unit: '°C' };
 const HUMIDITY: ComfortRange = { minCritical: 25, minWarning: 40, minOptimal: 50, maxOptimal: 75, maxWarning: 85, maxCritical: 98, unit: '%' };
 // The wet-to-dry cycle, from the owner's watering guidance (2026-10-20; evidence class: calibration + care
 // guidance for this pot). In raw FC-28 values: 4000 is bone dry, about 1500-2000 fully saturated; water when the
@@ -63,6 +67,7 @@ export const FICUS: SpeciesProfile = {
   commonName: 'Ginseng Ficus',
 
   temperature: TEMPERATURE,
+  rootTemperature: ROOT_TEMPERATURE,
   humidity: HUMIDITY,
   soilMoisture: SOIL,
   // The wet-to-dry cycle (calibration + care guidance, see SOIL_SCALE): the watering window is calm, thirst

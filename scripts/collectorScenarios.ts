@@ -199,7 +199,24 @@ async function main() {
     const withProbe = b.state().health.metrics.find((m) => m.id === 'soil');
     await b.run(2, () => ({ soil: 60 }));
     const without = b.state().health.metrics.find((m) => m.id === 'soil');
-    check('Q7 the DS18B20 soil temperature shows on the soil card; without the probe nothing does', withProbe?.detail === 'Soil 21.1°C' && without?.detail === undefined && withProbe?.status === without?.status, `${withProbe?.detail} / ${without?.detail}`);
+    check('Q7 the DS18B20 soil temperature shows on the soil card with its root-zone verdict; without the probe nothing does', withProbe?.detail === 'Roots 21.1°C' && withProbe?.detailStatus === 'ideal' && without?.detail === undefined && withProbe?.status === without?.status, `${withProbe?.detail} ${withProbe?.detailStatus} / ${without?.detail}`);
+  }
+
+  {
+    // Same air, same soil: only the roots differ
+    const run = async (soilTemp: number | null) => {
+      const b = new Bench();
+      await b.boot();
+      await b.run(240, () => ({ soil: 60, ...(soilTemp !== null ? { extra: { soil_temp: soilTemp } } : {}) }));
+      return b.state();
+    };
+    const none = await run(null), ideal = await run(21), cold = await run(12);
+    const t = (s: typeof none) => s.health.breakdown.components.find((c) => c.id === 'temperature')?.score;
+    check(
+      'Q8 the roots count in vitality: ideal roots = no probe; cold roots (12 °C) lower the temperature score and vitality, never the condition',
+      t(ideal) === t(none) && ideal.health.vitality === none.health.vitality && (t(cold) ?? 100) < (t(none) ?? 0) && cold.health.vitality < none.health.vitality && cold.health.condition === none.health.condition,
+      `temperature ${t(none)} / ${t(ideal)} / ${t(cold)} · vitality ${none.health.vitality} / ${ideal.health.vitality} / ${cold.health.vitality} · ${cold.health.condition}`
+    );
   }
 
   console.log('\n— Continuity —');
