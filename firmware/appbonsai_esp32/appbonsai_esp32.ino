@@ -10,6 +10,9 @@
 #include <Adafruit_HTS221.h>
 #include <Adafruit_Sensor.h>
 
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
 // ======================================================
 // APPBONSAI ESP32
 //
@@ -27,6 +30,13 @@
 //   GND  -> GND
 //   ADDR -> GND (address 0x23)
 //   (replaces the LDR on GPIO35, firmware 1.4.0)
+//
+// DS18B20 soil temperature probe (1-Wire, 1.5.0):
+//   red    -> 3V3
+//   yellow -> GPIO4 (DATA)
+//   white  -> GND
+//   4.7k resistor between 3V3 and DATA (pull-up)
+//   bare shield: unconnected
 //
 // HTS221:
 //   SDA -> GPIO21
@@ -49,7 +59,7 @@
 //        http://<device>/update
 // ======================================================
 
-const char* FIRMWARE_VERSION = "1.4.1";
+const char* FIRMWARE_VERSION = "1.5.0";
 
 
 // ----------------------
@@ -65,6 +75,8 @@ const int SCL_PIN = 22;
 const int LIGHT_SDA_PIN = 32;
 const int LIGHT_SCL_PIN = 33;
 const uint8_t BH1750_ADDR = 0x23;
+
+const int SOIL_TEMP_PIN = 4; // DS18B20 data (1-Wire)
 
 
 // ======================================================
@@ -126,6 +138,10 @@ Adafruit_HTS221 hts;
 
 bool htsAvailable = false;
 bool bh1750Available = false;
+bool ds18b20Available = false;
+
+OneWire oneWire(SOIL_TEMP_PIN);
+DallasTemperature soilTempSensor(&oneWire);
 bool online = false;
 
 String wifiSSID = "";
@@ -149,6 +165,7 @@ struct Reading {
   float lux;         // NAN = no light reading
   float temperature;
   float humidity;
+  float soilTemp;    // NAN = no soil temperature reading
   int rssi;
 };
 
@@ -326,6 +343,47 @@ int luxToRaw(float lux) {
 
 
 // ======================================================
+// SOIL TEMPERATURE (DS18B20)
+// ======================================================
+
+// Looks for the probe (at start, and again whenever a
+// reading fails, so a re-plugged probe comes back).
+bool ds18b20Begin() {
+
+  soilTempSensor.begin();
+
+  if (soilTempSensor.getDeviceCount() == 0) return false;
+
+  soilTempSensor.setResolution(12);
+  soilTempSensor.setWaitForConversion(true); // ~750 ms
+
+  return true;
+}
+
+
+// °C, or NAN: no probe, a wiring fault (-127), the
+// power-on value (85) or anything a pot can't be.
+float readSoilTemp() {
+
+  if (!ds18b20Available) {
+    ds18b20Available = ds18b20Begin();
+    if (!ds18b20Available) return NAN;
+  }
+
+  soilTempSensor.requestTemperatures();
+
+  float c = soilTempSensor.getTempCByIndex(0);
+
+  if (c == DEVICE_DISCONNECTED_C || c == 85.0f || c < -20.0f || c > 60.0f) {
+    ds18b20Available = false;
+    return NAN;
+  }
+
+  return c;
+}
+
+
+// ======================================================
 // READINGS
 // ======================================================
 
@@ -374,6 +432,11 @@ Reading takeReading() {
     r.temperature = temperatureEvent.temperature;
     r.humidity = humidityEvent.relative_humidity;
   }
+
+
+  // DS18B20
+
+  r.soilTemp = readSoilTemp();
 
 
   r.rssi = WiFi.RSSI();
@@ -457,9 +520,16 @@ String readingJson(const Reading& r, bool forPush) {
   json += ",";
 
 
-  // Future sensor
+  // Soil temperature (DS18B20): null when it didn't answer
 
-  json += "\"soil_temp\":null,";
+  json += "\"soil_temp\":";
+  json += isnan(r.soilTemp) ? String("null") : String(r.soilTemp, 1);
+  json += ",";
+
+
+  json += "\"ds18b20_connected\":";
+  json += isnan(r.soilTemp) ? "false" : "true";
+  json += ",";
 
 
   // HTS status
@@ -1006,6 +1076,27 @@ void handleRoot() {
     html += "--</div>";
 
     html += "<div class='raw'>BH1750 not found";
+  }
+
+  html += "</div>";
+
+  html += "</div>";
+
+
+  // SOIL TEMPERATURE
+
+  html += "<div class='sensor'>";
+
+  html += "🌡️ Soil temp";
+
+  html += "<div class='value'>";
+
+  if (!isnan(r.soilTemp)) {
+    html += String(r.soilTemp, 1);
+    html += "°C</div>";
+  } else {
+    html += "--</div>";
+    html += "<div class='raw'>DS18B20 not found";
   }
 
   html += "</div>";
@@ -1858,6 +1949,14 @@ void setup() {
     SOIL_POWER_PIN,
     LOW
   );
+
+
+  // DS18B20 (1-Wire on GPIO4)
+
+  ds18b20Available = ds18b20Begin();
+
+  Serial.print("DS18B20: ");
+  Serial.println(ds18b20Available ? "CONNECTED" : "NOT FOUND");
 
 
   // BH1750 (its own bus)
