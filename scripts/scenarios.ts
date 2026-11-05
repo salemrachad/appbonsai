@@ -11,7 +11,8 @@ import { perceive, toSample } from '../src/perception/PerceptionEngine';
 import { seasonState } from '../src/perception/season';
 import type { PerceptionSample } from '../src/perception/perceptionTypes';
 import { FICUS } from '../src/species/ficus';
-import { absoluteHumidity, calculateVPD, dewPoint } from '../src/telemetry/telemetryNormalizer';
+import { absoluteHumidity, calculateVPD, dewPoint, normalizeESP32Payload } from '../src/telemetry/telemetryNormalizer';
+import { DEFAULT_SETTINGS } from '../src/settings/settings';
 import { skyFromCode, type OutsideObservation } from '../src/telemetry/outsideWeather';
 import type { PlantTelemetry } from '../src/telemetry/types';
 import type { DayForecast, HikeForecast, HourForecast } from '../src/telemetry/hikeForecast';
@@ -733,6 +734,19 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   check('WH5 a night with a dream: what it dreams of, and what tonight is made of', !!night && /the squirrel in the rain/.test(night.body) && /after the long thirst/.test(night.body), night?.body ?? 'none');
   const calmCards = why(calm, at(10));
   check('WH6 a calm day: comfortable, its vitality, its mood, how sure; every card has its figures', calmCards[0].id === 'now' && ['vitality', 'mood', 'trust'].every((id) => calmCards.some((c) => c.id === id)) && calmCards.every((c) => c.details.length > 0) && clean(calmCards), calmCards.map((c) => c.title).join(' · '));
+}
+
+// LX. The light sensor: an LDR (relative, the server's light calibration applies) vs a BH1750 (lux, firmware ≥ 1.4.0)
+{
+  const cal = { soil: null, light: { darkRaw: 0, brightRaw: 4095, savedAt: 0, method: 'manual' as const } };
+  const withCal = { ...DEFAULT_SETTINGS, calibration: cal };
+  const base = { soil_moisture: 50, soil_raw: 2500, temperature: 22, humidity: 60, hts221_connected: true };
+  const ldr = normalizeESP32Payload({ ...base, light_raw: 2048, light_percent: 70, light_lux: null }, withCal);
+  check('LX1 an LDR reading (no lux): the server light calibration converts light_raw', ldr.lightPercent === 50 && ldr.lightLux === undefined, `${ldr.lightPercent}%`);
+  const bh = normalizeESP32Payload({ ...base, light_raw: 1630, light_percent: 4, light_lux: 81.7 }, withCal);
+  check('LX2 a BH1750 reading (lux): the firmware light % stands, an old calibration never applies; the lux is kept', bh.lightPercent === 4 && bh.lightLux === 81.7, `${bh.lightPercent}% · ${bh.lightLux} lux`);
+  const off = normalizeESP32Payload({ ...base, light_raw: null, light_percent: null, light_lux: null }, withCal);
+  check('LX3 the BH1750 not answering: no light at all, never invented', off.lightPercent === null && off.lightRaw === null, String(off.lightPercent));
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');

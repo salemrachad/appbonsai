@@ -17,6 +17,7 @@ export interface CalibrationHistoryEntry {
 export interface CalibrationState {
   calibration: SensorCalibration;
   history: CalibrationHistoryEntry[];
+  luxSensor?: boolean; // the ESP32 measures lux (BH1750): no light calibration needed (and none applies)
 }
 export interface CaptureResult extends CaptureStats {
   sensor: 'soil' | 'light';

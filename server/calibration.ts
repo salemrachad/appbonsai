@@ -40,8 +40,10 @@ export class CalibrationService {
     return (this.opts.now ?? Date.now)();
   }
 
+  // luxSensor: the last reading came from a lux sensor (BH1750), which needs no light calibration
   get() {
-    return { calibration: this.collector.getCalibration(), history: this.db.calibrationHistory(20) };
+    const luxSensor = this.collector.latestRaw()?.lightLux != null;
+    return { calibration: this.collector.getCalibration(), history: this.db.calibrationHistory(20), luxSensor };
   }
 
   // Read the sensor several times and average. Soil captures pause watering detection (probe is handled).

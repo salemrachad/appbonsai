@@ -16,8 +16,9 @@ export interface PlantTelemetry {
   humidity: number | null; // % RH, null when not measured
   vpd: number | null; // kPa, derived from temperature + humidity
 
-  lightPercent?: number | null; // ESP32 photoresistor, uncalibrated 0-100% (NOT lux)
-  lightRaw?: number | null; // ESP32 photoresistor raw ADC, diagnostics only
+  lightPercent?: number | null; // ESP32 relative light 0-100% (firmware ≥ 1.4.0: a log scale of the BH1750's lux)
+  lightRaw?: number | null; // ESP32 light raw 0-4095, diagnostics and rail checks only
+  lightLux?: number; // the BH1750's lux (firmware ≥ 1.4.0); absent from an LDR. Not judged yet
   radiation?: number | null; // weather mode: shortwave radiation in W/m²
 
   isDay: boolean;

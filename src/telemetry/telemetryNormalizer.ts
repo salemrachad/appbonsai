@@ -81,6 +81,9 @@ export function normalizeESP32Payload(raw: any, settings: TreeSettings): PlantTe
 
   const lightPctRaw = toNumber(raw.light_percent);
   const lightRaw = toNumber(raw.light_raw);
+  // A lux sensor (BH1750, firmware ≥ 1.4.0): its light_percent is already on the tree's scale, so a server
+  // light calibration (made for an LDR) never applies to it
+  const lightLux = toNumber(raw.light_lux);
   outside('light_percent', lightPctRaw, 0, 100, '%');
   outside('light_raw', lightRaw, 0, adcMax);
   const soilTemp = toNumber(raw.soil_temp ?? raw.soilTemperature);
@@ -95,9 +98,11 @@ export function normalizeESP32Payload(raw: any, settings: TreeSettings): PlantTe
     temperature,
     humidity,
     vpd: temperature !== null && humidity !== null ? calculateVPD(temperature, humidity) : null,
-    lightPercent: cal?.light && lightRaw !== null ? lightPercentFromRaw(lightRaw, cal.light) : lightPctRaw !== null ? clampPct(lightPctRaw) : null,
+    lightPercent:
+      cal?.light && lightRaw !== null && lightLux === null ? lightPercentFromRaw(lightRaw, cal.light) : lightPctRaw !== null ? clampPct(lightPctRaw) : null,
     lightRaw,
-    radiation: null, // the LDR is not calibrated; never derive lux or W/m² from it
+    ...(lightLux !== null ? { lightLux } : {}),
+    radiation: null, // never W/m² from the ESP32's light sensor
     isDay: raw.is_day !== undefined ? Boolean(raw.is_day) : isDaytimeByClock(),
     wifiRssi: toNumber(raw.wifi_rssi),
     htsConnected,

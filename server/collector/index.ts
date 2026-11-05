@@ -836,8 +836,8 @@ export class LivingCollector {
 
   // The last reading's raw values, as it arrived (a calibration save's preview: answers at once, never waits
   // for the device's next push)
-  latestRaw(): { soilRaw: number | null; lightRaw: number | null } | null {
-    return this.latest ? { soilRaw: this.latest.soilRaw ?? null, lightRaw: this.latest.lightRaw ?? null } : null;
+  latestRaw(): { soilRaw: number | null; lightRaw: number | null; lightLux: number | null } | null {
+    return this.latest ? { soilRaw: this.latest.soilRaw ?? null, lightRaw: this.latest.lightRaw ?? null, lightLux: this.latest.lightLux ?? null } : null;
   }
 
   // ---- attention (not care): stored for relationship memory only, never triggers an evaluation ----

@@ -165,7 +165,7 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
             {step === 'first' && (
               <div className="flex gap-2">
                 <button disabled={busy} onClick={() => capture('a')} className={`${btn} border border-[#356077]/40 text-[#356077] hover:bg-[#356077]/10`}>
-                  {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : a ? 'Capture again' : `Record ${t.first.toLowerCase()} (~30 s)`}
+                  {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : a ? 'Capture again' : `Record ${t.first.toLowerCase()} (up to 2 min)`}
                 </button>
                 {a && (
                   <button disabled={busy} onClick={() => setStep('second')} className={`${btn} bg-[#356077] text-white`}>
@@ -184,7 +184,7 @@ function SensorCalibration({ sensor, state, onChanged }: { sensor: Sensor; state
               {step === 'second' && (
                 <div className="flex gap-2">
                   <button disabled={busy} onClick={() => capture('b')} className={`${btn} border border-[#356077]/40 text-[#356077] hover:bg-[#356077]/10`}>
-                    {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : b ? 'Capture again' : `Record ${t.second.toLowerCase()} (~30 s)`}
+                    {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : b ? 'Capture again' : `Record ${t.second.toLowerCase()} (up to 2 min)`}
                   </button>
                   {b && (
                     <button disabled={busy} onClick={review} className={`${btn} bg-[#356077] text-white`}>
@@ -355,7 +355,18 @@ export const CalibrationPanel: React.FC<{ serverStatus: ServerStatus | null }> =
       </div>
       {!state && <p className="sans text-[11px] text-[#2D332A]/55">Local server not reachable.</p>}
       <SensorCalibration sensor="soil" state={state} onChanged={load} />
-      <SensorCalibration sensor="light" state={state} onChanged={load} />
+      {state?.luxSensor ? (
+        <div className="p-2.5 rounded-lg border border-[#EAE6E1] flex gap-2 items-start">
+          <Sun className="w-4 h-4 text-[#D49B53] shrink-0 mt-0.5" />
+          <div className="sans text-[11px] text-[#2D332A]/75">
+            <strong className="text-[#2D332A]">Light sensor: BH1750 (lux)</strong>
+            <div>It measures real light in lux, so it needs no calibration: the ESP32 turns lux into the tree's light % itself (1 000 lux = 25 %, 40 000 lux = 85 %).</div>
+            {state.calibration.light && <div className="text-[#8F5E24]">An older light calibration is stored; it is ignored for this sensor.</div>}
+          </div>
+        </div>
+      ) : (
+        <SensorCalibration sensor="light" state={state} onChanged={load} />
+      )}
 
       <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#D49B53]/8 border border-[#D49B53]/25">
         <span className="sans text-[11px] text-[#2D332A]/75">
