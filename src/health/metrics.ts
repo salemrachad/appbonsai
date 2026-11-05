@@ -47,7 +47,7 @@ function band(
 }
 
 // 54 → "54", 728.3 → "730", 12 345 → "12,300": as precise as a light reading is worth
-const luxText = (lux: number) => {
+export const luxText = (lux: number) => {
   const n = lux < 100 ? Math.round(lux) : lux < 10000 ? Math.round(lux / 10) * 10 : Math.round(lux / 100) * 100;
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };

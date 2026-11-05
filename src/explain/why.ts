@@ -5,7 +5,8 @@ import type { HealthCondition, LatchDebug, PlantHealthState } from '../health/he
 import { CONDITION_LABELS } from '../health/labels';
 import { STRESS_CONDITIONS } from '../health/statePriority';
 import type { PerceptionState } from '../perception/perceptionTypes';
-import { rootTemperatureBand, type SpeciesProfile } from '../species';
+import { relativeLightBand, rootTemperatureBand, type SpeciesProfile } from '../species';
+import { luxText } from '../health/metrics';
 import type { LatchId, LatchRule } from '../species/types';
 import { DAY, HOUR, MIN, hhmm } from '../lib/time';
 
@@ -219,6 +220,13 @@ function nowCard(i: WhyInput): WhyCard {
         ? ` Around its roots the soil is ${num(soilTemp)} °C${vsAir}: ${band.meaning}.`
         : ` Around its roots the soil is ${num(soilTemp)} °C${vsAir}. That is ${band.word} for ficus roots (best ${rt.minOptimal}–${rt.maxOptimal} °C): ${band.meaning}.${counts}`;
     details.push(`root zone ${num(soilTemp)} °C (${band.word}; optimal ${rt.minOptimal}–${rt.maxOptimal}, warning below ${rt.minWarning}, critical below ${rt.minCritical})${air !== null ? ` · air ${num(air)} °C` : ''}`);
+  }
+  // The light sensor's lux (BH1750), by day: what reaches the leaves, and the light % the tree is judged by
+  const lux = p.readings.lightLux ?? null;
+  if (lux !== null && p.sun.isDay && p.readings.lightPercent !== null) {
+    const pct = p.readings.lightPercent;
+    body += ` About ${luxText(lux)} lux reach its leaves right now: ${pct} % on its light scale (${relativeLightBand(species, pct).label.toLowerCase()}).`;
+    details.push(`light ${num(lux)} lux → ${pct} % (1,000 lux = 25 %, 40,000 lux = 85 %)`);
   }
   details.push(`episode since ${hhmm(since)} (${b.episode.minutes} min)`);
   return { id: 'now', icon: 'leaf', title, body, details };

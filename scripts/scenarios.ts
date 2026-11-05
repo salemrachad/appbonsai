@@ -737,6 +737,9 @@ const show = (o: { h: PlantHealthState }) => `${o.h.condition}${o.h.modifiers.le
   const probed = { ...calm, p: { ...calm.p, source: 'esp32_sensor' as const, readings: { ...calm.p.readings, temperature: 19.8, soilTemperature: 16.4 } } };
   const nowProbed = why(probed, at(10)).find((c) => c.id === 'now')!;
   const nowPlain = calmCards.find((c) => c.id === 'now')!;
+  const luxed = { ...calm, p: { ...calm.p, source: 'esp32_sensor' as const, readings: { ...calm.p.readings, lightPercent: 22, lightLux: 728.3 } } };
+  const nowLux = why(luxed, at(10)).find((c) => c.id === 'now')!;
+  check('WH8 the BH1750 by day: the "now" card says the lux reaching the leaves and the light % it is judged by; without lux nothing', calm.p.sun.isDay && /About 730 lux reach its leaves right now: 22 % on its light scale \(low\)/.test(nowLux.body) && nowLux.details.some((d) => d.startsWith('light 728.3 lux')) && !/lux/.test(nowPlain.body) && clean([nowLux]), nowLux.body);
   check('WH7 the soil temperature probe: the "now" card tells it next to the air, with the root-zone verdict; without it the card is unchanged', /16\.4 °C, 3\.4 °C cooler than the air\. That is cool for ficus roots \(best 18–26 °C\)/.test(nowProbed.body) && /vitality feels it/.test(nowProbed.body) && nowProbed.details.some((d) => d.startsWith('root zone 16.4')) && !/soil is \d/.test(nowPlain.body) && clean([nowProbed]), nowProbed.body);
 }
 
