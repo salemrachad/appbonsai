@@ -351,6 +351,8 @@ export default function App() {
           tip={expression?.message.tip ?? ''}
           telemetry={reading}
           species={ACTIVE_SPECIES}
+          season={previews.season ? midSeasonState(previews.season, settings.latitude) : perception?.season ?? null}
+          lastWateringAt={perception?.care.lastWatering?.timestamp ?? null}
           hourly={hourly}
           days={charts.days}
           timeline={snapshot?.forecast.timeline ?? []}

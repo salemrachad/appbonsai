@@ -1,95 +1,90 @@
 import React, { useState } from 'react';
-import { X, Droplets, Sun, Thermometer, Wind, Activity, Sparkles, Info, Radio, Cpu, ShieldCheck, ShieldAlert } from 'lucide-react';
-import { PlantHealthState, MetricAssessment, MetricId } from '../health/healthTypes';
+import {
+  X, Droplets, Sun, Thermometer, Wind, Activity, Sparkles, Info, Radio, Cpu, ShieldCheck, ShieldAlert, HeartPulse, BookOpen,
+  LineChart, Clock, Lightbulb, Sprout, Scissors, FlaskConical, Shovel, Flower2, Leaf, Snowflake, Wifi, WifiOff, LayoutGrid,
+  TrendingUp, TrendingDown, Minus, CircleCheck, Waves,
+} from 'lucide-react';
+import { PlantHealthState, MetricAssessment, MetricId, MetricTone, ScoreId } from '../health/healthTypes';
 import { CONDITION_LABELS } from '../health/labels';
 import { metricScale } from '../health/metricScale';
 import { luxText } from '../health/metrics';
+import { bonsaiBasics, LessonIcon } from '../explain/bonsaiBasics';
 import type { DailySummary } from '../history/historyTypes';
+import type { SeasonState } from '../perception/season';
 import { SpeciesProfile } from '../species';
 import { HourlyTelemetryPoint, PlantTelemetry, TimelineEvent } from '../telemetry/types';
-import { METRIC_TONE_CLASS } from './sensors/SensorCard';
 import { MetricBar } from './sensors/MetricBar';
 import { TodayTimeline } from './TodayTimeline';
 import { GuideBody } from './sensors/SensorGuide';
-import { hhmmss } from '../lib/time';
+import { hhmm } from '../lib/time';
 
 interface DetailViewProps {
   health: PlantHealthState;
   message: string;
   tip: string;
-  telemetry: PlantTelemetry | null; // latest reading (may be stale), for the lux and the sensor diagnostics
+  telemetry: PlantTelemetry | null; // latest reading (may be stale), for the lux and the sensors
   species: SpeciesProfile;
+  season: SeasonState | null;
+  lastWateringAt: number | null;
   hourly: HourlyTelemetryPoint[]; // last 24h (forecast for weather, recorded history for sensors)
   days: DailySummary[];
   timeline: TimelineEvent[];
   locationName: string;
+  initialTab?: Tab;
   onClose: () => void;
 }
 
-const METRIC_ICON: Record<MetricId, { Icon: typeof Droplets; color: string }> = {
-  soil: { Icon: Droplets, color: '#3A86C8' },
-  light: { Icon: Sun, color: '#E99E10' },
+type Icon = typeof Droplets;
+
+const METRIC: Record<MetricId, { Icon: Icon; color: string; short: string }> = {
+  soil: { Icon: Droplets, color: '#3A86C8', short: 'Soil' },
+  light: { Icon: Sun, color: '#E0960F', short: 'Light' },
+  temperature: { Icon: Thermometer, color: '#D65A31', short: 'Warmth' },
+  humidity: { Icon: Wind, color: '#52796F', short: 'Air' },
+  vpd: { Icon: Waves, color: '#457B9D', short: 'Drying pull' },
+};
+const SCORE_ICON: Record<ScoreId, { Icon: Icon; color: string }> = {
+  moisture: { Icon: Droplets, color: '#3A86C8' },
   temperature: { Icon: Thermometer, color: '#D65A31' },
   humidity: { Icon: Wind, color: '#52796F' },
-  vpd: { Icon: Activity, color: '#457B9D' },
+  light: { Icon: Sun, color: '#E0960F' },
+  stability: { Icon: Activity, color: '#4A6741' },
 };
+const LESSON_ICON: Record<LessonIcon, { Icon: Icon; color: string }> = {
+  water: { Icon: Droplets, color: '#3A86C8' },
+  light: { Icon: Sun, color: '#E0960F' },
+  temperature: { Icon: Thermometer, color: '#D65A31' },
+  humidity: { Icon: Wind, color: '#52796F' },
+  roots: { Icon: Sprout, color: '#8B6B43' },
+  prune: { Icon: Scissors, color: '#4A6741' },
+  feed: { Icon: FlaskConical, color: '#7A5BA6' },
+  repot: { Icon: Shovel, color: '#8B6B43' },
+};
+const SEASON_ICON: Record<SeasonState['id'], Icon> = { spring: Flower2, summer: Sun, autumn: Leaf, winter: Snowflake };
 
+const TONE: Record<MetricTone, string> = {
+  good: 'var(--tone-good)',
+  info: 'var(--tone-info)',
+  caution: 'var(--tone-caution)',
+  alert: 'var(--tone-alert)',
+  off: '#B9B3A8',
+};
 const r1 = (n: number) => Math.round(n * 10) / 10;
+const card = 'rounded-2xl bg-white border border-[#ECE5D8]';
 
-const MetricRow: React.FC<{ m: MetricAssessment; lux: number | null; species: SpeciesProfile }> = ({ m, lux, species }) => {
-  const { Icon, color } = METRIC_ICON[m.id];
-  const scale = metricScale(m, species, { lux });
-  return (
-    <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-2.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}1A` }}>
-            <Icon className="w-4 h-4" style={{ color }} />
-          </span>
-          <div className="flex flex-col min-w-0">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-[#2C302E]/55">
-              {m.name}
-              {m.estimated && <span className="ml-1.5 normal-case tracking-normal font-semibold text-[#8F5E24]">estimated</span>}
-            </span>
-            <span className={`text-[11px] ${METRIC_TONE_CLASS[m.tone]}`}>
-              {m.status}
-              {m.detail && (
-                <span className="font-normal text-[#2C302E]/55">
-                  {' · '}
-                  {m.detail}
-                  {m.detailStatus && <span className={METRIC_TONE_CLASS[m.detailTone ?? 'info']}> {m.detailStatus}</span>}
-                </span>
-              )}
-            </span>
-          </div>
-        </div>
-        <span className="serif text-xl font-medium text-[#2C302E] tracking-tight whitespace-nowrap">{m.tone === 'off' ? '–' : m.display}</span>
-      </div>
-      {scale && <MetricBar scale={scale} showZones />}
-      <div className="text-[10px] text-[#7C827D]">
-        Comfortable: <span className="font-semibold text-[#4A7C59]">{m.idealRange}</span>
-        {m.id === 'light' && !m.estimated && (lux != null ? ' · the tree’s light scale (a log scale of the BH1750’s lux)' : ' · relative light %')}
-      </div>
-      {m.guide && (
-        <details className="group/details">
-          <summary className="text-[10.5px] font-semibold text-[#4A7C59] cursor-pointer select-none list-none">
-            <span className="group-open/details:hidden">Best conditions & ranges ›</span>
-            <span className="hidden group-open/details:inline">Hide ranges ‹</span>
-          </summary>
-          <GuideBody guide={m.guide} className="mt-2 p-3 rounded-xl bg-[#FAF7F2] border border-[#EBE4D7]" />
-        </details>
-      )}
-    </div>
-  );
-};
+const IconBadge: React.FC<{ Icon: Icon; color: string; size?: 'sm' | 'md' }> = ({ Icon, color, size = 'md' }) => (
+  <span className={`${size === 'sm' ? 'w-7 h-7 rounded-lg' : 'w-9 h-9 rounded-xl'} flex items-center justify-center shrink-0`} style={{ background: `${color}1A` }}>
+    <Icon className={size === 'sm' ? 'w-3.5 h-3.5' : 'w-[18px] h-[18px]'} style={{ color }} />
+  </span>
+);
 
-const ringColor = (v: number) => (v >= 75 ? 'var(--tone-good)' : v >= 50 ? 'var(--tone-caution)' : 'var(--tone-alert)');
+const Dot: React.FC<{ tone: MetricTone }> = ({ tone }) => <span className="w-2 h-2 rounded-full shrink-0" style={{ background: TONE[tone] }} />;
 
 // Vitality as a ring; the faint arc is where it's heading
-const VitalityRing: React.FC<{ value: number; target: number; size?: number }> = ({ value, target, size = 56 }) => {
+const VitalityRing: React.FC<{ value: number; target: number; size?: number }> = ({ value, target, size = 64 }) => {
   const r = size / 2 - 5;
   const c = 2 * Math.PI * r;
-  const color = ringColor(value);
+  const color = value >= 75 ? 'var(--tone-good)' : value >= 50 ? 'var(--tone-caution)' : 'var(--tone-alert)';
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" role="img" aria-label={`Vitality ${Math.round(value)}`}>
       <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
@@ -104,108 +99,229 @@ const VitalityRing: React.FC<{ value: number; target: number; size?: number }> =
   );
 };
 
+// One measurement as a tile: icon, value, verdict, the range bar. Tap it for the ranges.
+const MetricTile: React.FC<{ m: MetricAssessment; lux: number | null; species: SpeciesProfile; open: boolean; onToggle: () => void }> = ({ m, lux, species, open, onToggle }) => {
+  const { Icon, color, short } = METRIC[m.id];
+  const scale = metricScale(m, species, { lux });
+  const off = m.tone === 'off';
+  return (
+    <button
+      onClick={onToggle}
+      aria-expanded={open}
+      className={`${card} p-3 text-left flex flex-col gap-2 cursor-pointer transition-shadow hover:shadow-sm ${open ? 'ring-2 ring-[#4A6741]/30' : ''} ${off ? 'opacity-70' : ''}`}
+    >
+      <div className="flex items-center gap-2">
+        <IconBadge Icon={Icon} color={off ? '#9A968E' : color} size="sm" />
+        <span className="text-[10px] uppercase tracking-wider font-bold text-[#2C302E]/50">{short}</span>
+        <Info className="w-3 h-3 ml-auto text-[#2C302E]/25" />
+      </div>
+      <div className="flex items-baseline justify-between gap-1.5">
+        <span className="serif text-[22px] leading-none font-medium text-[#2C302E] tracking-tight">{off ? '–' : m.display}</span>
+        <span className="flex items-center gap-1 text-[11px] font-semibold min-w-0" style={{ color: off ? '#9A968E' : TONE[m.tone] }}>
+          <Dot tone={m.tone} />
+          <span className="truncate">{off ? 'No sensor' : m.status}</span>
+        </span>
+      </div>
+      {scale ? <MetricBar scale={scale} /> : <div className="h-[24px]" />}
+      {m.detail && (
+        <span className="flex items-center gap-1 text-[10.5px] text-[#2C302E]/60 -mt-1">
+          {m.id === 'soil' ? <Sprout className="w-3 h-3 text-[#8B6B43]" /> : <Sun className="w-3 h-3 text-[#E0960F]" />}
+          {m.detail.replace(/^Roots /, '')}
+          {m.detailStatus && <span style={{ color: TONE[m.detailTone ?? 'info'] }} className="font-semibold">{m.detailStatus}</span>}
+        </span>
+      )}
+    </button>
+  );
+};
+
+// The sensors as icons: green = reporting, grey = not there
+const SensorStrip: React.FC<{ t: PlantTelemetry }> = ({ t }) => {
+  const lux = t.lightLux ?? null;
+  const soilTemp = t.soilTemperature ?? null;
+  const rssi = t.wifiRssi ?? null;
+  const items: { Icon: Icon; name: string; value: string; ok: boolean }[] = [
+    { Icon: Droplets, name: 'Soil probe (FC-28)', value: `${t.soilMoisture}%${t.soilRaw != null ? ` · raw ${t.soilRaw}` : ''}`, ok: true },
+    { Icon: Sprout, name: 'Root probe (DS18B20)', value: soilTemp !== null ? `${soilTemp}°C` : 'not fitted', ok: soilTemp !== null },
+    { Icon: Thermometer, name: 'Air (HTS221)', value: t.temperature !== null ? `${t.temperature}°C · ${t.humidity ?? '–'}%` : 'not connected', ok: t.htsConnected !== false && t.temperature !== null },
+    { Icon: Sun, name: lux !== null ? 'Light (BH1750)' : 'Light (LDR)', value: lux !== null ? `${luxText(lux)} lux · ${t.lightPercent ?? '–'}%` : t.lightPercent != null ? `${t.lightPercent}%` : '–', ok: t.lightPercent != null },
+  ];
+  return (
+    <div className={`${card} px-3 py-2.5 flex items-center gap-1.5 flex-wrap`}>
+      <Cpu className="w-4 h-4 text-[#356077] mr-0.5" aria-label="Sensors" />
+      {items.map(({ Icon, name, value, ok }) => (
+        <span key={name} title={`${name}: ${value}`} className="relative inline-flex items-center gap-1 pl-1.5 pr-2 py-1 rounded-lg bg-[#F6F2EC] text-[10.5px] font-mono text-[#2C302E]/75">
+          <Icon className="w-3.5 h-3.5" style={{ color: ok ? 'var(--tone-good)' : '#B9B3A8' }} />
+          {ok ? value.split(' · ')[0] : '–'}
+        </span>
+      ))}
+      <span title={rssi !== null ? `Wi-Fi ${rssi} dBm` : 'Wi-Fi unknown'} className="ml-auto inline-flex items-center gap-1 text-[10.5px] font-mono text-[#2C302E]/55">
+        {rssi !== null ? <Wifi className="w-3.5 h-3.5" style={{ color: rssi > -70 ? 'var(--tone-good)' : 'var(--tone-caution)' }} /> : <WifiOff className="w-3.5 h-3.5 text-[#B9B3A8]" />}
+        <Clock className="w-3 h-3 ml-1" />
+        {hhmm(t.timestamp)}
+      </span>
+      {t.sensorIssues && t.sensorIssues.length > 0 && <p className="w-full text-[10.5px] text-[#8F5E24]">{t.sensorIssues.join(' · ')}</p>}
+    </div>
+  );
+};
+
 const scoreColor = (n: number) => (n >= 85 ? 'var(--tone-good)' : n >= 60 ? 'var(--tone-info)' : n >= 40 ? 'var(--tone-caution)' : 'var(--tone-alert)');
 
-// What vitality is made of: the live calculation, told plainly (Developer → Health debug has every step)
 const VitalityTab: React.FC<{ health: PlantHealthState }> = ({ health }) => {
   const b = health.breakdown;
   const total = b.components.reduce((a, c) => a + (c.score === null ? 0 : c.weight), 0) || 1;
   const offs = [
     ...b.durationPenalties.map((x) => ({ label: x.label, detail: x.detail, points: x.points })),
-    ...(b.combinedExtra > 0 ? [{ label: 'Hot and dry together', detail: 'the two stresses add up', points: b.combinedExtra }] : []),
-    ...(b.recoveryModifier ? [{ label: 'Still recovering', detail: 'a dip that fades as it settles', points: b.recoveryModifier }] : []),
-    ...(b.leafDropModifier ? [{ label: 'Leaf drop', detail: 'seen in the daily photos', points: b.leafDropModifier }] : []),
+    ...(b.combinedExtra > 0 ? [{ label: 'Hot and dry together', detail: 'the two add up', points: b.combinedExtra }] : []),
+    ...(b.recoveryModifier ? [{ label: 'Still recovering', detail: 'fades as it settles', points: b.recoveryModifier }] : []),
+    ...(b.leafDropModifier ? [{ label: 'Leaf drop', detail: 'seen in the photos', points: b.leafDropModifier }] : []),
   ];
-  const heading = b.frozen
-    ? 'held: no fresh data'
-    : Math.abs(b.target - b.final) < 1
-    ? 'steady'
-    : b.target > b.final
-    ? `rising toward ${Math.round(b.target)}`
-    : `easing toward ${Math.round(b.target)}`;
+  const diff = b.target - b.final;
+  const Trend = b.frozen || Math.abs(diff) < 1 ? Minus : diff > 0 ? TrendingUp : TrendingDown;
+  const heading = b.frozen ? 'Held: no fresh data' : Math.abs(diff) < 1 ? 'Steady' : diff > 0 ? `Rising toward ${Math.round(b.target)}` : `Easing toward ${Math.round(b.target)}`;
   return (
-    <div className="space-y-3.5">
-      <div className="p-4 rounded-2xl bg-white border border-[#ECE5D8] flex items-center gap-4">
-        <VitalityRing value={health.vitality} target={b.target} size={72} />
+    <div className="space-y-3">
+      <div className={`${card} p-4 flex items-center gap-4`}>
+        <VitalityRing value={health.vitality} target={b.target} size={76} />
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-bold text-[#2D332A]">
-            {health.qualitative} · {heading}
+          <span className="flex items-center gap-1.5 text-sm font-bold text-[#2D332A]">
+            <Trend className="w-4 h-4" style={{ color: diff < -1 ? 'var(--tone-caution)' : 'var(--tone-good)' }} />
+            {heading}
           </span>
           <span className="text-[11px] text-[#2D332A]/60 leading-relaxed">
-            Vitality is accumulated wellbeing, not today’s readings averaged. It drifts toward its target over hours, so a short spell barely moves it.
+            Vitality is how well the tree has been over the last hours, not a snapshot. It moves slowly, so a short spell barely shows.
           </span>
         </div>
       </div>
 
-      <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-[#2C302E]">What it’s made of</span>
-          <span className="text-[10.5px] text-[#2C302E]/50 font-mono">base {r1(b.weightedBase)}</span>
-        </div>
-        {b.components.map((c) => (
-          <div key={c.id} className="space-y-1">
-            <div className="flex items-baseline justify-between gap-2 text-[11px]">
-              <span className="font-semibold text-[#2C302E]">
-                {c.label}
-                {c.score !== null && <span className="ml-1.5 font-normal text-[#2C302E]/45">{Math.round((c.weight / total) * 100)}% of the base</span>}
-              </span>
-              <span className="font-mono text-[#2C302E]/75">{c.score === null ? <span className="text-[#2C302E]/40">not counted</span> : c.score}</span>
+      <div className={`${card} p-3.5 space-y-3`}>
+        {b.components.map((c) => {
+          const { Icon, color } = SCORE_ICON[c.id];
+          return (
+            <div key={c.id} className="flex items-center gap-3" title={c.note}>
+              <IconBadge Icon={Icon} color={c.score === null ? '#9A968E' : color} size="sm" />
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-baseline justify-between text-[11px]">
+                  <span className="font-semibold text-[#2C302E]">{c.label}</span>
+                  <span className="font-mono text-[#2C302E]/70">
+                    {c.score === null ? <span className="text-[#2C302E]/35">–</span> : c.score}
+                    {c.score !== null && <span className="text-[#2C302E]/35"> · {Math.round((c.weight / total) * 100)}%</span>}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-[#EEE9E0] overflow-hidden">
+                  {c.score !== null && <div className="h-full rounded-full transition-all duration-700" style={{ width: `${c.score}%`, background: scoreColor(c.score) }} />}
+                </div>
+                <div className="text-[10px] text-[#2C302E]/45 truncate">{c.note}</div>
+              </div>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-[#E9E4DB] overflow-hidden">
-              {c.score !== null && <div className="h-full rounded-full transition-all duration-700" style={{ width: `${c.score}%`, background: scoreColor(c.score) }} />}
-            </div>
-            <div className="text-[10px] text-[#2C302E]/50">{c.note}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-1.5">
-        <span className="text-xs font-bold text-[#2C302E]">What’s weighing on it</span>
+      <div className={`${card} p-3.5 space-y-1.5`}>
         {offs.length === 0 ? (
-          <p className="text-[11px] text-[#4A7C59]">Nothing: no lasting stress, no recovery dip.</p>
+          <p className="flex items-center gap-2 text-[11.5px] text-[#4A7C59] font-semibold">
+            <CircleCheck className="w-4 h-4" /> Nothing weighing on it
+          </p>
         ) : (
           offs.map((o) => (
             <div key={o.label} className="flex items-baseline justify-between gap-3 text-[11px]">
-              <span>
-                <span className="font-semibold text-[#2C302E]">{o.label}</span> <span className="text-[#2C302E]/50">{o.detail}</span>
+              <span className="flex items-center gap-1.5">
+                <TrendingDown className="w-3.5 h-3.5 text-[var(--tone-alert)] self-center" />
+                <span className="font-semibold text-[#2C302E]">{o.label}</span>
+                <span className="text-[#2C302E]/45">{o.detail}</span>
               </span>
               <span className="font-mono text-[var(--tone-alert)]">−{r1(o.points)}</span>
             </div>
           ))
         )}
-        {b.combinedMultiplier > 1 && <p className="text-[10.5px] text-[#2C302E]/50">Several stresses at once: each weighs ×{b.combinedMultiplier}.</p>}
-        <div className="flex items-baseline justify-between pt-1.5 mt-1 border-t border-[#F0ECE6] text-[11px]">
-          <span className="font-semibold text-[#2C302E]">Target</span>
-          <span className="font-mono font-bold text-[#2C302E]">{r1(b.target)}</span>
+        <div className="flex items-baseline justify-between pt-1.5 mt-1 border-t border-[#F0ECE6] text-[11px] text-[#2C302E]/60">
+          <span>Base {r1(b.weightedBase)}{offs.length > 0 && ' − the above'}</span>
+          <span className="font-mono font-bold text-[#2C302E]">→ {r1(b.target)}</span>
         </div>
       </div>
     </div>
   );
 };
 
-// One line of the sensor diagnostics
-const Diag: React.FC<{ label: string; value: React.ReactNode; muted?: boolean }> = ({ label, value, muted }) => (
-  <div className="flex items-baseline justify-between gap-2">
-    <span className="text-[#2C302E]/50">{label}</span>
-    <span className={`font-mono ${muted ? 'text-[#2C302E]/35' : 'text-[#2C302E]/85'}`}>{value}</span>
-  </div>
-);
+const LearnTab: React.FC<{ species: SpeciesProfile; health: PlantHealthState; season: SeasonState | null; lastWateringAt: number | null }> = ({ species, health, season, lastWateringAt }) => {
+  const { lessons, seasons } = bonsaiBasics({ species, metrics: health.metrics, season, lastWateringAt, now: Date.now() });
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 px-1">
+        <IconBadge Icon={Sprout} color="#4A6741" />
+        <div className="flex flex-col">
+          <span className="serif text-lg leading-tight text-[#2D332A]">Your {species.commonName}</span>
+          <span className="text-[11px] italic text-[#2D332A]/50">{species.speciesName}</span>
+        </div>
+      </div>
+
+      <div className={`${card} p-3`}>
+        <div className="grid grid-cols-4 gap-1.5">
+          {seasons.map((x) => {
+            const Icon = SEASON_ICON[x.id];
+            return (
+              <div key={x.id} className={`rounded-xl p-2 flex flex-col items-center gap-1 text-center ${x.current ? 'bg-[#4A6741]/10 ring-1 ring-[#4A6741]/30' : ''}`}>
+                <Icon className="w-4 h-4" style={{ color: x.current ? '#4A6741' : '#A8A296' }} />
+                <span className={`text-[10.5px] font-bold ${x.current ? 'text-[#2D332A]' : 'text-[#2D332A]/45'}`}>{x.label}</span>
+              </div>
+            );
+          })}
+        </div>
+        {seasons.filter((x) => x.current).map((x) => (
+          <p key={x.id} className="text-[11px] text-[#2D332A]/70 mt-2 px-1 text-center">
+            <strong className="text-[#2D332A]">{x.growth}.</strong> {x.care}
+          </p>
+        ))}
+      </div>
+
+      {lessons.map((l) => {
+        const { Icon, color } = LESSON_ICON[l.id];
+        return (
+          <div key={l.id} className={`${card} p-3.5 flex gap-3`}>
+            <IconBadge Icon={Icon} color={color} />
+            <div className="flex-1 min-w-0 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-[#2C302E]/50">{l.title}</span>
+                {l.yours && (
+                  <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-[#F6F2EC] whitespace-nowrap" style={{ color: l.yours.tone === 'off' ? '#8A857C' : TONE[l.yours.tone] }}>
+                    <Dot tone={l.yours.tone} />
+                    {l.yours.text}
+                  </span>
+                )}
+              </div>
+              <p className="text-[12.5px] font-semibold text-[#2C302E] leading-snug">{l.rule}</p>
+              <p className="text-[11px] text-[#2C302E]/55 leading-relaxed">{l.why}</p>
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-[10px] text-[#2D332A]/40 px-1">Ranges from this tree’s species profile; pruning, feeding and repotting are general ficus bonsai care.</p>
+    </div>
+  );
+};
 
 interface ChartProps {
   values: number[];
   labels: string[];
   unit: string;
   color: string;
-  title?: string; // shown in the combined view
+  title?: string;
+  Icon?: Icon;
   compact?: boolean;
 }
 
-function Chart({ values, labels, unit, color, title, compact }: ChartProps) {
+function Chart({ values, labels, unit, color, title, Icon, compact }: ChartProps) {
+  const head = title && (
+    <span className="text-[11px] font-bold flex items-center gap-1.5 text-[#2C302E]">
+      {Icon && <Icon className="w-3.5 h-3.5" style={{ color }} />}
+      {title}
+    </span>
+  );
   if (values.length < 2)
     return (
       <div className="flex flex-col gap-1">
-        {title && <span className="text-[11px] font-bold capitalize text-[#2C302E]">{title}</span>}
-        <p className="text-xs text-neutral-400 py-6 text-center">Not enough data recorded yet</p>
+        {head}
+        <p className="text-xs text-neutral-400 py-6 text-center">Not enough data yet</p>
       </div>
     );
   const min = Math.min(...values);
@@ -218,20 +334,17 @@ function Chart({ values, labels, unit, color, title, compact }: ChartProps) {
   const path = `M ${pts.join(' L ')}`;
   return (
     <div className="flex flex-col gap-1.5">
-      {title && (
-        <span className="text-[11px] font-bold capitalize flex items-center gap-1.5 text-[#2C302E]">
-          <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-          {title}
+      <div className="flex items-center justify-between">
+        {head ?? <span />}
+        <span className={`flex gap-2 text-[#7A827B] font-mono ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+          <span title="Low">↓ {r1(min)}{unit}</span>
+          <span title="High">↑ {r1(max)}{unit}</span>
         </span>
-      )}
-      <div className={`flex justify-between text-[#7A827B] ${compact ? 'text-[10.5px]' : 'text-xs'}`}>
-        <span>Low: <strong className="text-[#2C302E]">{r1(min)}{unit}</strong></span>
-        <span>High: <strong className="text-[#2C302E]">{r1(max)}{unit}</strong></span>
       </div>
       <div className="rounded-xl bg-[#FAF7F2] p-2 border border-[#EBE4D7]">
-        <svg viewBox={`0 0 ${w} ${h}`} className={`w-full ${compact ? 'h-20' : 'h-28'}`} preserveAspectRatio="none">
+        <svg viewBox={`0 0 ${w} ${h}`} className={`w-full ${compact ? 'h-20' : 'h-32'}`} preserveAspectRatio="none">
           <path d={`${path} L ${w - p},${h - p} L ${p},${h - p} Z`} fill={color} opacity="0.12" />
-          <path d={path} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+          <path d={path} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         </svg>
         <div className="flex justify-between text-[10px] text-[#8A908A] px-2 pt-1 font-mono">
           <span>{labels[0]}</span>
@@ -243,198 +356,208 @@ function Chart({ values, labels, unit, color, title, compact }: ChartProps) {
 }
 
 type ChartMetric = 'soil' | 'temperature' | 'humidity' | 'light';
-const CHART_METRICS: ChartMetric[] = ['soil', 'temperature', 'humidity', 'light'];
+const CHART_METRICS: ChartMetric[] = ['soil', 'light', 'temperature', 'humidity'];
+export type Tab = 'now' | 'vitality' | 'learn' | 'trends' | 'today';
+const HOME_METRICS: MetricId[] = ['soil', 'light', 'temperature', 'humidity'];
 
-type Tab = 'health' | 'vitality' | 'trends' | 'today';
-
-export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, telemetry, species, hourly, days, timeline, locationName, onClose }) => {
-  const [tab, setTab] = useState<Tab>('health');
+export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, telemetry, species, season, lastWateringAt, hourly, days, timeline, locationName, initialTab = 'now', onClose }) => {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [chartMetric, setChartMetric] = useState<ChartMetric | 'all'>('soil');
   const [span, setSpan] = useState<'24h' | '7d'>('24h');
+  const [openMetric, setOpenMetric] = useState<MetricId | null>(null);
   const isSensor = telemetry?.source !== 'weather_estimate';
   const lux = isSensor ? telemetry?.lightLux ?? null : null;
-  const hasLuxSensor = lux !== null;
 
-  const chartData = (chartMetric: ChartMetric) => {
-    const color = METRIC_ICON[chartMetric].color;
-    const unit = chartMetric === 'temperature' ? '°C' : chartMetric === 'light' ? (isSensor ? '%' : ' W/m²') : '%';
-    if (span === '24h') {
-      const rows = hourly.flatMap((h) => {
-        const v = chartMetric === 'soil' ? h.soilMoisture : chartMetric === 'temperature' ? h.temperature : chartMetric === 'humidity' ? h.humidity : h.light;
-        return v === null ? [] : [{ v, label: h.time }];
-      });
-      return { values: rows.map((r) => r.v), labels: rows.map((r) => r.label), unit, color };
-    }
-    const rows = days.flatMap((d) => {
-      const v = chartMetric === 'soil' ? d.avgSoil : chartMetric === 'temperature' ? d.avgTemp : chartMetric === 'humidity' ? d.avgHumidity : d.avgLight;
-      return v === null ? [] : [{ v, label: d.dayLabel }];
-    });
-    return { values: rows.map((r) => r.v), labels: rows.map((r) => r.label), unit, color };
+  const chartData = (cm: ChartMetric) => {
+    const color = METRIC[cm].color;
+    const unit = cm === 'temperature' ? '°' : cm === 'light' ? (isSensor ? '%' : ' W/m²') : '%';
+    const rows =
+      span === '24h'
+        ? hourly.flatMap((h) => {
+            const v = cm === 'soil' ? h.soilMoisture : cm === 'temperature' ? h.temperature : cm === 'humidity' ? h.humidity : h.light;
+            return v === null ? [] : [{ v, label: h.time }];
+          })
+        : days.flatMap((d) => {
+            const v = cm === 'soil' ? d.avgSoil : cm === 'temperature' ? d.avgTemp : cm === 'humidity' ? d.avgHumidity : d.avgLight;
+            return v === null ? [] : [{ v, label: d.dayLabel }];
+          });
+    return { values: rows.map((r) => r.v), labels: rows.map((r) => r.label), unit, color, title: METRIC[cm].short, Icon: METRIC[cm].Icon };
   };
 
-  const tabBtn = (id: Tab, label: string) => (
-    <button
-      onClick={() => setTab(id)}
-      className={`pb-2.5 px-3 sans text-xs font-semibold border-b-2 cursor-pointer ${
-        tab === id ? 'border-[#4A6741] text-[#4A6741]' : 'border-transparent text-[#2D332A]/50 hover:text-[#2D332A]'
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const tabs: { id: Tab; Icon: Icon; label: string }[] = [
+    { id: 'now', Icon: Activity, label: 'Now' },
+    { id: 'vitality', Icon: HeartPulse, label: 'Vitality' },
+    { id: 'learn', Icon: BookOpen, label: 'Learn' },
+    { id: 'trends', Icon: LineChart, label: 'Charts' },
+    ...(timeline.length > 0 ? [{ id: 'today' as Tab, Icon: Clock, label: 'Rhythm' }] : []),
+  ];
   const pill = (active: boolean) =>
-    `px-2.5 py-1 text-[11px] font-semibold rounded-lg capitalize cursor-pointer ${active ? 'bg-white text-[#2C302E] shadow-xs' : 'text-[#6C757D] hover:text-[#2C302E]'}`;
+    `px-2 py-1 text-[11px] font-semibold rounded-lg cursor-pointer flex items-center gap-1 ${active ? 'bg-white text-[#2C302E] shadow-xs' : 'text-[#6C757D] hover:text-[#2C302E]'}`;
 
-  const lightRawNote = hasLuxSensor ? 'log of lux' : 'ADC';
-  const soilTemp = telemetry?.soilTemperature ?? null;
+  const tiles = HOME_METRICS.map((id) => health.metrics.find((m) => m.id === id)).filter((m): m is MetricAssessment => !!m);
+  const vpd = health.metrics.find((m) => m.id === 'vpd');
+  const open = openMetric ? health.metrics.find((m) => m.id === openMetric) : null;
 
   return (
     <div id="bonsai-detail-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onClick={onClose}>
       <div
-        className="day w-full max-w-lg max-h-[88vh] bg-[#F8F5F2] text-[#2D332A] rounded-3xl border border-white/60 shadow-2xl flex flex-col overflow-hidden"
+        className="day w-full max-w-lg max-h-[90vh] bg-[#F8F5F2] text-[#2D332A] rounded-3xl border border-white/60 shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-5 border-b border-[#EAE6E1] flex items-center justify-between gap-3 bg-white/70">
-          <div className="flex items-center gap-3.5 min-w-0">
+        {/* How it is, at a glance */}
+        <div className="px-5 pt-5 pb-4 bg-white/75 border-b border-[#EAE6E1]">
+          <div className="flex items-start gap-4">
             <VitalityRing value={health.vitality} target={health.breakdown.target} />
-            <div className="flex flex-col min-w-0">
-              <h2 className="serif text-2xl font-medium text-[#2D332A] tracking-tight leading-tight">Tree Diagnostics</h2>
-              <span className="sans text-xs font-semibold text-[#3D5535]">
-                {health.qualitative} · {CONDITION_LABELS[health.condition]}
-              </span>
-              <div className="flex items-center gap-1.5 sans text-[11px] text-[#2D332A]/55 mt-0.5">
-                <Radio className="w-3 h-3 text-[#4A6741] shrink-0" />
-                <span className="truncate">
-                  {!telemetry ? 'No reading yet' : isSensor ? `Live from the greenhouse ESP32 · ${hhmmss(telemetry.timestamp)}` : `Weather estimate · Open-Meteo (${locationName})`}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[#2D332A]/45">
+                <Radio className="w-3 h-3 text-[#4A6741]" />
+                {!telemetry ? 'No reading yet' : isSensor ? `Live · ${hhmm(telemetry.timestamp)}` : `Estimate · ${locationName}`}
+              </div>
+              <h2 className="serif text-2xl font-medium text-[#2D332A] tracking-tight leading-tight">{CONDITION_LABELS[health.condition]}</h2>
+              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                {tiles.map((m) => {
+                  const { Icon } = METRIC[m.id];
+                  return (
+                    <span key={m.id} title={`${m.name}: ${m.display} · ${m.status}`} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[#F6F2EC]">
+                      <Icon className="w-3.5 h-3.5" style={{ color: TONE[m.tone] }} />
+                      <Dot tone={m.tone} />
+                    </span>
+                  );
+                })}
+                <span title={`Data confidence: ${health.confidence}${health.dataIssues.length ? ` · ${health.dataIssues.join(' · ')}` : ''}`} className="inline-flex items-center px-1.5 py-0.5">
+                  {health.confidence === 'high' ? <ShieldCheck className="w-4 h-4 text-[#4A7C59]" /> : <ShieldAlert className="w-4 h-4 text-[#B87D33]" />}
                 </span>
               </div>
             </div>
+            <button onClick={onClose} aria-label="Close" className="p-2 -mr-2 -mt-1 rounded-full hover:bg-neutral-200/50 text-[#2D332A]/60 cursor-pointer">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-neutral-200/50 text-[#2D332A]/70 cursor-pointer self-start">
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
-        <div className="flex border-b border-[#EAE6E1] px-4 pt-2">
-          {tabBtn('health', 'Health')}
-          {tabBtn('vitality', 'Vitality')}
-          {tabBtn('trends', 'Charts')}
-          {timeline.length > 0 && tabBtn('today', "Today's Rhythm")}
+        <div className="flex border-b border-[#EAE6E1] px-3 bg-white/40" role="tablist">
+          {tabs.map(({ id, Icon, label }) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              className={`flex-1 flex flex-col items-center gap-0.5 pt-2.5 pb-2 sans text-[10.5px] font-semibold border-b-2 cursor-pointer ${
+                tab === id ? 'border-[#4A6741] text-[#4A6741]' : 'border-transparent text-[#2D332A]/45 hover:text-[#2D332A]'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {label}
+            </button>
+          ))}
         </div>
 
-        <div className="p-5 overflow-y-auto space-y-3.5 sans">
-          {tab === 'health' && (
+        <div className="p-4 overflow-y-auto space-y-3 sans">
+          {tab === 'now' && (
             <>
-              <div className="p-3.5 rounded-2xl bg-[#4A7C59]/10 border border-[#4A7C59]/20 space-y-2">
-                <div className="flex items-start gap-2.5">
-                  <Sparkles className="w-4 h-4 text-[#4A7C59] shrink-0 mt-0.5" />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-[#2D5A3C]">{message}</span>
-                    {tip && <span className="text-xs text-[#42614E] mt-0.5">{tip}</span>}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 pl-6">
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#2D332A] text-white">{CONDITION_LABELS[health.condition]}</span>
-                  {health.modifiers.map((m) => (
-                    <span key={m} className="text-[11px] px-2 py-0.5 rounded-full bg-white border border-[#D8D2C9] text-[#2D332A]/70">
-                      + {CONDITION_LABELS[m]}
-                    </span>
-                  ))}
-                  {health.isOverride && <span className="text-[11px] text-[#8F5E24]">(test preview)</span>}
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2 text-[11px] text-[#2D332A]/65 px-1">
-                {health.confidence === 'high' ? (
-                  <ShieldCheck className="w-4 h-4 text-[#4A7C59] shrink-0" />
-                ) : (
-                  <ShieldAlert className="w-4 h-4 text-[#B87D33] shrink-0" />
-                )}
-                <span>
-                  Data confidence: <strong className="capitalize">{health.confidence}</strong>
-                  {health.dataIssues.length > 0 && ` · ${health.dataIssues.join(' · ')}`}
-                </span>
-              </div>
-
-              {health.metrics.map((m) => (
-                <MetricRow key={m.id} m={m} lux={m.id === 'light' ? lux : null} species={species} />
-              ))}
-
-              {isSensor && telemetry && (
-                <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-2.5">
-                  <div className="flex items-center gap-2">
-                    <Cpu className="w-4 h-4 text-[#356077]" />
-                    <span className="text-xs font-bold text-[#2C302E]">Sensor diagnostics</span>
-                    <span className="ml-auto text-[10px] font-mono text-[#2C302E]/45">{hhmmss(telemetry.timestamp)}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-[11px]">
-                    <Diag label="Soil (FC-28)" value={`${telemetry.soilMoisture}%`} />
-                    <Diag label="Soil raw ADC" value={telemetry.soilRaw ?? '–'} muted={telemetry.soilRaw == null} />
-                    <Diag label="Roots (DS18B20)" value={soilTemp !== null ? `${soilTemp}°C` : 'not fitted'} muted={soilTemp === null} />
-                    <Diag
-                      label="Air (HTS221)"
-                      value={telemetry.htsConnected === false ? 'not connected' : telemetry.temperature !== null ? `${telemetry.temperature}°C · ${telemetry.humidity ?? '–'}%` : '–'}
-                      muted={telemetry.htsConnected === false}
-                    />
-                    <Diag label={hasLuxSensor ? 'Light (BH1750)' : 'Light (LDR)'} value={hasLuxSensor ? `${luxText(lux)} lux` : telemetry.lightPercent != null ? `${telemetry.lightPercent}%` : '–'} />
-                    <Diag label="Light scale" value={telemetry.lightPercent != null ? `${telemetry.lightPercent}% · ${telemetry.lightRaw ?? '–'} ${lightRawNote}` : '–'} />
-                    <Diag label="VPD" value={telemetry.vpd !== null ? `${telemetry.vpd} kPa` : '–'} />
-                    <Diag label="Wi-Fi" value={telemetry.wifiRssi != null ? `${telemetry.wifiRssi} dBm` : '–'} />
-                  </div>
-                  {telemetry.sensorIssues && telemetry.sensorIssues.length > 0 && (
-                    <p className="text-[10.5px] text-[#8F5E24]">{telemetry.sensorIssues.join(' · ')}</p>
+              {message && (
+                <div className="p-3.5 rounded-2xl bg-[#4A7C59]/10 border border-[#4A7C59]/20 space-y-1.5">
+                  <p className="flex items-start gap-2 serif italic text-[15px] leading-snug text-[#2D5A3C]">
+                    <Sparkles className="w-4 h-4 text-[#4A7C59] shrink-0 mt-1" />“{message}”
+                  </p>
+                  {tip && (
+                    <p className="flex items-start gap-2 text-[11.5px] text-[#42614E]">
+                      <Lightbulb className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      {tip}
+                    </p>
+                  )}
+                  {(health.modifiers.length > 0 || health.isOverride) && (
+                    <div className="flex flex-wrap gap-1.5 pl-6">
+                      {health.modifiers.map((m) => (
+                        <span key={m} className="text-[10.5px] px-2 py-0.5 rounded-full bg-white border border-[#D8D2C9] text-[#2D332A]/70">+ {CONDITION_LABELS[m]}</span>
+                      ))}
+                      {health.isOverride && <span className="text-[10.5px] text-[#8F5E24]">preview</span>}
+                    </div>
                   )}
                 </div>
               )}
+
+              <div className="grid grid-cols-2 gap-2.5">
+                {tiles.map((m) => (
+                  <MetricTile key={m.id} m={m} lux={m.id === 'light' ? lux : null} species={species} open={openMetric === m.id} onToggle={() => setOpenMetric(openMetric === m.id ? null : m.id)} />
+                ))}
+              </div>
+
+              {open?.guide && (
+                <div className={`${card} p-3.5 space-y-2`}>
+                  {(() => {
+                    const s = metricScale(open, species, { lux: open.id === 'light' ? lux : null });
+                    return s && <MetricBar scale={s} showZones />;
+                  })()}
+                  <GuideBody guide={open.guide} />
+                </div>
+              )}
+
+              {vpd && vpd.tone !== 'off' && (
+                <button onClick={() => setOpenMetric(openMetric === 'vpd' ? null : 'vpd')} className={`${card} w-full px-3 py-2.5 flex items-center gap-3 text-left cursor-pointer hover:shadow-sm`} title="How strongly the air pulls water from the leaves (from warmth and humidity)">
+                  <IconBadge Icon={Waves} color={METRIC.vpd.color} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline justify-between text-[11px]">
+                      <span className="font-semibold text-[#2C302E]">Drying pull <span className="font-mono font-normal text-[#2C302E]/50">{vpd.display}</span></span>
+                      <span className="flex items-center gap-1 font-semibold" style={{ color: TONE[vpd.tone] }}><Dot tone={vpd.tone} />{vpd.status}</span>
+                    </div>
+                    {(() => {
+                      const s = metricScale(vpd, species);
+                      return s && <div className="mt-1.5"><MetricBar scale={s} compact /></div>;
+                    })()}
+                  </div>
+                </button>
+              )}
+
+              {isSensor && telemetry && <SensorStrip t={telemetry} />}
             </>
           )}
 
           {tab === 'vitality' && <VitalityTab health={health} />}
+
+          {tab === 'learn' && <LearnTab species={species} health={health} season={season} lastWateringAt={lastWateringAt} />}
 
           {tab === 'today' && <TodayTimeline timeline={timeline} />}
 
           {tab === 'trends' && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex gap-1 bg-[#ECE4D8]/60 p-1 rounded-xl">
-                  {CHART_METRICS.map((m) => (
-                    <button key={m} onClick={() => setChartMetric(m)} className={pill(chartMetric === m)}>
-                      {m}
-                    </button>
-                  ))}
-                  <button onClick={() => setChartMetric('all')} className={pill(chartMetric === 'all')}>
-                    All
+                <div className="flex gap-0.5 bg-[#ECE4D8]/60 p-1 rounded-xl">
+                  {CHART_METRICS.map((m) => {
+                    const { Icon, color, short } = METRIC[m];
+                    return (
+                      <button key={m} onClick={() => setChartMetric(m)} className={pill(chartMetric === m)} title={short} aria-label={short}>
+                        <Icon className="w-3.5 h-3.5" style={{ color: chartMetric === m ? color : undefined }} />
+                      </button>
+                    );
+                  })}
+                  <button onClick={() => setChartMetric('all')} className={pill(chartMetric === 'all')} title="All" aria-label="All">
+                    <LayoutGrid className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="flex gap-1 bg-[#ECE4D8]/60 p-1 rounded-xl">
+                <div className="flex gap-0.5 bg-[#ECE4D8]/60 p-1 rounded-xl">
                   <button onClick={() => setSpan('24h')} className={pill(span === '24h')}>24h</button>
-                  <button onClick={() => setSpan('7d')} className={pill(span === '7d')}>7 Days</button>
+                  <button onClick={() => setSpan('7d')} className={pill(span === '7d')}>7d</button>
                 </div>
               </div>
               {chartMetric === 'all' ? (
                 <div className="grid grid-cols-2 gap-3">
                   {CHART_METRICS.map((m) => (
-                    <div key={m}>
-                      <Chart {...chartData(m)} title={m} compact />
-                    </div>
+                    <Chart key={m} {...chartData(m)} compact />
                   ))}
                 </div>
               ) : (
                 <Chart {...chartData(chartMetric)} />
               )}
-              <div className="p-3 rounded-xl bg-white/70 border border-[#ECE5D8] flex items-start gap-2 text-xs text-[#6A706B]">
-                <Info className="w-4 h-4 text-[#4A7C59] shrink-0 mt-0.5" />
+              <p className="flex items-start gap-2 text-[11px] text-[#6A706B] px-1">
+                <Info className="w-3.5 h-3.5 text-[#4A7C59] shrink-0 mt-0.5" />
                 <span>
-                  {span === '24h' && !isSensor
-                    ? 'Next/last hours from the Open-Meteo forecast and the moisture model.'
-                    : 'Built from the readings the tree has stored (hourly averages).'}
+                  {span === '24h' && !isSensor ? 'From the Open-Meteo forecast and the moisture model.' : 'Hourly averages of the readings the tree stored.'}
                   {(chartMetric === 'light' || chartMetric === 'all') &&
                     isSensor &&
-                    (hasLuxSensor
-                      ? ' Light is the tree’s light scale: a log scale of the BH1750’s lux (1,000 lux ≈ 25 %, 40,000 lux ≈ 85 %).'
-                      : ' Light is a relative %, not lux.')}
+                    (lux !== null ? ' Light is the tree’s light scale, a log scale of lux (1,000 lux ≈ 25 %, 40,000 lux ≈ 85 %).' : ' Light is a relative %, not lux.')}
                 </span>
-              </div>
+              </p>
             </div>
           )}
         </div>
