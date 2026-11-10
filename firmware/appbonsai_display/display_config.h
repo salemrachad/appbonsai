@@ -1,12 +1,28 @@
-// The display ESP32 (#2): ESP32-D0WD-V3 (WROOM-32), 4 MB flash, no PSRAM, with a 3.2" ILI9341 SPI TFT (240x320).
+// The display ESP32 (#2) with a 3.2" ILI9341 SPI TFT (240x320). Two boards build from this sketch:
+// - ESP32-S3-DevKitC-1 N16R8 (since 2026-11-05): 16 MB flash, 8 MB octal PSRAM;
+// - ESP32-D0WD-V3 (WROOM-32), 4 MB flash, no PSRAM (the first display, 2026-10-24).
 // Wiring and why these pins: README.md next to this file.
 #pragma once
 
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 
+#if CONFIG_IDF_TARGET_ESP32S3
+// SCK, MOSI (and CS) are FSPI's own pins (IO_MUX, SPI2), so the SPI clock may go above 40 MHz later. DC and
+// RESET are plain GPIOs next to them. Kept clear: 0, 3, 45, 46 (strapping), 19/20 (USB), 26-32 (flash),
+// 33-37 (the octal PSRAM), 43/44 (UART0), 48 (the board's RGB LED).
+#define TFT_SPI_HOST SPI2_HOST // FSPI
+#define PIN_TFT_SCLK 12 // SCK
+#define PIN_TFT_MOSI 11 // SDI (MOSI)
+#define PIN_TFT_MISO -1 // SDO (MISO): not connected, nothing is read back from the panel
+#define PIN_TFT_CS 10   // CS
+#define PIN_TFT_DC 9    // DC / RS
+#define PIN_TFT_RST 8   // RESET
+#define PIN_TFT_BL -1   // LED (backlight): wired to 3.3 V for now; GPIO 14 once the module's LED circuit is checked
+#else
 // SCK and MOSI are VSPI's own pins (IO_MUX), so the SPI clock may go above 40 MHz later. CS, DC and RESET are
 // plain GPIOs, none of them a boot strapping pin. These are the pins the display is wired to (2026-10-24).
+#define TFT_SPI_HOST SPI3_HOST // VSPI
 #define PIN_TFT_SCLK 18 // SCK
 #define PIN_TFT_MOSI 23 // SDI (MOSI)
 #define PIN_TFT_MISO -1 // SDO (MISO): not connected, nothing is read back from the panel
@@ -14,6 +30,7 @@
 #define PIN_TFT_DC 26   // DC / RS
 #define PIN_TFT_RST 25  // RESET
 #define PIN_TFT_BL -1   // LED (backlight): wired to 3.3 V for now; a PWM pin once the module's LED circuit is checked
+#endif
 
 // 40 MHz is what ILI9341 modules take reliably; try 80 MHz once the static test runs (the README says how)
 #define TFT_SPI_WRITE_HZ 40000000
@@ -31,7 +48,7 @@ public:
   LGFX() {
     {
       auto cfg = bus.config();
-      cfg.spi_host = SPI3_HOST; // VSPI
+      cfg.spi_host = TFT_SPI_HOST;
       cfg.spi_mode = 0;
       cfg.freq_write = TFT_SPI_WRITE_HZ;
       cfg.freq_read = 16000000;
