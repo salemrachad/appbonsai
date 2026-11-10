@@ -186,7 +186,7 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
   const isSuspect = (id: MetricAssessment['id']) =>
     (id === 'soil' && suspect.soil) || (id === 'light' && suspect.light) || ((id === 'temperature' || id === 'humidity' || id === 'vpd') && suspect.air);
   return metrics.map((m) => {
-    const guide = metricGuide(m.id, species, { isSensor: !estimated, tempUnit, value: m.value });
+    const guide = metricGuide(m.id, species, { isSensor: !estimated, tempUnit, value: m.value, lux: isSensor && r.lightLux !== undefined });
     // Light is judged over the day: say what today looked like
     if (m.id === 'light') guide.notes = [...p.light.reasoning.map((r) => `Today: ${r}`), ...guide.notes];
     // Health's interpretations for this metric (e.g. the soil's diagnostic drying note)

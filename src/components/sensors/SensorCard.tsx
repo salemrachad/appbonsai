@@ -2,6 +2,9 @@ import React from 'react';
 import { Droplet, Sun, Thermometer, Wind, Activity } from 'lucide-react';
 import { MetricAssessment, MetricId, MetricTone } from '../../health/healthTypes';
 import { SensorGuide, useGuidePopup } from './SensorGuide';
+import { MetricBar } from './MetricBar';
+import { metricScale } from '../../health/metricScale';
+import { ACTIVE_SPECIES } from '../../species';
 
 const TONE_CLASS: Record<MetricTone, string> = {
   good: 'text-[var(--tone-good)] font-semibold',
@@ -29,6 +32,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({ metric, tooltipAlign = '
   const off = metric.tone === 'off';
   const { Icon, color } = ICONS[metric.id];
   const popup = useGuidePopup();
+  const scale = metricScale(metric, ACTIVE_SPECIES);
 
   return (
     <div ref={popup.ref} className="relative flex w-full">
@@ -83,6 +87,11 @@ export const SensorCard: React.FC<SensorCardProps> = ({ metric, tooltipAlign = '
                 </span>
               )}
             </div>
+            {scale && (
+              <div className="mt-2.5" title={`Comfortable: ${metric.idealRange}`}>
+                <MetricBar scale={scale} compact />
+              </div>
+            )}
           </>
         )}
       </div>

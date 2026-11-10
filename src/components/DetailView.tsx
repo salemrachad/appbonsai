@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { X, Droplets, Sun, Thermometer, Wind, Activity, Sparkles, Info, Radio, Cpu, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { PlantHealthState, MetricAssessment, MetricId } from '../health/healthTypes';
 import { CONDITION_LABELS } from '../health/labels';
+import { metricScale } from '../health/metricScale';
+import { luxText } from '../health/metrics';
 import type { DailySummary } from '../history/historyTypes';
 import { SpeciesProfile } from '../species';
 import { HourlyTelemetryPoint, PlantTelemetry, TimelineEvent } from '../telemetry/types';
 import { METRIC_TONE_CLASS } from './sensors/SensorCard';
+import { MetricBar } from './sensors/MetricBar';
 import { TodayTimeline } from './TodayTimeline';
 import { GuideBody } from './sensors/SensorGuide';
 import { hhmmss } from '../lib/time';
@@ -14,7 +17,7 @@ interface DetailViewProps {
   health: PlantHealthState;
   message: string;
   tip: string;
-  telemetry: PlantTelemetry | null; // latest reading (may be stale), for bars + diagnostics
+  telemetry: PlantTelemetry | null; // latest reading (may be stale), for the lux and the sensor diagnostics
   species: SpeciesProfile;
   hourly: HourlyTelemetryPoint[]; // last 24h (forecast for weather, recorded history for sensors)
   days: DailySummary[];
@@ -31,65 +34,42 @@ const METRIC_ICON: Record<MetricId, { Icon: typeof Droplets; color: string }> = 
   vpd: { Icon: Activity, color: '#457B9D' },
 };
 
-// Scale + comfortable band for a metric's bar, from the species profile.
-function barScale(m: MetricAssessment, t: PlantTelemetry | null, s: SpeciesProfile) {
-  if (!t || m.tone === 'off') return null;
-  switch (m.id) {
-    case 'soil':
-      return { min: 0, max: 100, optMin: s.soilMoisture.minOptimal, optMax: s.soilMoisture.maxOptimal, value: t.soilMoisture };
-    case 'temperature':
-      return t.temperature === null
-        ? null
-        : { min: s.temperature.minCritical - 5, max: s.temperature.maxCritical + 2, optMin: s.temperature.minOptimal, optMax: s.temperature.maxOptimal, value: t.temperature };
-    case 'humidity':
-      return t.humidity === null ? null : { min: 0, max: 100, optMin: s.humidity.minOptimal, optMax: s.humidity.maxOptimal, value: t.humidity };
-    case 'light': {
-      if (t.source === 'esp32_sensor') {
-        if (t.lightPercent == null) return null;
-        const low = s.relativeLight.find((b) => b.id === 'low')!.max;
-        const bright = s.relativeLight.find((b) => b.id === 'bright')!.max;
-        return { min: 0, max: 100, optMin: low + 1, optMax: bright, value: t.lightPercent };
-      }
-      return t.radiation == null ? null : { min: 0, max: s.radiation.maxWarning, optMin: s.radiation.minOptimal, optMax: s.radiation.maxOptimal, value: t.radiation };
-    }
-    case 'vpd':
-      return t.vpd === null ? null : { min: 0, max: s.vpd.maxCritical, optMin: s.vpd.minOptimal, optMax: s.vpd.maxOptimal, value: t.vpd };
-  }
-}
+const r1 = (n: number) => Math.round(n * 10) / 10;
 
-const pct = (v: number, min: number, max: number) => Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100));
-
-const MetricRow: React.FC<{ m: MetricAssessment; telemetry: PlantTelemetry | null; species: SpeciesProfile }> = ({ m, telemetry, species }) => {
+const MetricRow: React.FC<{ m: MetricAssessment; lux: number | null; species: SpeciesProfile }> = ({ m, lux, species }) => {
   const { Icon, color } = METRIC_ICON[m.id];
-  const scale = barScale(m, telemetry, species);
+  const scale = metricScale(m, species, { lux });
   return (
-    <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Icon className="w-4 h-4" style={{ color }} />
-          <span className="text-xs font-bold text-[#2C302E]">{m.name}</span>
-          {m.estimated && <span className="text-[10px] text-[#8F5E24]">estimated</span>}
+    <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${color}1A` }}>
+            <Icon className="w-4 h-4" style={{ color }} />
+          </span>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-[#2C302E]/55">
+              {m.name}
+              {m.estimated && <span className="ml-1.5 normal-case tracking-normal font-semibold text-[#8F5E24]">estimated</span>}
+            </span>
+            <span className={`text-[11px] ${METRIC_TONE_CLASS[m.tone]}`}>
+              {m.status}
+              {m.detail && (
+                <span className="font-normal text-[#2C302E]/55">
+                  {' · '}
+                  {m.detail}
+                  {m.detailStatus && <span className={METRIC_TONE_CLASS[m.detailTone ?? 'info']}> {m.detailStatus}</span>}
+                </span>
+              )}
+            </span>
+          </div>
         </div>
-        <span className="text-xs font-bold text-[#2C302E]">
-          {m.display}
-          {m.tone !== 'off' && <span className={`ml-2 text-[11px] ${METRIC_TONE_CLASS[m.tone]}`}>{m.status}</span>}
-        </span>
+        <span className="serif text-xl font-medium text-[#2C302E] tracking-tight whitespace-nowrap">{m.tone === 'off' ? '–' : m.display}</span>
       </div>
-      {scale && (
-        <>
-          <div className="w-full h-2 bg-[#E9E4DB] rounded-full overflow-hidden relative">
-            <div
-              className="absolute top-0 bottom-0 bg-[#4A7C59]/30"
-              style={{ left: `${pct(scale.optMin, scale.min, scale.max)}%`, right: `${100 - pct(scale.optMax, scale.min, scale.max)}%` }}
-            />
-            <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct(scale.value, scale.min, scale.max)}%`, background: color }} />
-          </div>
-          <div className="text-[10px] text-[#7C827D]">
-            Comfortable: <span className="font-semibold text-[#4A7C59]">{m.idealRange}</span>
-            {m.id === 'light' && telemetry?.source === 'esp32_sensor' && ' · relative photoresistor %, not lux'}
-          </div>
-        </>
-      )}
+      {scale && <MetricBar scale={scale} showZones />}
+      <div className="text-[10px] text-[#7C827D]">
+        Comfortable: <span className="font-semibold text-[#4A7C59]">{m.idealRange}</span>
+        {m.id === 'light' && !m.estimated && (lux != null ? ' · the tree’s light scale (a log scale of the BH1750’s lux)' : ' · relative light %')}
+      </div>
       {m.guide && (
         <details className="group/details">
           <summary className="text-[10.5px] font-semibold text-[#4A7C59] cursor-pointer select-none list-none">
@@ -102,6 +82,114 @@ const MetricRow: React.FC<{ m: MetricAssessment; telemetry: PlantTelemetry | nul
     </div>
   );
 };
+
+const ringColor = (v: number) => (v >= 75 ? 'var(--tone-good)' : v >= 50 ? 'var(--tone-caution)' : 'var(--tone-alert)');
+
+// Vitality as a ring; the faint arc is where it's heading
+const VitalityRing: React.FC<{ value: number; target: number; size?: number }> = ({ value, target, size = 56 }) => {
+  const r = size / 2 - 5;
+  const c = 2 * Math.PI * r;
+  const color = ringColor(value);
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0" role="img" aria-label={`Vitality ${Math.round(value)}`}>
+      <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#E9E4DB" strokeWidth="5" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeOpacity="0.25" strokeWidth="5" strokeDasharray={`${(Math.min(100, target) / 100) * c} ${c}`} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(value / 100) * c} ${c}`} className="transition-all duration-700" />
+      </g>
+      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" className="sans" fontSize={size * 0.3} fontWeight="700" fill="#2D332A">
+        {Math.round(value)}
+      </text>
+    </svg>
+  );
+};
+
+const scoreColor = (n: number) => (n >= 85 ? 'var(--tone-good)' : n >= 60 ? 'var(--tone-info)' : n >= 40 ? 'var(--tone-caution)' : 'var(--tone-alert)');
+
+// What vitality is made of: the live calculation, told plainly (Developer → Health debug has every step)
+const VitalityTab: React.FC<{ health: PlantHealthState }> = ({ health }) => {
+  const b = health.breakdown;
+  const total = b.components.reduce((a, c) => a + (c.score === null ? 0 : c.weight), 0) || 1;
+  const offs = [
+    ...b.durationPenalties.map((x) => ({ label: x.label, detail: x.detail, points: x.points })),
+    ...(b.combinedExtra > 0 ? [{ label: 'Hot and dry together', detail: 'the two stresses add up', points: b.combinedExtra }] : []),
+    ...(b.recoveryModifier ? [{ label: 'Still recovering', detail: 'a dip that fades as it settles', points: b.recoveryModifier }] : []),
+    ...(b.leafDropModifier ? [{ label: 'Leaf drop', detail: 'seen in the daily photos', points: b.leafDropModifier }] : []),
+  ];
+  const heading = b.frozen
+    ? 'held: no fresh data'
+    : Math.abs(b.target - b.final) < 1
+    ? 'steady'
+    : b.target > b.final
+    ? `rising toward ${Math.round(b.target)}`
+    : `easing toward ${Math.round(b.target)}`;
+  return (
+    <div className="space-y-3.5">
+      <div className="p-4 rounded-2xl bg-white border border-[#ECE5D8] flex items-center gap-4">
+        <VitalityRing value={health.vitality} target={b.target} size={72} />
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-bold text-[#2D332A]">
+            {health.qualitative} · {heading}
+          </span>
+          <span className="text-[11px] text-[#2D332A]/60 leading-relaxed">
+            Vitality is accumulated wellbeing, not today’s readings averaged. It drifts toward its target over hours, so a short spell barely moves it.
+          </span>
+        </div>
+      </div>
+
+      <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-[#2C302E]">What it’s made of</span>
+          <span className="text-[10.5px] text-[#2C302E]/50 font-mono">base {r1(b.weightedBase)}</span>
+        </div>
+        {b.components.map((c) => (
+          <div key={c.id} className="space-y-1">
+            <div className="flex items-baseline justify-between gap-2 text-[11px]">
+              <span className="font-semibold text-[#2C302E]">
+                {c.label}
+                {c.score !== null && <span className="ml-1.5 font-normal text-[#2C302E]/45">{Math.round((c.weight / total) * 100)}% of the base</span>}
+              </span>
+              <span className="font-mono text-[#2C302E]/75">{c.score === null ? <span className="text-[#2C302E]/40">not counted</span> : c.score}</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-[#E9E4DB] overflow-hidden">
+              {c.score !== null && <div className="h-full rounded-full transition-all duration-700" style={{ width: `${c.score}%`, background: scoreColor(c.score) }} />}
+            </div>
+            <div className="text-[10px] text-[#2C302E]/50">{c.note}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-1.5">
+        <span className="text-xs font-bold text-[#2C302E]">What’s weighing on it</span>
+        {offs.length === 0 ? (
+          <p className="text-[11px] text-[#4A7C59]">Nothing: no lasting stress, no recovery dip.</p>
+        ) : (
+          offs.map((o) => (
+            <div key={o.label} className="flex items-baseline justify-between gap-3 text-[11px]">
+              <span>
+                <span className="font-semibold text-[#2C302E]">{o.label}</span> <span className="text-[#2C302E]/50">{o.detail}</span>
+              </span>
+              <span className="font-mono text-[var(--tone-alert)]">−{r1(o.points)}</span>
+            </div>
+          ))
+        )}
+        {b.combinedMultiplier > 1 && <p className="text-[10.5px] text-[#2C302E]/50">Several stresses at once: each weighs ×{b.combinedMultiplier}.</p>}
+        <div className="flex items-baseline justify-between pt-1.5 mt-1 border-t border-[#F0ECE6] text-[11px]">
+          <span className="font-semibold text-[#2C302E]">Target</span>
+          <span className="font-mono font-bold text-[#2C302E]">{r1(b.target)}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// One line of the sensor diagnostics
+const Diag: React.FC<{ label: string; value: React.ReactNode; muted?: boolean }> = ({ label, value, muted }) => (
+  <div className="flex items-baseline justify-between gap-2">
+    <span className="text-[#2C302E]/50">{label}</span>
+    <span className={`font-mono ${muted ? 'text-[#2C302E]/35' : 'text-[#2C302E]/85'}`}>{value}</span>
+  </div>
+);
 
 interface ChartProps {
   values: number[];
@@ -137,8 +225,8 @@ function Chart({ values, labels, unit, color, title, compact }: ChartProps) {
         </span>
       )}
       <div className={`flex justify-between text-[#7A827B] ${compact ? 'text-[10.5px]' : 'text-xs'}`}>
-        <span>Low: <strong className="text-[#2C302E]">{Math.round(min * 10) / 10}{unit}</strong></span>
-        <span>High: <strong className="text-[#2C302E]">{Math.round(max * 10) / 10}{unit}</strong></span>
+        <span>Low: <strong className="text-[#2C302E]">{r1(min)}{unit}</strong></span>
+        <span>High: <strong className="text-[#2C302E]">{r1(max)}{unit}</strong></span>
       </div>
       <div className="rounded-xl bg-[#FAF7F2] p-2 border border-[#EBE4D7]">
         <svg viewBox={`0 0 ${w} ${h}`} className={`w-full ${compact ? 'h-20' : 'h-28'}`} preserveAspectRatio="none">
@@ -157,37 +245,34 @@ function Chart({ values, labels, unit, color, title, compact }: ChartProps) {
 type ChartMetric = 'soil' | 'temperature' | 'humidity' | 'light';
 const CHART_METRICS: ChartMetric[] = ['soil', 'temperature', 'humidity', 'light'];
 
-interface OverlaySeries {
-  metric: ChartMetric;
-  values: (number | null)[]; // aligned with the shared time labels; null = no reading then
-  unit: string;
-  color: string;
-}
+type Tab = 'health' | 'vitality' | 'trends' | 'today';
 
 export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, telemetry, species, hourly, days, timeline, locationName, onClose }) => {
-  const [tab, setTab] = useState<'health' | 'today' | 'trends'>('health');
+  const [tab, setTab] = useState<Tab>('health');
   const [chartMetric, setChartMetric] = useState<ChartMetric | 'all'>('soil');
   const [span, setSpan] = useState<'24h' | '7d'>('24h');
   const isSensor = telemetry?.source !== 'weather_estimate';
+  const lux = isSensor ? telemetry?.lightLux ?? null : null;
+  const hasLuxSensor = lux !== null;
 
   const chartData = (chartMetric: ChartMetric) => {
     const color = METRIC_ICON[chartMetric].color;
+    const unit = chartMetric === 'temperature' ? '°C' : chartMetric === 'light' ? (isSensor ? '%' : ' W/m²') : '%';
     if (span === '24h') {
       const rows = hourly.flatMap((h) => {
         const v = chartMetric === 'soil' ? h.soilMoisture : chartMetric === 'temperature' ? h.temperature : chartMetric === 'humidity' ? h.humidity : h.light;
         return v === null ? [] : [{ v, label: h.time }];
       });
-      const unit = chartMetric === 'temperature' ? '°C' : chartMetric === 'light' ? (isSensor ? '%' : ' W/m²') : '%';
       return { values: rows.map((r) => r.v), labels: rows.map((r) => r.label), unit, color };
     }
     const rows = days.flatMap((d) => {
       const v = chartMetric === 'soil' ? d.avgSoil : chartMetric === 'temperature' ? d.avgTemp : chartMetric === 'humidity' ? d.avgHumidity : d.avgLight;
       return v === null ? [] : [{ v, label: d.dayLabel }];
     });
-    return { values: rows.map((r) => r.v), labels: rows.map((r) => r.label), unit: chartMetric === 'temperature' ? '°C' : chartMetric === 'light' ? (isSensor ? '%' : ' W/m²') : '%', color };
+    return { values: rows.map((r) => r.v), labels: rows.map((r) => r.label), unit, color };
   };
 
-  const tabBtn = (id: typeof tab, label: string) => (
+  const tabBtn = (id: Tab, label: string) => (
     <button
       onClick={() => setTab(id)}
       className={`pb-2.5 px-3 sans text-xs font-semibold border-b-2 cursor-pointer ${
@@ -200,34 +285,41 @@ export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, te
   const pill = (active: boolean) =>
     `px-2.5 py-1 text-[11px] font-semibold rounded-lg capitalize cursor-pointer ${active ? 'bg-white text-[#2C302E] shadow-xs' : 'text-[#6C757D] hover:text-[#2C302E]'}`;
 
+  const lightRawNote = hasLuxSensor ? 'log of lux' : 'ADC';
+  const soilTemp = telemetry?.soilTemperature ?? null;
+
   return (
     <div id="bonsai-detail-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onClick={onClose}>
       <div
         className="day w-full max-w-lg max-h-[88vh] bg-[#F8F5F2] text-[#2D332A] rounded-3xl border border-white/60 shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-5 border-b border-[#EAE6E1] flex items-center justify-between bg-white/70">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <h2 className="serif text-2xl font-medium text-[#2D332A] tracking-tight">Tree Diagnostics</h2>
-              <span className="sans text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#4A6741]/10 text-[#3D5535] border border-[#4A6741]/20">
-                {health.qualitative} ({health.vitality}%)
+        <div className="p-5 border-b border-[#EAE6E1] flex items-center justify-between gap-3 bg-white/70">
+          <div className="flex items-center gap-3.5 min-w-0">
+            <VitalityRing value={health.vitality} target={health.breakdown.target} />
+            <div className="flex flex-col min-w-0">
+              <h2 className="serif text-2xl font-medium text-[#2D332A] tracking-tight leading-tight">Tree Diagnostics</h2>
+              <span className="sans text-xs font-semibold text-[#3D5535]">
+                {health.qualitative} · {CONDITION_LABELS[health.condition]}
               </span>
-            </div>
-            <div className="flex items-center gap-1.5 sans text-xs text-[#2D332A]/55 mt-0.5">
-              <Radio className="w-3 h-3 text-[#4A6741]" />
-              <span>{!telemetry ? 'No reading yet' : isSensor ? `ESP32 sensors via the Appbonsai server · ${hhmmss(telemetry.timestamp)}` : `Weather estimate · Open-Meteo (${locationName})`}</span>
+              <div className="flex items-center gap-1.5 sans text-[11px] text-[#2D332A]/55 mt-0.5">
+                <Radio className="w-3 h-3 text-[#4A6741] shrink-0" />
+                <span className="truncate">
+                  {!telemetry ? 'No reading yet' : isSensor ? `Live from the greenhouse ESP32 · ${hhmmss(telemetry.timestamp)}` : `Weather estimate · Open-Meteo (${locationName})`}
+                </span>
+              </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-neutral-200/50 text-[#2D332A]/70 cursor-pointer">
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-neutral-200/50 text-[#2D332A]/70 cursor-pointer self-start">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="flex border-b border-[#EAE6E1] px-4 pt-2">
           {tabBtn('health', 'Health')}
-          {tabBtn('today', "Today's Rhythm")}
+          {tabBtn('vitality', 'Vitality')}
           {tabBtn('trends', 'Charts')}
+          {timeline.length > 0 && tabBtn('today', "Today's Rhythm")}
         </div>
 
         <div className="p-5 overflow-y-auto space-y-3.5 sans">
@@ -238,7 +330,7 @@ export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, te
                   <Sparkles className="w-4 h-4 text-[#4A7C59] shrink-0 mt-0.5" />
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-[#2D5A3C]">{message}</span>
-                    <span className="text-xs text-[#42614E] mt-0.5">{tip}</span>
+                    {tip && <span className="text-xs text-[#42614E] mt-0.5">{tip}</span>}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 pl-6">
@@ -265,34 +357,41 @@ export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, te
               </div>
 
               {health.metrics.map((m) => (
-                <MetricRow key={m.id} m={m} telemetry={telemetry} species={species} />
+                <MetricRow key={m.id} m={m} lux={m.id === 'light' ? lux : null} species={species} />
               ))}
 
               {isSensor && telemetry && (
-                <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-1.5">
+                <div className="p-3.5 rounded-2xl bg-white border border-[#ECE5D8] space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Cpu className="w-4 h-4 text-[#356077]" />
-                    <span className="text-xs font-bold text-[#2C302E]">ESP32 sensor diagnostics</span>
+                    <span className="text-xs font-bold text-[#2C302E]">Sensor diagnostics</span>
+                    <span className="ml-auto text-[10px] font-mono text-[#2C302E]/45">{hhmmss(telemetry.timestamp)}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] font-mono text-[#2C302E]/75">
-                    <span>Light: {telemetry.lightPercent != null ? `${telemetry.lightPercent}%` : '–'}</span>
-                    <span>Raw light ADC: {telemetry.lightRaw ?? '–'}</span>
-                    <span>Soil: {telemetry.soilMoisture}%</span>
-                    <span>Raw soil ADC: {telemetry.soilRaw ?? '–'}</span>
-                    <span>Wi-Fi: {telemetry.wifiRssi != null ? `${telemetry.wifiRssi} dBm` : '–'}</span>
-                    <span>Updated: {hhmmss(telemetry.timestamp)}</span>
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-[11px]">
+                    <Diag label="Soil (FC-28)" value={`${telemetry.soilMoisture}%`} />
+                    <Diag label="Soil raw ADC" value={telemetry.soilRaw ?? '–'} muted={telemetry.soilRaw == null} />
+                    <Diag label="Roots (DS18B20)" value={soilTemp !== null ? `${soilTemp}°C` : 'not fitted'} muted={soilTemp === null} />
+                    <Diag
+                      label="Air (HTS221)"
+                      value={telemetry.htsConnected === false ? 'not connected' : telemetry.temperature !== null ? `${telemetry.temperature}°C · ${telemetry.humidity ?? '–'}%` : '–'}
+                      muted={telemetry.htsConnected === false}
+                    />
+                    <Diag label={hasLuxSensor ? 'Light (BH1750)' : 'Light (LDR)'} value={hasLuxSensor ? `${luxText(lux)} lux` : telemetry.lightPercent != null ? `${telemetry.lightPercent}%` : '–'} />
+                    <Diag label="Light scale" value={telemetry.lightPercent != null ? `${telemetry.lightPercent}% · ${telemetry.lightRaw ?? '–'} ${lightRawNote}` : '–'} />
+                    <Diag label="VPD" value={telemetry.vpd !== null ? `${telemetry.vpd} kPa` : '–'} />
+                    <Diag label="Wi-Fi" value={telemetry.wifiRssi != null ? `${telemetry.wifiRssi} dBm` : '–'} />
                   </div>
+                  {telemetry.sensorIssues && telemetry.sensorIssues.length > 0 && (
+                    <p className="text-[10.5px] text-[#8F5E24]">{telemetry.sensorIssues.join(' · ')}</p>
+                  )}
                 </div>
               )}
             </>
           )}
 
-          {tab === 'today' &&
-            (timeline.length > 0 ? (
-              <TodayTimeline timeline={timeline} />
-            ) : (
-              <p className="text-xs text-[#2D332A]/50 text-center py-6">The daily rhythm comes from the weather forecast and isn't available for sensor-only mode.</p>
-            ))}
+          {tab === 'vitality' && <VitalityTab health={health} />}
+
+          {tab === 'today' && <TodayTimeline timeline={timeline} />}
 
           {tab === 'trends' && (
             <div className="space-y-4">
@@ -328,8 +427,12 @@ export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, te
                 <span>
                   {span === '24h' && !isSensor
                     ? 'Next/last hours from the Open-Meteo forecast and the moisture model.'
-                    : 'Built from readings stored by the Appbonsai server (hourly averages).'}
-                  {(chartMetric === 'light' || chartMetric === 'all') && isSensor && ' Light is the relative photoresistor %, not lux.'}
+                    : 'Built from the readings the tree has stored (hourly averages).'}
+                  {(chartMetric === 'light' || chartMetric === 'all') &&
+                    isSensor &&
+                    (hasLuxSensor
+                      ? ' Light is the tree’s light scale: a log scale of the BH1750’s lux (1,000 lux ≈ 25 %, 40,000 lux ≈ 85 %).'
+                      : ' Light is a relative %, not lux.')}
                 </span>
               </div>
             </div>

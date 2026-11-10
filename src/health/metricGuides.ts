@@ -40,7 +40,7 @@ const latchLine = (name: string, l: LatchRule, unit: string, conv = (n: number) 
 export function metricGuide(
   id: MetricId,
   species: SpeciesProfile,
-  opts: { isSensor: boolean; tempUnit: 'C' | 'F'; value: number | null } // value in the displayed unit
+  opts: { isSensor: boolean; tempUnit: 'C' | 'F'; value: number | null; lux?: boolean } // value in the displayed unit; lux: the light comes from a lux sensor
 ): MetricGuide {
   const L = species.latches;
   switch (id) {
@@ -103,7 +103,9 @@ export function metricGuide(
             return { label: b.label, range: `${min}–${b.max}%`, tone: tones[b.id], current: v !== null && v >= min && v <= b.max };
           }),
           notes: [
-            'Relative photoresistor %, not lux (prototype bands, to be calibrated).',
+            opts.lux
+              ? 'The tree’s light scale: a log scale of the BH1750’s lux (300 lux ≈ 5 %, 1,000 lux = 25 %, 40,000 lux = 85 %). Provisional bands, to be confirmed against the tree.'
+              : 'Relative photoresistor %, not lux (prototype bands, to be calibrated).',
             'Only judged while the sun is well up: darkness at night, dawn and dusk is normal.',
             `Judged over the whole day: “too dark” only when, after ${dur(species.light.minObservedMinutes)} of observed daylight, less than ${L.low_daily_light.enter}% of it was useful light (≥ ${species.light.usefulMinPercent}%). A passing cloud doesn't count.`,
           ],
