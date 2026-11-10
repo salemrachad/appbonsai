@@ -567,10 +567,10 @@ A squirrel that visits the digital tree is **art, not biology**, and not a pet. 
 the real tree has been a good place to be for a while. Wild animals behave like the health latches: slow to
 trust a place, quick to leave it.
 
-**The art clock** (`lib/artClock.ts`, `APP_CONFIG.artTempo`, 7 since 2026-11-05). In real days the visitors'
+**The art clock** (`lib/artClock.ts`, `APP_CONFIG.artTempo`: 7 from 2026-11-05, 14 since 2026-11-10). In real days the visitors'
 story barely moved: the squirrel took three calm days to come and a week to settle, the drey two weeks, and
 Lucy's peace with it months. So their slow memories are written in **story days** and read through the art
-clock, which fits a week of story into one real day (one story day ≈ 3 h 26 min). That covers the habitat
+clock, which fits two weeks of story into one real day (one story day ≈ 1 h 43 min). From a calm dawn the squirrel leaves traces within a couple of hours, peeks by mid-morning, visits by noon and is settled by the evening. That covers the habitat
 value, trust and its stages, the drey, habits, the sloth's loyalty, encounter familiarity and the squirrel's
 lessons about Lucy. Counts of things that still happen at the real rate (meetings, lessons) got lower
 halfway points, so the same number of them means the same. The biology keeps real time (health, vitality,
@@ -579,10 +579,10 @@ in story time unless they say otherwise; at tempo 1 everything is as it was (tes
 
 - **Habitat value** (`behaviour/habitat.ts`, numbers in `APP_CONFIG.habitat`). It is derived from the stored
   episodes of the last 14 days, so nothing new is persisted and it survives restarts.
-  - Comfortable or thriving time raises it toward 1, over **observed** time (τ 36 story hours ≈ 5 h, or 20 ≈
-    3 h when thriving).
-  - A primary stress lowers it toward 0: τ 1 story hour (≈ 9 min) when critical, 4 (≈ 34 min) when moderate,
-    12 (≈ 1.7 h) when mild.
+  - Comfortable or thriving time raises it toward 1, over **observed** time (τ 36 story hours ≈ 2½ h, or 20 ≈
+    1½ h when thriving).
+  - A primary stress lowers it toward 0: τ 1 story hour (≈ 4 min) when critical, 4 (≈ 17 min) when moderate,
+    12 (≈ 50 min) when mild.
   - Sleeping, recovering, very bright and sensor-uncertain episodes hold it. So do gaps and unobserved time.
 - **Latch:** visitors come above 0.6 and stop below 0.4 (a Schmitt trigger). In practice, about five calm
   hours bring them (three story days), and an hour of thirst sends them away.
@@ -614,9 +614,9 @@ in story time unless they say otherwise; at tempo 1 everything is as it was (tes
 - **Reduced motion:** no hopping; the squirrel stays where it is.
 - **The drey: weeks of care made visible.** The same replay (30 days of episodes) builds a second slow value:
   - It rises while the habitat is welcoming, sleeping time included (τ 10 story days). A few twigs appear
-    after about a story week (the first night); the nest is **built** after about 12 story days (≈ 1½ days).
+    after about a story week (the first night); the nest is **built** after about 12 story days (≈ 21 h).
   - It falls while the habitat is not welcoming (τ 3 story days), with hysteresis on both stages.
-  - A story day of drought (≈ 3½ h) thins it, a story week of trouble (a day) takes it apart.
+  - A story day of drought (≈ 1¾ h) thins it, a story week of trouble (half a day) takes it apart.
   - With a built drey the squirrel **sleeps in it at night**, only its tail draped over the edge, breathing
     in the tree's slow night rhythm. A stroke only makes the tail twitch; it never wakes up to play.
   - Without a drey, nights stay empty. With no trustworthy data, nobody is shown.
@@ -672,10 +672,10 @@ in story time unless they say otherwise; at tempo 1 everything is as it was (tes
     - With no history to read (previews, a fresh tree), a pair is *unknown* (0.5), and they meet exactly as before.
     - Strangers keep their distance: the squirrel only peeks from the leaves at a sloth it doesn't know.
     - Old friends are at ease: no more staring, the squirrel's play may hop onto the sloth's branch, a familiar dragonfly isn't worth watching, and a dragonfly rests on a sloth it knows more often (about 25 % → 50 % → 80 %).
-    - Meeting once a story day makes old friends in about two story weeks (≈ 2 days); apart, it fades over story weeks. A pair becoming old friends gets one diary line, with hysteresis: "The dragonfly and the sloth are old friends now · after 7 meetings".
+    - Meeting once a story day makes old friends in about two story weeks (≈ a day); apart, it fades over story weeks. A pair becoming old friends gets one diary line, with hysteresis: "The dragonfly and the sloth are old friends now · after 7 meetings".
   - **The squirrel learns Lucy** (`habitat.ts` `squirrelLife()`, `APP_CONFIG.habitat.lucyLessons`). The two-way part: until now she noticed visitors and nobody noticed her.
     - **A lesson** is one of her day visits that found it out on a branch and got her curious or excited about it (her interest roll is shared with the expression: `lucyInterest()`). Wariness = recency-weighted lessons / (lessons + k).
-    - **Its hours drift:** wary, it comes less in her hours, in what its habits are made of too, so its usual hour moves away from her rounds by itself. Nobody chooses the new hour; it comes out of her plan and its history (in EN9: from 9:00 to 19:00 after a month).
+    - **Its hours drift:** wary, it comes less in her hours, in what its habits are made of too, so its usual hour moves away from her rounds by itself. Nobody chooses the new hour; it comes out of her plan and its history (in EN9: from 19:00 to 15:00 after a month).
     - **In the moment:** with her awake below, an unwary squirrel watches her (its head follows her, before any dragonfly); a wary one ducks into the leaves until she has gone. In the replay, a wary squirrel isn't seen, so no lesson: wariness rises and settles in waves, as with a real animal.
     - **Over a couple of weeks they may make peace.** Their own familiarity (a slower scale, since she comes ten times a day) cools her interest (excited → curious → watch), so there are fewer lessons and its wariness fades. At peace, it stays out when she's there.
     - **Diary:** "Lucy spotted the squirrel · 2 times", "The squirrel waited until Lucy had gone · 12 min after she left", "The squirrel comes at a new hour now", "Lucy and the squirrel have made their peace".
@@ -686,7 +686,7 @@ in story time unless they say otherwise; at tempo 1 everything is as it was (tes
   still derived (nothing stored), deterministic and art only: health, mood, energy and speech never read it.
   The three are deliberately different temperaments, not one machine in three costumes.
   - **The squirrel: trust in stages, habits, boldness** (`habitat.ts`, `APP_CONFIG.habitat.trust` and `.habits`).
-    - **Trust** grows with welcoming time (τ 4 story days ≈ 14 h, held time included, like the drey). It sets the stage,
+    - **Trust** grows with welcoming time (τ 4 story days ≈ 7 h, held time included, like the drey). It sets the stage,
       each with hysteresis:
       - **traces:** the habitat value rises past 0.35 before visits. A nibbled leaf at the left branch tip,
         or a tail tip over the back of the pot now and then. No animal yet.
@@ -698,7 +698,7 @@ in story time unless they say otherwise; at tempo 1 everything is as it was (tes
       From a calm dawn: traces by mid-morning, peeks by midday, visits in the afternoon, settled by the next
       morning (V26).
     - **Broken trust:** when the latch flips off, trust is cut to a quarter and rebuilds 1.6× slower for
-      14 story days (2 days). It comes back warily, peeking first, and settles later than the first time.
+      14 story days (a day). It comes back warily, peeking first, and settles later than the first time.
     - **Habits** come from its own past visits. They are taken from the habit-free replay, so a habit never
       feeds on itself:
       - its **usual hour** (the 2-hour band most of its recent visits fell in, recency-weighted over a

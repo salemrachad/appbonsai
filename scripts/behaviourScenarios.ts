@@ -816,7 +816,7 @@ async function main() {
       const day = (k: number, h: number, len: number) => ({ from: at(10, h) + k * ART_DAY, to: at(10, h) + k * ART_DAY + len * MIN });
       const a = Array.from({ length: 18 }, (_, k) => day(k, 10, 20));
       const b = Array.from({ length: 18 }, (_, k) => day(k, 10, 30));
-      const elsewhere = Array.from({ length: 10 }, (_, k) => day(k, 15, 30));
+      const elsewhere = Array.from({ length: 10 }, (_, k) => ({ from: at(10, 10) + (k + 0.5) * ART_DAY, to: at(10, 10) + (k + 0.5) * ART_DAY + 30 * MIN })); // never at the same time of its story day
       const fNow = familiarity(a, b, at(10, 0) + 18 * ART_DAY);
       const fLater = familiarity(a, b, at(10, 0) + 48 * ART_DAY);
       const fNever = familiarity(a, elsewhere, at(10, 0) + 10 * ART_DAY);
@@ -1378,12 +1378,12 @@ async function main() {
         for (let t = d0 + 7 * HOUR; t < d0 + 19 * HOUR; t += 2 * MIN) {
           const eps = [...storyDays(days, d0 + 7 * HOUR), ep('comfortable', d0 + 7 * HOUR, (t - d0 - 7 * HOUR) / HOUR, 0, true)];
           const h = evaluateHabitat({ episodes: eps, condition, modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: t });
-          if (want === 'visit' ? h.visit : h.traces) return { t, eps, h };
+          if (want === 'visit' ? h.visit && h.presence === 'peeking' : h.traces) return { t, eps, h }; // a visit during the peeking stage
         }
         return null;
       };
       const tr = scan(firstDay('traces'), 'traces');
-      const pk = scan(firstDay('peeking'), 'visit');
+      const pk = scan(firstDay('traces'), 'visit'); // the day it begins: at 14× a peeking stage lasts a couple of real hours
       const peekCare = pk && evaluateHabitat({ episodes: pk.eps, condition: 'comfortable', modifiers: [], isDay: true, season: { id: 'summer', energy: 1 }, now: pk.t, reaction: { kind: 'watering_relief', eventId: 7, at: pk.t - 2 * MIN, seasonal: null } });
       check(
         'V21b live: first only its traces (nobody there), then peeks from the leaves; a peeking squirrel does not come down to drink',
@@ -1407,22 +1407,22 @@ async function main() {
       const tags = new Set(diary.map((i) => i.habitat));
       check('V22b diary: its traces, first peeks, settling in and the wary return', tags.has('traces') && tags.has('peek') && tags.has('settled') && tags.has('wary'), [...tags].join(', '));
 
-      // The art clock: a week of its story in a real day. From nothing, one calm day (awake 6:00-22:00, asleep
-      // after): signs by mid-morning, peeking, then visiting the same day, settled by the next morning; a
-      // thirst breaks it within the hour
+      // The art clock: two weeks of its story in a real day (tempo 14). From nothing, one calm day (awake
+      // 6:00-22:00, asleep after): signs early, peeking by mid-morning, visiting by noon, settled by the evening
+      // and still the next morning; a thirst breaks it within the hour
       {
         const d0 = new Date(2026, 7, 3).getTime();
         const calmFrom = d0 + 6 * HOUR;
         const real = (t: number) => (t <= d0 + 22 * HOUR ? [ep('comfortable', calmFrom, (t - calmFrom) / HOUR, 0, true)] : [ep('comfortable', calmFrom, 16), ep('sleeping', d0 + 22 * HOUR, (t - d0 - 22 * HOUR) / HOUR, 0, true)]);
         const stageAt = (h: number) => replayHabitat(real(d0 + h * HOUR), d0 + h * HOUR).stage;
-        const day1 = [9, 12, 16, 20].map(stageAt);
+        const day1 = [8, 9.5, 12, 20].map(stageAt);
         const morning = stageAt(24 + 7);
         const settledDay = [...real(d0 + 31 * HOUR).slice(0, 1), ep('sleeping', d0 + 22 * HOUR, 9)];
         const broken = replayHabitat([...settledDay, ep('thirsty', d0 + 31 * HOUR, 1)], d0 + 32 * HOUR);
         check(
-          'V26 a week of story in a day: traces → peeking → visiting the first day, settled the next morning; a thirst breaks it within the hour',
-          day1[0] === 'traces' && day1.includes('peeking') && day1[3] === 'visiting' && morning === 'settled' && !broken.welcoming && broken.brokenAt !== null,
-          `9:00 ${day1[0]} · 12:00 ${day1[1]} · 16:00 ${day1[2]} · 20:00 ${day1[3]} · next 7:00 ${morning} · after an hour of thirst ${broken.stage}`
+          'V26 two weeks of story in a day: traces → peeking → visiting by noon, settled by the evening and the next morning; a thirst breaks it within the hour',
+          day1[0] === 'traces' && day1[1] === 'peeking' && day1[2] === 'visiting' && day1[3] === 'settled' && morning === 'settled' && !broken.welcoming && broken.brokenAt !== null,
+          `8:00 ${day1[0]} · 9:30 ${day1[1]} · 12:00 ${day1[2]} · 20:00 ${day1[3]} · next 7:00 ${morning} · after an hour of thirst ${broken.stage}`
         );
       }
 
