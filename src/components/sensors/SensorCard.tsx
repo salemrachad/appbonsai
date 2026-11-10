@@ -2,8 +2,8 @@ import React from 'react';
 import { Droplet, Sun, Thermometer, Wind, Activity } from 'lucide-react';
 import { MetricAssessment, MetricId, MetricTone } from '../../health/healthTypes';
 import { SensorGuide, useGuidePopup } from './SensorGuide';
-import { MetricBar } from './MetricBar';
-import { metricScale } from '../../health/metricScale';
+import { MetricBar, RootsBar } from './MetricBar';
+import { metricScale, rootScale } from '../../health/metricScale';
 import { ACTIVE_SPECIES } from '../../species';
 
 const TONE_CLASS: Record<MetricTone, string> = {
@@ -33,6 +33,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({ metric, tooltipAlign = '
   const { Icon, color } = ICONS[metric.id];
   const popup = useGuidePopup();
   const scale = metricScale(metric, ACTIVE_SPECIES);
+  const roots = metric.roots ? <RootsBar roots={metric.roots} scale={rootScale(metric, ACTIVE_SPECIES)} compact /> : null;
 
   return (
     <div ref={popup.ref} className="relative flex w-full">
@@ -61,6 +62,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({ metric, tooltipAlign = '
           <div className="min-h-[42px] flex flex-col justify-center">
             <div className="text-[11px] font-medium text-[var(--ink)]/50 leading-tight">Sensor not connected</div>
             <div className="text-[10px] text-[var(--ink)]/35 mt-0.5 font-mono">Not reported</div>
+            {roots && <div className="mt-2.5">{roots}</div>}
           </div>
         ) : (
           <>
@@ -92,6 +94,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({ metric, tooltipAlign = '
                 <MetricBar scale={scale} compact />
               </div>
             )}
+            {roots && <div className="mt-2.5">{roots}</div>}
           </>
         )}
       </div>

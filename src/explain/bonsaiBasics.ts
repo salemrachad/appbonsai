@@ -89,7 +89,8 @@ export function bonsaiBasics(opts: {
   ];
   const r = s.rootTemperature;
   if (r) {
-    const roots = soil?.detail?.startsWith('Roots') ? { text: `${soil.detail.replace('Roots ', '')}${soil.detailStatus ? ` · ${soil.detailStatus}` : ''}`, tone: soil.detailTone ?? 'info' } : undefined;
+    const t = metrics.find((k) => k.id === 'temperature')?.roots;
+    const roots = t ? { text: `${t.display} · ${t.status}`, tone: t.tone } : undefined;
     lessons.push({
       id: 'roots',
       title: 'Roots',

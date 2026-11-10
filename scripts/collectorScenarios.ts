@@ -196,10 +196,10 @@ async function main() {
     const b = new Bench();
     await b.boot();
     await b.run(5, () => ({ soil: 60, extra: { soil_temp: 21.1 } }));
-    const withProbe = b.state().health.metrics.find((m) => m.id === 'soil');
+    const withProbe = b.state().health.metrics.find((m) => m.id === 'temperature');
     await b.run(2, () => ({ soil: 60 }));
-    const without = b.state().health.metrics.find((m) => m.id === 'soil');
-    check('Q7 the DS18B20 soil temperature shows on the soil card with its root-zone verdict; without the probe nothing does', withProbe?.detail === 'Roots 21.1°C' && withProbe?.detailStatus === 'ideal' && without?.detail === undefined && withProbe?.status === without?.status, `${withProbe?.detail} ${withProbe?.detailStatus} / ${without?.detail}`);
+    const without = b.state().health.metrics.find((m) => m.id === 'temperature');
+    check('Q7 the DS18B20 soil temperature shows on the temperature card, under the air, with its root-zone verdict; without the probe nothing does', withProbe?.roots?.display === '21.1°C' && withProbe.roots.status === 'ideal' && withProbe.roots.tone === 'good' && without?.roots === undefined && withProbe?.status === without?.status, `${JSON.stringify(withProbe?.roots)} / ${JSON.stringify(without?.roots)}`);
   }
 
   {

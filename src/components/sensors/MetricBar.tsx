@@ -1,6 +1,7 @@
 import React from 'react';
 import type { MetricScale } from '../../health/metricScale';
-import type { MetricTone } from '../../health/healthTypes';
+import type { MetricAssessment, MetricTone } from '../../health/healthTypes';
+import { Sprout } from 'lucide-react';
 
 // Draws a metric's range bar (health/metricScale.ts decides the zones; nothing is judged here).
 // Each zone in its tone, the one the reading is in a little stronger, and a pin at the reading.
@@ -70,3 +71,16 @@ export const MetricBar: React.FC<{ scale: MetricScale; compact?: boolean; showZo
     </div>
   );
 };
+
+// The root zone under the air on the temperature card: its own line and bar (on the air's axis)
+export const RootsBar: React.FC<{ roots: NonNullable<MetricAssessment['roots']>; scale: MetricScale | null; compact?: boolean }> = ({ roots, scale, compact }) => (
+  <div className="w-full">
+    <div className={`flex items-center gap-1 ${compact ? 'text-[10.5px]' : 'text-[11px]'} text-[var(--ink)]/60 mb-1`}>
+      <Sprout className="w-3 h-3 text-[#8B6B43]" aria-hidden />
+      <span>Roots</span>
+      <span className="font-semibold text-[var(--ink)]/80">{roots.display}</span>
+      <span className="font-semibold" style={{ color: TONE_VAR[roots.tone] }}>{roots.status}</span>
+    </div>
+    {scale && <MetricBar scale={scale} compact={compact} />}
+  </div>
+);

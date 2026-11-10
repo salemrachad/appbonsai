@@ -34,6 +34,27 @@ function rangeZones(r: ComfortRange, labels: readonly string[], min: number, max
 // The light scale's % back to lux (the firmware's log scale from 300 lux up: % = 37.5 · (log10 lux − 2.333))
 const luxAt = (percent: number) => Math.pow(10, percent / 37.5 + 2.333);
 
+const ROOT_LABELS = ['Very cold', 'Cold', 'Cool', 'Ideal', 'Warm', 'Hot', 'Too hot'];
+const tempAxis = (species: SpeciesProfile) => ({ min: species.temperature.minCritical - 5, max: species.temperature.maxCritical + 3 });
+
+// The root zone's bar (the temperature metric's `roots`), on the same axis as the air's so the two pins compare
+export function rootScale(m: MetricAssessment, species: SpeciesProfile): MetricScale | null {
+  if (!m.roots) return null;
+  const fahrenheit = m.roots.display.endsWith('°F');
+  const conv = fahrenheit ? (c: number) => (c * 9) / 5 + 32 : (c: number) => c;
+  const r = species.rootTemperature;
+  const axis = tempAxis(species);
+  const min = conv(axis.min);
+  const max = conv(axis.max);
+  return {
+    min,
+    max,
+    zones: rangeZones(r, ROOT_LABELS, min, max, conv),
+    ticks: [r.minOptimal, r.maxOptimal].map((c) => ({ at: conv(c), label: `${Math.round(conv(c))}°` })),
+    value: Math.max(min, Math.min(max, m.roots.value)),
+  };
+}
+
 export function metricScale(m: MetricAssessment, species: SpeciesProfile, opts: { lux?: number | null } = {}): MetricScale | null {
   if (m.tone === 'off' || m.value === null) return null;
   const fahrenheit = m.unit === '°F';
@@ -52,8 +73,8 @@ export function metricScale(m: MetricAssessment, species: SpeciesProfile, opts: 
     }
     case 'temperature': {
       const r = species.temperature;
-      const min = conv(r.minCritical - 5);
-      const max = conv(r.maxCritical + 3);
+      const min = conv(tempAxis(species).min);
+      const max = conv(tempAxis(species).max);
       s = {
         min,
         max,

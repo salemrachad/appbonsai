@@ -42,10 +42,13 @@ export interface MetricAssessment {
   tone: MetricTone;
   idealRange: string;
   estimated: boolean;
-  detail?: string; // a second measured value shown small on the card (soil: the root zone's temperature; light: lux)
+  detail?: string; // a second measured value shown small on the card (light: lux)
   detailStatus?: string; // its verdict ("cool")
   detailTone?: MetricTone;
   guide?: MetricGuide; // explanation of the best conditions and ranges (tooltips)
+  // Temperature only: the root zone (the soil temperature probe, DS18B20) against the species' root range, in the
+  // displayed unit; absent without the probe
+  roots?: { value: number; display: string; status: string; tone: MetricTone };
 }
 
 // What a sensor's value means for the tree, from the species profile. Display-ready.

@@ -65,6 +65,12 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
   const hr = species.humidity;
   const v = species.vpd;
   const metrics: MetricAssessment[] = [];
+  // The soil temperature probe (DS18B20, firmware ≥ 1.5.0) against the species' root-zone range: shown with the air
+  const rootsOf = (): Pick<MetricAssessment, 'roots'> => {
+    if (soilTemp === null || !roots) return {};
+    const value = tempUnit === 'F' ? Math.round((soilTemp * 9) / 5 + 32) : soilTemp;
+    return { roots: { value, display: `${value}°${tempUnit}`, status: roots.word, tone: roots.tone } };
+  };
   const missing = (id: MetricAssessment['id'], name: string, ideal: string) =>
     metrics.push(offMetric(id, name, ideal, stale ? NO_READING : NOT_CONNECTED));
 
@@ -83,10 +89,6 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
       ...(r.soilMoisture >= s.minOptimal && r.soilMoisture < species.soilCycle.readyBelow ? { status: 'Ready for water', tone: 'info' as const } : {}),
       idealRange: `${s.minOptimal}–${s.maxOptimal}%`,
       estimated,
-      // The soil temperature probe (DS18B20, firmware ≥ 1.5.0) against the species' root-zone range
-      ...(soilTemp !== null && roots
-        ? { detail: `Roots ${tempUnit === 'F' ? Math.round((soilTemp * 9) / 5 + 32) : soilTemp}°${tempUnit}`, detailStatus: roots.word, detailTone: roots.tone }
-        : {}),
     });
   }
 
@@ -133,6 +135,7 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
   // Temperature
   if (r.temperature === null) {
     missing('temperature', 'Temperature', `${tr.minOptimal}–${tr.maxOptimal}°C`);
+    Object.assign(metrics[metrics.length - 1], rootsOf()); // the roots still show without the air sensor
   } else {
     const shown = tempUnit === 'F' ? Math.round((r.temperature * 9) / 5 + 32) : r.temperature;
     const b = band(r.temperature, tr, ['Freezing risk', 'Cold', 'Cool', 'Good', 'Warm', 'Hot', 'Too hot']);
@@ -146,6 +149,7 @@ export function assessMetrics(p: PerceptionState, species: SpeciesProfile, tempU
       ...b,
       idealRange: `${tr.minOptimal}–${tr.maxOptimal}°C`,
       estimated,
+      ...rootsOf(),
     });
   }
 

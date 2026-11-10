@@ -6,14 +6,14 @@ import {
 } from 'lucide-react';
 import { PlantHealthState, MetricAssessment, MetricId, MetricTone, ScoreId } from '../health/healthTypes';
 import { CONDITION_LABELS } from '../health/labels';
-import { metricScale } from '../health/metricScale';
+import { metricScale, rootScale } from '../health/metricScale';
 import { luxText } from '../health/metrics';
 import { bonsaiBasics, LessonIcon } from '../explain/bonsaiBasics';
 import type { DailySummary } from '../history/historyTypes';
 import type { SeasonState } from '../perception/season';
 import { SpeciesProfile } from '../species';
 import { HourlyTelemetryPoint, PlantTelemetry, TimelineEvent } from '../telemetry/types';
-import { MetricBar } from './sensors/MetricBar';
+import { MetricBar, RootsBar } from './sensors/MetricBar';
 import { TodayTimeline } from './TodayTimeline';
 import { GuideBody } from './sensors/SensorGuide';
 import { hhmm } from '../lib/time';
@@ -125,11 +125,12 @@ const MetricTile: React.FC<{ m: MetricAssessment; lux: number | null; species: S
       {scale ? <MetricBar scale={scale} /> : <div className="h-[24px]" />}
       {m.detail && (
         <span className="flex items-center gap-1 text-[10.5px] text-[#2C302E]/60 -mt-1">
-          {m.id === 'soil' ? <Sprout className="w-3 h-3 text-[#8B6B43]" /> : <Sun className="w-3 h-3 text-[#E0960F]" />}
-          {m.detail.replace(/^Roots /, '')}
+          <Sun className="w-3 h-3 text-[#E0960F]" />
+          {m.detail}
           {m.detailStatus && <span style={{ color: TONE[m.detailTone ?? 'info'] }} className="font-semibold">{m.detailStatus}</span>}
         </span>
       )}
+      {m.roots && <RootsBar roots={m.roots} scale={rootScale(m, species)} />}
     </button>
   );
 };
@@ -489,6 +490,12 @@ export const DetailView: React.FC<DetailViewProps> = ({ health, message, tip, te
                     const s = metricScale(open, species, { lux: open.id === 'light' ? lux : null });
                     return s && <MetricBar scale={s} showZones />;
                   })()}
+                  {open.roots && (
+                    <div className="pt-1">
+                      <RootsBar roots={open.roots} scale={rootScale(open, species)} />
+                      <p className="text-[10.5px] text-[#2C302E]/55 mt-1">Roots like {species.rootTemperature.minOptimal}–{species.rootTemperature.maxOptimal}°C. Cool soil drinks slowly and stays wet longer; a pot in the sun can overheat them.</p>
+                    </div>
+                  )}
                   <GuideBody guide={open.guide} />
                 </div>
               )}
