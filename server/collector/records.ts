@@ -39,4 +39,5 @@ export const toLive = (t: PlantTelemetry): LiveReading => ({
   lightRaw: t.lightRaw ?? null,
   temperature: t.temperature,
   humidity: t.humidity,
+  ...(t.source === 'esp32_sensor' && t.soilTemperature != null ? { soilTemperature: t.soilTemperature } : {}),
 });

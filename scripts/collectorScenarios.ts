@@ -200,6 +200,12 @@ async function main() {
     await b.run(2, () => ({ soil: 60 }));
     const without = b.state().health.metrics.find((m) => m.id === 'temperature');
     check('Q7 the DS18B20 soil temperature shows on the temperature card, under the air, with its root-zone verdict; without the probe nothing does', withProbe?.roots?.display === '21.1°C' && withProbe.roots.status === 'ideal' && withProbe.roots.tone === 'good' && without?.roots === undefined && withProbe?.status === without?.status, `${JSON.stringify(withProbe?.roots)} / ${JSON.stringify(without?.roots)}`);
+    const roots = () => b.collector.snapshot().liveReadings.map((r) => r.soilTemperature ?? '–').join(' ');
+    const before = roots();
+    b.collector.stop();
+    b.clock += MIN; // a restart (a Durable Object unloaded between pushes)
+    await b.boot();
+    check('Q7b the roots in the live strip: each reading with the probe carries its soil temperature, kept across a restart; without the probe none', before === '21.1 21.1 21.1 21.1 21.1 – –' && roots().startsWith(before) /* pull mode reads once more at start */, `${before} → ${roots()}`);
   }
 
   {

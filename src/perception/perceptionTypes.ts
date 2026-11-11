@@ -21,6 +21,7 @@ export interface PerceptionSample {
   lightRaw: number | null; // ADC, for stuck/rail checks
   isDay: boolean;
   lightExpected: boolean;
+  soilTemp?: number; // °C at the roots (DS18B20, ESP32 only); absent without the probe. Live strip only
 }
 
 // The current readings the health model may use. All null when no fresh reading exists:

@@ -68,7 +68,7 @@ interface PerceiveContext {
 const dayStartOf = startOfDay; // the tree's day (its timezone), not the server's
 const finiteOrNull = (n: number) => (Number.isFinite(n) ? n : null);
 // A live-strip entry from a sample (the same fields as records.ts toLive from the reading)
-const liveOf = (s: PerceptionSample): LiveReading => ({ t: s.t, moisture: s.soil, soilRaw: s.soilRaw, light: s.light ?? s.radiation, lightRaw: s.lightRaw, temperature: s.temp, humidity: s.hum });
+const liveOf = (s: PerceptionSample): LiveReading => ({ t: s.t, moisture: s.soil, soilRaw: s.soilRaw, light: s.light ?? s.radiation, lightRaw: s.lightRaw, temperature: s.temp, humidity: s.hum, ...(s.soilTemp !== undefined ? { soilTemperature: s.soilTemp } : {}) });
 
 // The living loop: ESP32 → SQLite → perception → health → episodes → behaviour → expression.
 // Runs only while the local server runs; nothing is collected when the PC is off.

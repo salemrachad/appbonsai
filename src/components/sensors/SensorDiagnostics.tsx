@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Droplet, Sun, Thermometer, Wind } from 'lucide-react';
+import { X, Droplet, Sun, Sprout, Thermometer, Wind } from 'lucide-react';
 import type { MetricGuide, MetricId } from '../../health/healthTypes';
 import { LiveReading } from '../../telemetry/types';
 import { SensorGuide, useGuidePopup } from './SensorGuide';
@@ -102,6 +102,8 @@ export const SensorDiagnostics: React.FC<SensorDiagnosticsProps> = ({ readings, 
   const late = ago !== null && ago * 1000 > pollMs * 2.5;
   const pollLabel = pollMs >= 60000 ? `${pollMs / 60000} min` : `${pollMs / 1000}s`;
   const toUnit = (c: number | null) => (c === null ? null : tempUnit === 'F' ? (c * 9) / 5 + 32 : c);
+  // The root zone (DS18B20): its own column once the probe has reported in the strip's window
+  const hasRoots = readings.some((r) => r.soilTemperature !== undefined);
 
   return (
     <section className="relative z-10 shrink-0 border-t border-[var(--line)] bg-white/50 sans text-[var(--ink)]">
@@ -129,7 +131,7 @@ export const SensorDiagnostics: React.FC<SensorDiagnosticsProps> = ({ readings, 
           </button>
         </div>
 
-        <div className="grid grid-cols-4 divide-x divide-[var(--line)]">
+        <div className={`grid ${hasRoots ? 'grid-cols-5' : 'grid-cols-4'} divide-x divide-[var(--line)]`}>
           <Channel
             name="Soil moisture"
             icon={<Droplet className="w-3 h-3 text-[#356077]" />}
@@ -157,6 +159,18 @@ export const SensorDiagnostics: React.FC<SensorDiagnosticsProps> = ({ readings, 
             guide={guides?.temperature}
             align="right"
           />
+          {hasRoots && (
+            <Channel
+              name="Roots"
+              icon={<Sprout className="w-3 h-3 text-[#8A5A3B]" />}
+              color="#8A5A3B"
+              unit={`°${tempUnit}`}
+              values={readings.map((r) => toUnit(r.soilTemperature ?? null))}
+              sub="soil probe"
+              guide={guides?.temperature}
+              align="right"
+            />
+          )}
           <Channel
             name="Humidity"
             icon={<Wind className="w-3 h-3 text-[#4A6741]" />}

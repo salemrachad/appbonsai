@@ -43,6 +43,7 @@ export interface LiveReading {
   lightRaw: number | null;
   temperature: number | null; // °C
   humidity: number | null;
+  soilTemperature?: number; // °C at the roots (DS18B20, ESP32 only); absent without the probe
 }
 
 export interface HourlyTelemetryPoint {

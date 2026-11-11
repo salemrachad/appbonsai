@@ -86,6 +86,7 @@ export function toSample(t: PlantTelemetry, species: SpeciesProfile, location: P
     lightRaw: t.source === 'esp32_sensor' ? t.lightRaw ?? null : null,
     isDay: sun.isDay,
     lightExpected: sun.lightExpected,
+    ...(t.source === 'esp32_sensor' && t.soilTemperature != null ? { soilTemp: t.soilTemperature } : {}),
   };
 }
 
